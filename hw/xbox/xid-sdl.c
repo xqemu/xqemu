@@ -86,7 +86,8 @@ typedef struct USBXIDState {
 
     const XIDDesc *xid_desc;
 
-    char *device;
+    char *device_name;
+    uint8_t device_index;
     SDL_Joystick *sdl_joystick;
 #ifdef FORCE_FEEDBACK
     SDL_Haptic *sdl_haptic;
@@ -420,7 +421,8 @@ static int usb_xbox_gamepad_initfn(USBDevice *dev)
     s->in_state.bLength = sizeof(s->in_state);
     s->out_state.length = sizeof(s->out_state);
 
-    const char* search_name = s->device;
+    const char* search_name = s->device_name;
+    int search_index = s->device_index;
 
     /* FIXME: Make sure SDL was init before */
     if (SDL_InitSubSystem(SDL_INIT_JOYSTICK)) {
@@ -433,11 +435,15 @@ static int usb_xbox_gamepad_initfn(USBDevice *dev)
     printf("Found %d joystick devices\n", num_joysticks);
 
     int i;
+    int index = 0;
     for(i = 0; i < num_joysticks; i++) {
         const char* name = SDL_JoystickName(i);
         printf("Found '%s'\n", name);
         if (!strcmp(name, search_name)) {
-            break;
+            if (search_index == index) {
+                break;
+            }
+            index++;
         }
     }
 
@@ -448,12 +454,14 @@ static int usb_xbox_gamepad_initfn(USBDevice *dev)
 
     if (i == num_joysticks) {
         /* FIXME: More appropiate qemu error handling */
-        fprintf(stderr, "Couldn't find joystick '%s'\n", search_name);
+        fprintf(stderr, "Couldn't find joystick '%s' [%d]\n",
+                search_name, search_index);
         exit(1);
     }
     SDL_Joystick *sdl_joystick = SDL_JoystickOpen(i);
     if (sdl_joystick == NULL) {
-        fprintf(stderr, "Couldn't open joystick '%s' (Index %d)\n", search_name, i);
+        fprintf(stderr, "Couldn't open joystick '%s' [%d] (SDL-Index %d)\n",
+                search_name, search_index, i);
         exit(1);
     }
 
@@ -515,7 +523,8 @@ static int usb_xbox_gamepad_initfn(USBDevice *dev)
 }
 
 static Property xid_sdl_properties[] = {
-    DEFINE_PROP_STRING("device", USBXIDState, device),
+    DEFINE_PROP_STRING("device", USBXIDState, device_name),
+    DEFINE_PROP_UINT8("index", USBXIDState, device_index, 0),
     DEFINE_PROP_END_OF_LIST(),
 };
 
