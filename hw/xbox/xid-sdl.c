@@ -85,6 +85,7 @@ typedef struct USBXIDState {
 
     const XIDDesc *xid_desc;
 
+    char* device;
     SDL_Joystick* sdl_joystick;
     XIDGamepadReport in_state;
     XIDGamepadOutputReport out_state;
@@ -404,10 +405,13 @@ static int usb_xbox_gamepad_initfn(USBDevice *dev)
     s->in_state.bLength = sizeof(s->in_state);
     s->out_state.length = sizeof(s->out_state);
 
-    const char* search_name = "Microsoft X-Box 360 pad";
+    const char* search_name = s->device;
 
     /* FIXME: Make sure SDL was init before */
-    SDL_InitSubSystem(SDL_INIT_JOYSTICK);
+    if (SDL_InitSubSystem(SDL_INIT_JOYSTICK)) {
+        fprintf(stderr, "SDL failed to initialize joystick subsystem\n");
+        exit(1);
+    }
 
     int num_joysticks = SDL_NumJoysticks();
 
@@ -420,6 +424,11 @@ static int usb_xbox_gamepad_initfn(USBDevice *dev)
         if (!strcmp(name, search_name)) {
             break;
         }
+    }
+
+    if (search_name == NULL) {
+        fprintf(stderr, "No device name specified for xid-sdl\n");
+        exit(1);
     }
 
     if (i == num_joysticks) {
@@ -477,6 +486,11 @@ static int usb_xbox_gamepad_initfn(USBDevice *dev)
     return 0;
 }
 
+static Property xid_sdl_properties[] = {
+    DEFINE_PROP_STRING("device", USBXIDState, device),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
 static void usb_xbox_gamepad_class_initfn(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
@@ -487,6 +501,7 @@ static void usb_xbox_gamepad_class_initfn(ObjectClass *klass, void *data)
     uc->product_desc   = "Microsoft Xbox Controller";
     uc->usb_desc       = &desc_xbox_gamepad;
     //dc->vmsd = &vmstate_usb_kbd;
+    dc->props = xid_sdl_properties;
     set_bit(DEVICE_CATEGORY_INPUT, dc->categories);
 }
 
