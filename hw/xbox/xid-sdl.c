@@ -24,7 +24,8 @@
 
 #include <SDL/SDL.h>
 
-#define UPDATE 1
+//#define FORCE_FEEDBACK
+#define UPDATE
 
 //#define DEBUG_XID
 #ifdef DEBUG_XID
@@ -85,8 +86,12 @@ typedef struct USBXIDState {
 
     const XIDDesc *xid_desc;
 
-    char* device;
-    SDL_Joystick* sdl_joystick;
+    char *device;
+    SDL_Joystick *sdl_joystick;
+#ifdef FORCE_FEEDBACK
+    SDL_Haptic *sdl_haptic;
+    int sdl_haptic_effect_id;
+#endif
     XIDGamepadReport in_state;
     XIDGamepadOutputReport out_state;
 } USBXIDState;
@@ -170,35 +175,37 @@ static const XIDDesc desc_xid_xbox_gamepad = {
 
 #define BUTTON_MASK(button) (1 << ((button) - GAMEPAD_DPAD_UP))
 
-static void xbox_gamepad_keyboard_event(void *opaque, int keycode)
-{
-    USBXIDState *s = opaque;
 
-#if 0
-    bool up = keycode & 0x80;
-    QKeyCode code = index_from_keycode(keycode & 0x7f);
-    if (code >= Q_KEY_CODE_MAX) return;
+static void update_output(USBXIDState *s) {
+#ifdef FORCE_FEEDBACK
+    if (s->sdl_haptic == NULL) { return; }
 
-    int button = gamepad_mapping[code];
+    SDL_HapticLeftRight effect = {
+        .type = SDL_HAPTIC_LEFTRIGHT,
+        .length = SDL_HAPTIC_INFINITY,
+        /* FIXME: Might be left/right inverted */
+        .large_magnitude = s->out_state.right_actuator_strength,
+        .small_magnitude = s->out_state.left_actuator_strength
+    };
 
-    DPRINTF("xid keyboard_event %x - %d %d %d\n", keycode, code, button, up);
+    if (s->sdl_haptic_effect_id == -1) {
+        int effect_id = SDL_HapticNewEffect(s->sdl_haptic,
+                                            (SDL_HapticEffect*)&effect);
+        if (effect_id == -1) {
+            fprintf(stderr, "Failed to upload haptic effect!\n");
+            SDL_HapticClose(s->sdl_haptic);
+            s->sdl_haptic = NULL;
+            return;
+        }
+        SDL_HapticRunEffect(s->sdl_haptic, effect_id, 1);
 
-    uint16_t mask;
-    switch (button) {
-    case GAMEPAD_A ... GAMEPAD_RIGHT_TRIGGER:
-        s->in_state.bAnalogButtons[button] = up?0:0xff;
-        break;
-    case GAMEPAD_DPAD_UP ... GAMEPAD_RIGHT_THUMB:
-        mask = (1 << (button-GAMEPAD_DPAD_UP));
-        s->in_state.wButtons &= ~mask;
-        if (!up) s->in_state.wButtons |= mask;
-        break;
-    default:
-        break;
+        s->sdl_haptic_effect_id = effect_id;
+
+    } else {
+        SDL_HapticUpdateEffect(s->sdl_haptic, s->sdl_haptic_effect_id,
+                               (SDL_HapticEffect*)&effect);
     }
-
 #endif
-
 }
 
 static void update_input(USBXIDState *s)
@@ -318,6 +325,7 @@ static void usb_xid_handle_control(USBDevice *dev, USBPacket *p,
             DPRINTF("Set rumble power to 0x%x, 0x%x\n",
                     s->out_state.left_actuator_strength,
                     s->out_state.right_actuator_strength);
+            update_output(s);
             p->actual_length = s->out_state.length;
         } else {
             assert(false);
@@ -382,7 +390,14 @@ static void usb_xid_handle_data(USBDevice *dev, USBPacket *p)
 
 static void usb_xid_handle_destroy(USBDevice *dev)
 {
+    USBXIDState *s = DO_UPCAST(USBXIDState, dev, dev);
     DPRINTF("xid handle_destroy\n");
+#ifdef FORCE_FEEDBACK
+    if (s->sdl_haptic) {
+        SDL_HapticClose(s->sdl_haptic);
+    }
+#endif
+    SDL_JoystickClose(s->sdl_joystick);
 }
 
 static void usb_xid_class_initfn(ObjectClass *klass, void *data)
@@ -436,7 +451,7 @@ static int usb_xbox_gamepad_initfn(USBDevice *dev)
         fprintf(stderr, "Couldn't find joystick '%s'\n", search_name);
         exit(1);
     }
-    SDL_Joystick* sdl_joystick = SDL_JoystickOpen(i);
+    SDL_Joystick *sdl_joystick = SDL_JoystickOpen(i);
     if (sdl_joystick == NULL) {
         fprintf(stderr, "Couldn't open joystick '%s' (Index %d)\n", search_name, i);
         exit(1);
@@ -450,6 +465,19 @@ static int usb_xbox_gamepad_initfn(USBDevice *dev)
     SDL_JoystickEventState(SDL_ENABLE);
 #endif
     s->sdl_joystick = sdl_joystick;
+
+#ifdef FORCE_FEEDBACK
+    s->sdl_haptic = SDL_HapticOpenFromJoystick(sdl_joystick);
+    if (s->sdl_haptic == NULL) {
+        fprintf(stderr, "Joystick doesn't support haptic\n");
+    } else {
+        if ((SDL_HapticQuery(s->sdl_haptic) & SDL_HAPTIC_LEFTRIGHT) == 0) {
+            fprintf(stderr, "Joystick doesn't support necessary haptic effect\n");
+            SDL_HapticClose(s->sdl_haptic);
+            s->sdl_haptic = NULL;
+        }
+    }
+#endif
 
 
 /* Used to find mappings. Should probably end up in some sort of gui */
