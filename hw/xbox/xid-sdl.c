@@ -421,12 +421,17 @@ static int usb_xbox_gamepad_initfn(USBDevice *dev)
     s->in_state.bLength = sizeof(s->in_state);
     s->out_state.length = sizeof(s->out_state);
 
-    const char* search_name = s->device_name;
-    int search_index = s->device_index;
-
     /* FIXME: Make sure SDL was init before */
     if (SDL_InitSubSystem(SDL_INIT_JOYSTICK)) {
         fprintf(stderr, "SDL failed to initialize joystick subsystem\n");
+        exit(1);
+    }
+
+    const char* search_name = s->device_name;
+    int search_index = s->device_index;
+
+    if (search_name == NULL) {
+        fprintf(stderr, "No device name specified for xid-sdl\n");
         exit(1);
     }
 
@@ -445,11 +450,6 @@ static int usb_xbox_gamepad_initfn(USBDevice *dev)
             }
             index++;
         }
-    }
-
-    if (search_name == NULL) {
-        fprintf(stderr, "No device name specified for xid-sdl\n");
-        exit(1);
     }
 
     if (i == num_joysticks) {
