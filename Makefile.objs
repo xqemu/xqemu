@@ -26,16 +26,6 @@ CONFIG_REALLY_VIRTFS=y
 endif
 
 ######################################################################
-# smartcard
-
-libcacard-y += libcacard/cac.o libcacard/event.o
-libcacard-y += libcacard/vcard.o libcacard/vreader.o
-libcacard-y += libcacard/vcard_emul_nss.o
-libcacard-y += libcacard/vcard_emul_type.o
-libcacard-y += libcacard/card_7816.o
-libcacard-y += libcacard/vcardt.o
-
-######################################################################
 # Target independent part of system emulation. The long term path is to
 # suppress *all* target specific code in case of system emulation, i.e. a
 # single QEMU executable should support all CPUs and machines.
@@ -47,8 +37,6 @@ common-obj-y += readline.o
 common-obj-y += qdev-monitor.o device-hotplug.o
 common-obj-$(CONFIG_WIN32) += os-win32.o
 common-obj-$(CONFIG_POSIX) += os-posix.o
-
-common-obj-$(CONFIG_LINUX) += fsdev/
 
 common-obj-y += migration.o migration-tcp.o
 common-obj-$(CONFIG_RDMA) += migration-rdma.o
@@ -64,7 +52,6 @@ common-obj-y += audio/
 common-obj-y += hw/
 
 common-obj-y += ui/
-common-obj-y += bt-host.o bt-vhci.o
 
 common-obj-y += dma-helpers.o
 common-obj-y += vl.o
@@ -73,10 +60,6 @@ common-obj-y += tpm.o
 common-obj-$(CONFIG_SLIRP) += slirp/
 
 common-obj-y += backends/
-
-common-obj-$(CONFIG_SECCOMP) += qemu-seccomp.o
-
-common-obj-$(CONFIG_SMARTCARD_NSS) += $(libcacard-y)
 
 ######################################################################
 # qapi

@@ -34,7 +34,6 @@
 #include "hw/i386/smbios.h"
 #include "hw/loader.h"
 #include "elf.h"
-#include "multiboot.h"
 #include "hw/timer/mc146818rtc.h"
 #include "hw/timer/i8254.h"
 #include "hw/audio/pcspk.h"
@@ -56,7 +55,6 @@
 #include "hw/cpu/icc_bus.h"
 #include "hw/boards.h"
 #include "hw/pci/pci_host.h"
-#include "acpi-build.h"
 
 /* debug PC/ISA interrupts */
 //#define DEBUG_IRQ
@@ -624,6 +622,7 @@ static unsigned int pc_apic_id_limit(unsigned int max_cpus)
     return x86_cpu_apic_id_from_index(max_cpus - 1) + 1;
 }
 
+#if 0
 static FWCfgState *bochs_bios_init(void)
 {
     FWCfgState *fw_cfg;
@@ -888,6 +887,7 @@ static void load_linux(FWCfgState *fw_cfg,
     option_rom[nb_option_roms].bootindex = 0;
     nb_option_roms++;
 }
+#endif
 
 #define NE2000_NB_MAX 6
 
@@ -1014,6 +1014,7 @@ void pc_cpus_init(const char *cpu_model, DeviceState *icc_bridge)
     }
 }
 
+#if 0
 /* pci-info ROM file. Little endian format */
 typedef struct PcRomPciInfo {
     uint64_t w32_min;
@@ -1063,7 +1064,6 @@ void pc_guest_info_machine_done(Notifier *notifier, void *data)
                                                       PcGuestInfoState,
                                                       machine_done);
     pc_fw_cfg_guest_info(&guest_info_state->info);
-    acpi_setup(&guest_info_state->info);
 }
 
 PcGuestInfo *pc_guest_info_init(ram_addr_t below_4g_mem_size,
@@ -1097,6 +1097,7 @@ PcGuestInfo *pc_guest_info_init(ram_addr_t below_4g_mem_size,
     qemu_add_machine_init_done_notifier(&guest_info_state->machine_done);
     return guest_info;
 }
+#endif
 
 /* setup pci memory address space mapping into system address space */
 void pc_pci_as_mapping_init(Object *owner, MemoryRegion *system_memory,
@@ -1107,6 +1108,7 @@ void pc_pci_as_mapping_init(Object *owner, MemoryRegion *system_memory,
                                         pci_address_space, -1);
 }
 
+#if 0
 void pc_acpi_init(const char *default_dsdt)
 {
     char *filename;
@@ -1206,12 +1208,14 @@ FWCfgState *pc_memory_init(MemoryRegion *system_memory,
     guest_info->fw_cfg = fw_cfg;
     return fw_cfg;
 }
+#endif
 
 qemu_irq *pc_allocate_cpu_irq(void)
 {
     return qemu_allocate_irqs(pic_irq_request, NULL, 1);
 }
 
+#if 0
 DeviceState *pc_vga_init(ISABus *isa_bus, PCIBus *pci_bus)
 {
     DeviceState *dev = NULL;
@@ -1400,3 +1404,5 @@ void ioapic_init_gsi(GSIState *gsi_state, const char *parent_name)
         gsi_state->ioapic_irq[i] = qdev_get_gpio_in(dev, i);
     }
 }
+
+#endif

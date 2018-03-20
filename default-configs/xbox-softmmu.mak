@@ -2,7 +2,7 @@
 
 include pci.mak
 include sound.mak
-include usb.mak
+#include usb.mak
 CONFIG_VGA=y
 CONFIG_VMMOUSE=y
 CONFIG_SERIAL=y
@@ -22,7 +22,7 @@ CONFIG_MC146818RTC=y
 CONFIG_PCI_PIIX=y
 CONFIG_VMPORT=y
 CONFIG_LPC_ICH9=y
-CONFIG_PCI_Q35=y
+# CONFIG_PCI_Q35=y
 CONFIG_APIC=y
 CONFIG_IOAPIC=y
 CONFIG_ICC_BUS=y
