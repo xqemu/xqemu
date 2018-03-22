@@ -1535,191 +1535,6 @@ fi
 libs_softmmu="$libs_softmmu -lz"
 
 ##########################################
-# libseccomp check
-
-if test "$seccomp" != "no" ; then
-    if $pkg_config --atleast-version=2.1.0 libseccomp; then
-        libs_softmmu="$libs_softmmu `$pkg_config --libs libseccomp`"
-        QEMU_CFLAGS="$QEMU_CFLAGS `$pkg_config --cflags libseccomp`"
-	seccomp="yes"
-    else
-	if test "$seccomp" = "yes"; then
-            feature_not_found "libseccomp"
-	fi
-	seccomp="no"
-    fi
-fi
-##########################################
-# xen probe
-
-if test "$xen" != "no" ; then
-  xen_libs="-lxenstore -lxenctrl -lxenguest"
-
-  # First we test whether Xen headers and libraries are available.
-  # If no, we are done and there is no Xen support.
-  # If yes, more tests are run to detect the Xen version.
-
-  # Xen (any)
-  cat > $TMPC <<EOF
-#include <xenctrl.h>
-int main(void) {
-  return 0;
-}
-EOF
-  if ! compile_prog "" "$xen_libs" ; then
-    # Xen not found
-    if test "$xen" = "yes" ; then
-      feature_not_found "xen"
-    fi
-    xen=no
-
-  # Xen unstable
-  elif
-      cat > $TMPC <<EOF &&
-#include <xenctrl.h>
-#include <xenstore.h>
-#include <stdint.h>
-#include <xen/hvm/hvm_info_table.h>
-#if !defined(HVM_MAX_VCPUS)
-# error HVM_MAX_VCPUS not defined
-#endif
-int main(void) {
-  xc_interface *xc;
-  xs_daemon_open();
-  xc = xc_interface_open(0, 0, 0);
-  xc_hvm_set_mem_type(0, 0, HVMMEM_ram_ro, 0, 0);
-  xc_gnttab_open(NULL, 0);
-  xc_domain_add_to_physmap(0, 0, XENMAPSPACE_gmfn, 0, 0);
-  xc_hvm_inject_msi(xc, 0, 0xf0000000, 0x00000000);
-  return 0;
-}
-EOF
-      compile_prog "" "$xen_libs"
-    then
-    xen_ctrl_version=420
-    xen=yes
-
-  elif
-      cat > $TMPC <<EOF &&
-#include <xenctrl.h>
-#include <xs.h>
-#include <stdint.h>
-#include <xen/hvm/hvm_info_table.h>
-#if !defined(HVM_MAX_VCPUS)
-# error HVM_MAX_VCPUS not defined
-#endif
-int main(void) {
-  xs_daemon_open();
-  xc_interface_open(0, 0, 0);
-  xc_hvm_set_mem_type(0, 0, HVMMEM_ram_ro, 0, 0);
-  xc_gnttab_open(NULL, 0);
-  xc_domain_add_to_physmap(0, 0, XENMAPSPACE_gmfn, 0, 0);
-  return 0;
-}
-EOF
-      compile_prog "" "$xen_libs"
-    then
-    xen_ctrl_version=410
-    xen=yes
-
-  # Xen 4.0.0
-  elif
-      cat > $TMPC <<EOF &&
-#include <xenctrl.h>
-#include <xs.h>
-#include <stdint.h>
-#include <xen/hvm/hvm_info_table.h>
-#if !defined(HVM_MAX_VCPUS)
-# error HVM_MAX_VCPUS not defined
-#endif
-int main(void) {
-  struct xen_add_to_physmap xatp = {
-    .domid = 0, .space = XENMAPSPACE_gmfn, .idx = 0, .gpfn = 0,
-  };
-  xs_daemon_open();
-  xc_interface_open();
-  xc_gnttab_open();
-  xc_hvm_set_mem_type(0, 0, HVMMEM_ram_ro, 0, 0);
-  xc_memory_op(0, XENMEM_add_to_physmap, &xatp);
-  return 0;
-}
-EOF
-      compile_prog "" "$xen_libs"
-    then
-    xen_ctrl_version=400
-    xen=yes
-
-  # Xen 3.4.0
-  elif
-      cat > $TMPC <<EOF &&
-#include <xenctrl.h>
-#include <xs.h>
-int main(void) {
-  struct xen_add_to_physmap xatp = {
-    .domid = 0, .space = XENMAPSPACE_gmfn, .idx = 0, .gpfn = 0,
-  };
-  xs_daemon_open();
-  xc_interface_open();
-  xc_gnttab_open();
-  xc_hvm_set_mem_type(0, 0, HVMMEM_ram_ro, 0, 0);
-  xc_memory_op(0, XENMEM_add_to_physmap, &xatp);
-  return 0;
-}
-EOF
-      compile_prog "" "$xen_libs"
-    then
-    xen_ctrl_version=340
-    xen=yes
-
-  # Xen 3.3.0
-  elif
-      cat > $TMPC <<EOF &&
-#include <xenctrl.h>
-#include <xs.h>
-int main(void) {
-  xs_daemon_open();
-  xc_interface_open();
-  xc_gnttab_open();
-  xc_hvm_set_mem_type(0, 0, HVMMEM_ram_ro, 0, 0);
-  return 0;
-}
-EOF
-      compile_prog "" "$xen_libs"
-    then
-    xen_ctrl_version=330
-    xen=yes
-
-  # Xen version unsupported
-  else
-    if test "$xen" = "yes" ; then
-      feature_not_found "xen (unsupported version)"
-    fi
-    xen=no
-  fi
-
-  if test "$xen" = yes; then
-    libs_softmmu="$xen_libs $libs_softmmu"
-  fi
-fi
-
-if test "$xen_pci_passthrough" != "no"; then
-  if test "$xen" = "yes" && test "$linux" = "yes" &&
-    test "$xen_ctrl_version" -ge 340; then
-    xen_pci_passthrough=yes
-  else
-    if test "$xen_pci_passthrough" = "yes"; then
-      if test "$xen_ctrl_version" -lt 340; then
-        error_exit "User requested feature Xen PCI Passthrough" \
-            "This feature does not work with Xen 3.3"
-      fi
-      error_exit "User requested feature Xen PCI Passthrough" \
-          " but this feature requires /sys from Linux"
-    fi
-    xen_pci_passthrough=no
-  fi
-fi
-
-##########################################
 # libtool probe
 
 if ! has $libtool; then
@@ -1885,113 +1700,6 @@ EOF
             "  (3) Also: Install softiwarp if you don't have RDMA hardware"
     fi
     rdma="no"
-  fi
-fi
-
-##########################################
-# VNC TLS/WS detection
-if test "$vnc" = "yes" -a \( "$vnc_tls" != "no" -o "$vnc_ws" != "no" \) ; then
-  cat > $TMPC <<EOF
-#include <gnutls/gnutls.h>
-int main(void) { gnutls_session_t s; gnutls_init(&s, GNUTLS_SERVER); return 0; }
-EOF
-  vnc_tls_cflags=`$pkg_config --cflags gnutls 2> /dev/null`
-  vnc_tls_libs=`$pkg_config --libs gnutls 2> /dev/null`
-  if compile_prog "$vnc_tls_cflags" "$vnc_tls_libs" ; then
-    if test "$vnc_tls" != "no" ; then
-      vnc_tls=yes
-    fi
-    if test "$vnc_ws" != "no" ; then
-      vnc_ws=yes
-    fi
-    libs_softmmu="$vnc_tls_libs $libs_softmmu"
-    QEMU_CFLAGS="$QEMU_CFLAGS $vnc_tls_cflags"
-  else
-    if test "$vnc_tls" = "yes" ; then
-      feature_not_found "vnc-tls"
-    fi
-    if test "$vnc_ws" = "yes" ; then
-      feature_not_found "vnc-ws"
-    fi
-    vnc_tls=no
-    vnc_ws=no
-  fi
-fi
-
-##########################################
-# VNC SASL detection
-if test "$vnc" = "yes" -a "$vnc_sasl" != "no" ; then
-  cat > $TMPC <<EOF
-#include <sasl/sasl.h>
-#include <stdio.h>
-int main(void) { sasl_server_init(NULL, "qemu"); return 0; }
-EOF
-  # Assuming Cyrus-SASL installed in /usr prefix
-  vnc_sasl_cflags=""
-  vnc_sasl_libs="-lsasl2"
-  if compile_prog "$vnc_sasl_cflags" "$vnc_sasl_libs" ; then
-    vnc_sasl=yes
-    libs_softmmu="$vnc_sasl_libs $libs_softmmu"
-    QEMU_CFLAGS="$QEMU_CFLAGS $vnc_sasl_cflags"
-  else
-    if test "$vnc_sasl" = "yes" ; then
-      feature_not_found "vnc-sasl"
-    fi
-    vnc_sasl=no
-  fi
-fi
-
-##########################################
-# VNC JPEG detection
-if test "$vnc" = "yes" -a "$vnc_jpeg" != "no" ; then
-cat > $TMPC <<EOF
-#include <stdio.h>
-#include <jpeglib.h>
-int main(void) { struct jpeg_compress_struct s; jpeg_create_compress(&s); return 0; }
-EOF
-    vnc_jpeg_cflags=""
-    vnc_jpeg_libs="-ljpeg"
-  if compile_prog "$vnc_jpeg_cflags" "$vnc_jpeg_libs" ; then
-    vnc_jpeg=yes
-    libs_softmmu="$vnc_jpeg_libs $libs_softmmu"
-    QEMU_CFLAGS="$QEMU_CFLAGS $vnc_jpeg_cflags"
-  else
-    if test "$vnc_jpeg" = "yes" ; then
-      feature_not_found "vnc-jpeg"
-    fi
-    vnc_jpeg=no
-  fi
-fi
-
-##########################################
-# VNC PNG detection
-if test "$vnc" = "yes" -a "$vnc_png" != "no" ; then
-cat > $TMPC <<EOF
-//#include <stdio.h>
-#include <png.h>
-#include <stddef.h>
-int main(void) {
-    png_structp png_ptr;
-    png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    return png_ptr != 0;
-}
-EOF
-  if $pkg_config libpng --exists; then
-    vnc_png_cflags=`$pkg_config libpng --cflags`
-    vnc_png_libs=`$pkg_config libpng --libs`
-  else
-    vnc_png_cflags=""
-    vnc_png_libs="-lpng"
-  fi
-  if compile_prog "$vnc_png_cflags" "$vnc_png_libs" ; then
-    vnc_png=yes
-    libs_softmmu="$vnc_png_libs $libs_softmmu"
-    QEMU_CFLAGS="$QEMU_CFLAGS $vnc_png_cflags"
-  else
-    if test "$vnc_png" = "yes" ; then
-      feature_not_found "vnc-png"
-    fi
-    vnc_png=no
   fi
 fi
 
@@ -2207,27 +1915,6 @@ for drv in $audio_drv_list; do
 done
 
 ##########################################
-# BrlAPI probe
-
-if test "$brlapi" != "no" ; then
-  brlapi_libs="-lbrlapi"
-  cat > $TMPC << EOF
-#include <brlapi.h>
-#include <stddef.h>
-int main( void ) { return brlapi__openConnection (NULL, NULL, NULL); }
-EOF
-  if compile_prog "" "$brlapi_libs" ; then
-    brlapi=yes
-    libs_softmmu="$brlapi_libs $libs_softmmu"
-  else
-    if test "$brlapi" = "yes" ; then
-      feature_not_found "brlapi"
-    fi
-    brlapi=no
-  fi
-fi
-
-##########################################
 # curses probe
 if test "$curses" != "no" ; then
   if test "$mingw32" = "yes" ; then
@@ -2289,26 +1976,6 @@ EOF
     curl=no
   fi
 fi # test "$curl"
-
-##########################################
-# bluez support probe
-if test "$bluez" != "no" ; then
-  cat > $TMPC << EOF
-#include <bluetooth/bluetooth.h>
-int main(void) { return bt_error(0); }
-EOF
-  bluez_cflags=`$pkg_config --cflags bluez 2> /dev/null`
-  bluez_libs=`$pkg_config --libs bluez 2> /dev/null`
-  if compile_prog "$bluez_cflags" "$bluez_libs" ; then
-    bluez=yes
-    libs_softmmu="$bluez_libs $libs_softmmu"
-  else
-    if test "$bluez" = "yes" ; then
-      feature_not_found "bluez"
-    fi
-    bluez="no"
-  fi
-fi
 
 ##########################################
 # glib support probe
@@ -3121,65 +2788,6 @@ if test "$darwin" != "yes" -a "$mingw32" != "yes" -a "$solaris" != yes -a \
     libs_softmmu="-lutil $libs_softmmu"
 fi
 
-##########################################
-# spice probe
-if test "$spice" != "no" ; then
-  cat > $TMPC << EOF
-#include <spice.h>
-int main(void) { spice_server_new(); return 0; }
-EOF
-  spice_cflags=$($pkg_config --cflags spice-protocol spice-server 2>/dev/null)
-  spice_libs=$($pkg_config --libs spice-protocol spice-server 2>/dev/null)
-  if $pkg_config --atleast-version=0.12.0 spice-server && \
-     $pkg_config --atleast-version=0.12.3 spice-protocol && \
-     compile_prog "$spice_cflags" "$spice_libs" ; then
-    spice="yes"
-    libs_softmmu="$libs_softmmu $spice_libs"
-    QEMU_CFLAGS="$QEMU_CFLAGS $spice_cflags"
-    spice_protocol_version=$($pkg_config --modversion spice-protocol)
-    spice_server_version=$($pkg_config --modversion spice-server)
-  else
-    if test "$spice" = "yes" ; then
-      feature_not_found "spice"
-    fi
-    spice="no"
-  fi
-fi
-
-# check for libcacard for smartcard support
-smartcard_cflags=""
-# TODO - what's the minimal nss version we support?
-if test "$smartcard_nss" != "no"; then
-  cat > $TMPC << EOF
-#include <pk11pub.h>
-int main(void) { PK11_FreeSlot(0); return 0; }
-EOF
-    smartcard_includes="-I\$(SRC_PATH)/libcacard"
-    libcacard_libs="$($pkg_config --libs nss 2>/dev/null) $glib_libs"
-    libcacard_cflags="$($pkg_config --cflags nss 2>/dev/null) $glib_cflags"
-    test_cflags="$libcacard_cflags"
-    # The header files in nss < 3.13.3 have a bug which causes them to
-    # emit a warning. If we're going to compile QEMU with -Werror, then
-    # test that the headers don't have this bug. Otherwise we would pass
-    # the configure test but fail to compile QEMU later.
-    if test "$werror" = "yes"; then
-        test_cflags="-Werror $test_cflags"
-    fi
-    if test -n "$libtool" &&
-       $pkg_config --atleast-version=3.12.8 nss && \
-      compile_prog "$test_cflags" "$libcacard_libs"; then
-        smartcard_nss="yes"
-        QEMU_CFLAGS="$QEMU_CFLAGS $libcacard_cflags"
-        QEMU_INCLUDES="$QEMU_INCLUDES $smartcard_includes"
-        libs_softmmu="$libcacard_libs $libs_softmmu"
-    else
-        if test "$smartcard_nss" = "yes"; then
-            feature_not_found "nss"
-        fi
-        smartcard_nss="no"
-    fi
-fi
-
 # check for libusb
 if test "$libusb" != "no" ; then
     if $pkg_config --atleast-version=1.0.13 libusb-1.0; then
@@ -3634,19 +3242,6 @@ if test "$want_tools" = "yes" ; then
     tools="qemu-nbd\$(EXESUF) $tools"
   fi
 fi
-if test "$softmmu" = yes ; then
-  if test "$virtfs" != no ; then
-    if test "$cap" = yes && test "$linux" = yes && test "$attr" = yes ; then
-      virtfs=yes
-      tools="$tools fsdev/virtfs-proxy-helper\$(EXESUF)"
-    else
-      if test "$virtfs" = yes; then
-        error_exit "VirtFS is supported only on Linux and requires libcap-devel and libattr-devel"
-      fi
-      virtfs=no
-    fi
-  fi
-fi
 if [ "$guest_agent" != "no" ]; then
   if [ "$linux" = "yes" -o "$bsd" = "yes" -o "$solaris" = "yes" -o "$mingw32" = "yes" ] ; then
       tools="qemu-ga\$(EXESUF) $tools"
@@ -3939,25 +3534,6 @@ if test "$audio_win_int" = "yes" ; then
 fi
 echo "CONFIG_BDRV_RW_WHITELIST=$block_drv_rw_whitelist" >> $config_host_mak
 echo "CONFIG_BDRV_RO_WHITELIST=$block_drv_ro_whitelist" >> $config_host_mak
-if test "$vnc" = "yes" ; then
-  echo "CONFIG_VNC=y" >> $config_host_mak
-fi
-if test "$vnc_tls" = "yes" ; then
-  echo "CONFIG_VNC_TLS=y" >> $config_host_mak
-fi
-if test "$vnc_sasl" = "yes" ; then
-  echo "CONFIG_VNC_SASL=y" >> $config_host_mak
-fi
-if test "$vnc_jpeg" = "yes" ; then
-  echo "CONFIG_VNC_JPEG=y" >> $config_host_mak
-fi
-if test "$vnc_png" = "yes" ; then
-  echo "CONFIG_VNC_PNG=y" >> $config_host_mak
-fi
-if test "$vnc_ws" = "yes" ; then
-  echo "CONFIG_VNC_WS=y" >> $config_host_mak
-  echo "VNC_WS_CFLAGS=$vnc_ws_cflags" >> $config_host_mak
-fi
 if test "$fnmatch" = "yes" ; then
   echo "CONFIG_FNMATCH=y" >> $config_host_mak
 fi
@@ -4061,10 +3637,6 @@ if test "$gtk" = "yes" ; then
   echo "CONFIG_GTK=y" >> $config_host_mak
   echo "GTK_CFLAGS=$gtk_cflags" >> $config_host_mak
   echo "VTE_CFLAGS=$vte_cflags" >> $config_host_mak
-fi
-if test "$xen" = "yes" ; then
-  echo "CONFIG_XEN_BACKEND=y" >> $config_host_mak
-  echo "CONFIG_XEN_CTRL_INTERFACE_VERSION=$xen_ctrl_version" >> $config_host_mak
 fi
 if test "$linux_aio" = "yes" ; then
   echo "CONFIG_LINUX_AIO=y" >> $config_host_mak
@@ -4546,17 +4118,6 @@ if [ "$TARGET_ABI_DIR" = "" ]; then
 fi
 echo "TARGET_ABI_DIR=$TARGET_ABI_DIR" >> $config_target_mak
 case "$target_name" in
-  i386|x86_64)
-    if test "$xen" = "yes" -a "$target_softmmu" = "yes" ; then
-      echo "CONFIG_XEN=y" >> $config_target_mak
-      if test "$xen_pci_passthrough" = yes; then
-        echo "CONFIG_XEN_PCI_PASSTHROUGH=y" >> "$config_target_mak"
-      fi
-    fi
-    ;;
-  *)
-esac
-case "$target_name" in
   arm|xbox|i386|x86_64|ppcemb|ppc|ppc64|s390x)
     # Make sure the target and host cpus are compatible
     if test "$kvm" = "yes" -a "$target_softmmu" = "yes" -a \
@@ -4734,9 +4295,6 @@ fi
 
 # build tree in object directory in case the source is not in the current directory
 DIRS="tests tests/tcg tests/tcg/cris tests/tcg/lm32 tests/libqos tests/qapi-schema tests/tcg/xtensa tests/qemu-iotests"
-DIRS="$DIRS fsdev"
-DIRS="$DIRS pc-bios/optionrom pc-bios/spapr-rtas pc-bios/s390-ccw"
-DIRS="$DIRS roms/seabios roms/vgabios"
 DIRS="$DIRS qapi-generated"
 FILES="Makefile tests/tcg/Makefile qdict-test-data.txt"
 FILES="$FILES tests/tcg/cris/Makefile tests/tcg/cris/.gdbinit"
@@ -4763,21 +4321,3 @@ for f in $FILES ; do
         symlink "$source_path/$f" "$f"
     fi
 done
-
-# temporary config to build submodules
-for rom in seabios vgabios ; do
-    config_mak=roms/$rom/config.mak
-    echo "# Automatically generated by configure - do not modify" > $config_mak
-    echo "SRC_PATH=$source_path/roms/$rom" >> $config_mak
-    echo "AS=$as" >> $config_mak
-    echo "CC=$cc" >> $config_mak
-    echo "BCC=bcc" >> $config_mak
-    echo "CPP=$cpp" >> $config_mak
-    echo "OBJCOPY=objcopy" >> $config_mak
-    echo "IASL=$iasl" >> $config_mak
-    echo "LD=$ld" >> $config_mak
-done
-
-if test "$docs" = "yes" ; then
-  mkdir -p QMP
-fi

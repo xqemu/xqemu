@@ -1,2 +1,1 @@
-obj-$(CONFIG_ACPI) += core.o piix4.o ich9.o
-
+obj-$(CONFIG_ACPI) += core.o

@@ -18,7 +18,7 @@
 #include "qmp-commands.h"
 #include "sysemu/char.h"
 #include "ui/qemu-spice.h"
-#include "ui/vnc.h"
+// #include "ui/vnc.h"
 #include "sysemu/kvm.h"
 #include "sysemu/arch_init.h"
 #include "hw/qdev.h"
@@ -306,10 +306,10 @@ void qmp_set_password(const char *protocol, const char *password,
         }
         /* Note that setting an empty password will not disable login through
          * this interface. */
-        rc = vnc_display_password(NULL, password);
-        if (rc < 0) {
+        // rc = vnc_display_password(NULL, password);
+        // if (rc < 0) {
             error_set(errp, QERR_SET_PASSWD_FAILED);
-        }
+        // }
         return;
     }
 
@@ -346,10 +346,10 @@ void qmp_expire_password(const char *protocol, const char *whenstr,
     }
 
     if (strcmp(protocol, "vnc") == 0) {
-        rc = vnc_display_pw_expire(NULL, when);
-        if (rc != 0) {
+        // rc = vnc_display_pw_expire(NULL, when);
+        // if (rc != 0) {
             error_set(errp, QERR_SET_PASSWD_FAILED);
-        }
+        // }
         return;
     }
 

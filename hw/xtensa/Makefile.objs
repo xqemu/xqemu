@@ -1,3 +1,0 @@
-obj-y += pic_cpu.o
-obj-y += xtensa_sim.o
-obj-y += xtensa_lx60.o

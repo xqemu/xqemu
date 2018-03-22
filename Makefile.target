@@ -83,36 +83,11 @@ obj-$(call notempty,$(TARGET_XML_FILES)) += gdbstub-xml.o
 obj-$(call lnot,$(CONFIG_KVM)) += kvm-stub.o
 
 #########################################################
-# Linux user emulator target
-
-ifdef CONFIG_LINUX_USER
-
-QEMU_CFLAGS+=-I$(SRC_PATH)/linux-user/$(TARGET_ABI_DIR) -I$(SRC_PATH)/linux-user
-
-obj-y += linux-user/
-obj-y += gdbstub.o thunk.o user-exec.o
-
-endif #CONFIG_LINUX_USER
-
-#########################################################
-# BSD user emulator target
-
-ifdef CONFIG_BSD_USER
-
-QEMU_CFLAGS+=-I$(SRC_PATH)/bsd-user -I$(SRC_PATH)/bsd-user/$(TARGET_ABI_DIR)
-
-obj-y += bsd-user/
-obj-y += gdbstub.o user-exec.o
-
-endif #CONFIG_BSD_USER
-
-#########################################################
 # System emulator target
 ifdef CONFIG_SOFTMMU
 obj-y += arch_init.o cpus.o monitor.o gdbstub.o balloon.o ioport.o
 obj-y += qtest.o
 obj-y += hw/
-obj-$(CONFIG_FDT) += device_tree.o
 obj-$(CONFIG_KVM) += kvm-all.o
 obj-y += memory.o savevm.o cputlb.o
 obj-y += memory_mapping.o
@@ -120,7 +95,6 @@ obj-y += dump.o
 LIBS+=$(libs_softmmu)
 
 # xen support
-obj-$(CONFIG_XEN) += xen-all.o xen-mapcache.o
 obj-$(call lnot,$(CONFIG_XEN)) += xen-stub.o
 
 # Hardware support
