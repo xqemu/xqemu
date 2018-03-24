@@ -323,6 +323,8 @@ static void xbox_init(MachineState *machine)
     I2CBus *smbus;
     PCIBus *agp_bus;
 
+    printf("XBOX Starting :)\n");
+
     pc_cpus_init(pcms);
 
     if (kvm_enabled() && pcmc->kvmclock_enabled) {
@@ -354,6 +356,7 @@ static void xbox_init(MachineState *machine)
     //                       pcms->below_4g_mem_size,
     //                       pcms->above_4g_mem_size,
     //                       pci_memory, ram_memory);
+        pci_bus = NULL;
     xbox_pci_init(pcms->gsi,
                   get_system_memory(), get_system_io(),
                   pci_memory, ram_memory,
@@ -384,7 +387,7 @@ static void xbox_init(MachineState *machine)
 
     pc_register_ferr_irq(pcms->gsi[13]);
 
-    pc_vga_init(isa_bus, pcmc->pci_enabled ? pci_bus : NULL);
+    // pc_vga_init(isa_bus, pcmc->pci_enabled ? pci_bus : NULL);
 
     assert(pcms->vmport != ON_OFF_AUTO__MAX);
     if (pcms->vmport == ON_OFF_AUTO_AUTO) {
@@ -401,13 +404,19 @@ static void xbox_init(MachineState *machine)
     ide_drive_get(hd, ARRAY_SIZE(hd));
     // if (pcmc->pci_enabled) {
         PCIDevice *dev;
+    printf("%s: %d\n", __func__, __LINE__);
         // if (xen_enabled()) {
             // dev = pci_piix3_xen_ide_init(pci_bus, hd, piix3_devfn + 1);
         // } else {
-            dev = pci_piix3_ide_init(pci_bus, hd, piix3_devfn + 1);
+    printf("pci bus is %p\n", pci_bus);
+            dev = pci_piix3_ide_init(pci_bus, hd, PCI_DEVFN(9, 0));
+    printf("%s: %d\n", __func__, __LINE__);
         // }
         idebus[0] = qdev_get_child_bus(&dev->qdev, "ide.0");
         idebus[1] = qdev_get_child_bus(&dev->qdev, "ide.1");
+
+
+    printf("%s: %d\n", __func__, __LINE__);
     // } else {
     //     for(i = 0; i < MAX_IDE_BUS; i++) {
     //         ISADevice *dev;
@@ -489,6 +498,7 @@ static void xbox_init(MachineState *machine)
     qdev_init_nofail(&usb0->qdev);
 
     /* Ethernet! */
+#if 0
     PCIDevice *nvnet = pci_create(pci_bus, PCI_DEVFN(4, 0), "nvnet");
 
     for (i = 0; i < nb_nics; i++) {
@@ -497,6 +507,7 @@ static void xbox_init(MachineState *machine)
         qdev_set_nic_properties(&nvnet->qdev, nd);
         qdev_init_nofail(&nvnet->qdev);
     }
+#endif
 
     /* APU! */
     // PCIDevice *apu = 
@@ -508,6 +519,8 @@ static void xbox_init(MachineState *machine)
 
     /* GPU! */
     // nv2a_init(agp_bus, PCI_DEVFN(0, 0), ram_memory);
+
+    printf("%s: %d\n", __func__, __LINE__);
 }
 
 
