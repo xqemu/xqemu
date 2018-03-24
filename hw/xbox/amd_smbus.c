@@ -22,6 +22,7 @@
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "qemu/osdep.h"
 #include "hw/hw.h"
 #include "hw/i386/pc.h"
 #include "hw/xbox/amd_smbus.h"
@@ -87,7 +88,7 @@ static void amd756_smb_transaction(AMD756SMBus *s)
     uint8_t read = s->smb_addr & 0x01;
     uint8_t cmd = s->smb_cmd;
     uint8_t addr = (s->smb_addr >> 1) & 0x7f;
-    i2c_bus *bus = s->smbus;
+    I2CBus *bus = s->smbus;
     
     SMBUS_DPRINTF("SMBus trans addr=0x%02x prot=0x%02x\n", addr, prot);
     switch(prot) {
