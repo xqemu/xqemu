@@ -17,11 +17,14 @@
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "qemu/osdep.h"
+#include "qemu/option.h"
 #include "hw/hw.h"
 #include "hw/i2c/i2c.h"
 #include "hw/i2c/smbus.h"
 #include "qemu/config-file.h"
 #include "sysemu/sysemu.h"
+#include "smbus.h"
 
 /*
  * Hardware is a PIC16LC
@@ -113,9 +116,9 @@ static void smc_write_data(SMBusDevice *dev, uint8_t cmd, uint8_t *buf, int len)
 
     case SMC_REG_POWER:
         if (buf[0] & (SMC_REG_POWER_RESET | SMC_REG_POWER_CYCLE))
-            qemu_system_reset_request();
+            qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
         else if (buf[0] & SMC_REG_POWER_SHUTDOWN)
-            qemu_system_shutdown_request();
+            qemu_system_shutdown_request(SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
         break;
 
     case SMC_REG_SCRATCH:
@@ -218,7 +221,7 @@ static void smbus_smc_register_devices(void)
 type_init(smbus_smc_register_devices)
 
 
-void smbus_xbox_smc_init(i2c_bus *smbus, int address)
+void smbus_xbox_smc_init(I2CBus *smbus, int address)
 {
     DeviceState *smc;
     smc = qdev_create((BusState *)smbus, "smbus-xbox-smc");

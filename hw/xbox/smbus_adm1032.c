@@ -22,9 +22,11 @@
  * THE SOFTWARE.
  */
 
+#include "qemu/osdep.h"
 #include "hw/hw.h"
 #include "hw/i2c/i2c.h"
 #include "hw/i2c/smbus.h"
+#include "smbus.h"
 
 #define DEBUG
 
@@ -77,7 +79,7 @@ static void smbus_adm1032_register_devices(void)
 type_init(smbus_adm1032_register_devices)
 
 
-void smbus_adm1032_init(i2c_bus *smbus, int address)
+void smbus_adm1032_init(I2CBus *smbus, int address)
 {
     DeviceState *tm;
     tm = qdev_create((BusState *)smbus, "smbus-adm1032");
