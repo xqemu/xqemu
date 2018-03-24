@@ -296,6 +296,10 @@ static const TypeInfo xbox_smbus_info = {
     .parent = TYPE_PCI_DEVICE,
     .instance_size = sizeof(XBOX_SMBState),
     .class_init = xbox_smbus_class_init,
+    .interfaces = (InterfaceInfo[]) {
+        { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+        { },
+    },
 };
 
 
@@ -317,7 +321,7 @@ static void xbox_lpc_realize(PCIDevice *dev, Error **errp)
      * can't load it through loader.c because it overlaps with the bios...
      * We really should just commandeer the entire top 16Mb.
      */
-    QemuOpts *machine_opts = qemu_opts_find(qemu_find_opts("machine"), NULL);
+    QemuOpts *machine_opts = qemu_get_machine_opts();
     if (machine_opts) {
         const char *bootrom_file = qemu_opt_get(machine_opts, "bootrom");
 
@@ -449,6 +453,10 @@ static const TypeInfo xbox_lpc_info = {
     .parent = TYPE_PCI_DEVICE,
     .instance_size = sizeof(XBOX_LPCState),
     .class_init = xbox_lpc_class_init,
+    .interfaces = (InterfaceInfo[]) {
+        { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+        { },
+    },
 };
 
 
@@ -483,6 +491,10 @@ static const TypeInfo xbox_agp_info = {
     .parent        = TYPE_PCI_BRIDGE,
     .instance_size = sizeof(PCIBridge),
     .class_init    = xbox_agp_class_init,
+    .interfaces = (InterfaceInfo[]) {
+        { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+        { },
+    },
 };
 
 
@@ -517,6 +529,10 @@ static const TypeInfo xbox_pci_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(XBOX_PCIState),
     .class_init    = xbox_pci_class_init,
+    .interfaces = (InterfaceInfo[]) {
+        { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+        { },
+    },
 };
 
 
