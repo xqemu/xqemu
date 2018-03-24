@@ -16,6 +16,24 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
+
+#include "qemu/osdep.h"
+#include "hw/hw.h"
+#include "hw/i386/pc.h"
+#include "hw/pci/pci.h"
+#include "hw/pci/pci_host.h"
+#include "hw/isa/isa.h"
+#include "hw/sysbus.h"
+#include "qapi/error.h"
+#include "qemu/range.h"
+#include "hw/xen/xen.h"
+#include "hw/pci-host/pam.h"
+#include "sysemu/sysemu.h"
+#include "hw/i386/ioapic.h"
+#include "qapi/visitor.h"
+#include "qemu/error-report.h"
+
+
 #include "hw/hw.h"
 #include "qemu/range.h"
 #include "hw/isa/isa.h"
@@ -28,6 +46,8 @@
 #include "hw/pci/pci_bridge.h"
 #include "exec/address-spaces.h"
 #include "qemu-common.h"
+
+#include "qemu/option.h"
 
 #include "hw/xbox/acpi_xbox.h"
 #include "hw/xbox/amd_smbus.h"
@@ -141,7 +161,7 @@ void xbox_pci_init(qemu_irq *pic,
                    MemoryRegion *ram_memory,
                    PCIBus **out_host_bus,
                    ISABus **out_isa_bus,
-                   i2c_bus **out_smbus,
+                   I2CBus **out_smbus,
                    PCIBus **out_agp_bus)
 {
     DeviceState *host;
@@ -154,7 +174,7 @@ void xbox_pci_init(qemu_irq *pic,
     host = qdev_create(NULL, "xbox-pcihost");
     host_state = PCI_HOST_BRIDGE(host);
 
-    host_bus = pci_bus_new(host, NULL,
+    host_bus = pci_root_bus_new(host, NULL,
                            pci_memory, address_space_io, 0, TYPE_PCI_BUS);
     host_state->bus = host_bus;
     qdev_init_nofail(host);
@@ -245,7 +265,7 @@ static const MemoryRegionOps xbox_smbus_ops = {
     },
 };
 
-static int xbox_smbus_initfn(PCIDevice *dev)
+static void xbox_smbus_realize(PCIDevice *dev, Error **errp)
 {
     XBOX_SMBState *s = XBOX_SMBUS_DEVICE(dev);
 
@@ -253,8 +273,6 @@ static int xbox_smbus_initfn(PCIDevice *dev)
                           s, "xbox-smbus-bar", 32);
     pci_register_bar(dev, XBOX_SMBUS_BASE_BAR, PCI_BASE_ADDRESS_SPACE_IO,
                      &s->smb_bar);
-
-    return 0;
 }
 
 
@@ -263,14 +281,14 @@ static void xbox_smbus_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
-    k->init         = xbox_smbus_initfn;
+    k->realize      = xbox_smbus_realize;
     k->vendor_id    = PCI_VENDOR_ID_NVIDIA;
     k->device_id    = PCI_DEVICE_ID_NVIDIA_NFORCE_SMBUS;
     k->revision     = 161;
     k->class_id     = PCI_CLASS_SERIAL_SMBUS;
 
     dc->desc        = "nForce PCI System Management";
-    dc->no_user     = 1;
+    dc->user_creatable = false;
 }
 
 static const TypeInfo xbox_smbus_info = {
@@ -282,14 +300,18 @@ static const TypeInfo xbox_smbus_info = {
 
 
 
-static int xbox_lpc_initfn(PCIDevice *d)
+static void xbox_lpc_realize(PCIDevice *dev, Error **errp)
 {
-    XBOX_LPCState *s = XBOX_LPC_DEVICE(d);
+    XBOX_LPCState *d = XBOX_LPC_DEVICE(dev);
     ISABus *isa_bus;
+    Error *local_err = NULL;
 
-    isa_bus = isa_bus_new(&d->qdev, get_system_io());
-    s->isa_bus = isa_bus;
-
+    isa_bus = isa_bus_new(DEVICE(d), get_system_memory(),
+                          pci_address_space_io(dev), errp);
+    if (isa_bus == NULL) {
+        return;
+    }
+    d->isa_bus = isa_bus;
 
     /* southbridge chip contains and controls bootrom image.
      * can't load it through loader.c because it overlaps with the bios...
@@ -304,24 +326,22 @@ static int xbox_lpc_initfn(PCIDevice *d)
             char *filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, bootrom_file);
             assert(filename);
 
-            s->bootrom_size = get_image_size(filename);
-            if (s->bootrom_size != 512) {
+            d->bootrom_size = get_image_size(filename);
+            if (d->bootrom_size != 512) {
                 fprintf(stderr, "MCPX bootrom should be 512 bytes, got %d\n",
-                        s->bootrom_size);
-                return -1;
+                        d->bootrom_size);
+                error_propagate(errp, local_err);
+                return;
             }
 
             fd = open(filename, O_RDONLY | O_BINARY);
             assert(fd >= 0);
-            rc = read(fd, s->bootrom_data, s->bootrom_size);
-            assert(rc == s->bootrom_size);
+            rc = read(fd, d->bootrom_data, d->bootrom_size);
+            assert(rc == d->bootrom_size);
 
             close(fd);
         }
     }
-
-
-    return 0;
 }
 
 
@@ -348,7 +368,8 @@ static void xbox_lpc_reset(DeviceState *dev)
          */
 
         hwaddr bootrom_addr = (uint32_t)(-s->bootrom_size);
-        cpu_physical_memory_write_rom(bootrom_addr,
+        cpu_physical_memory_write_rom(&address_space_memory,
+                                      bootrom_addr,
                                       s->bootrom_data,
                                       s->bootrom_size);
      }
@@ -409,8 +430,8 @@ static void xbox_lpc_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
-    k->no_hotplug   = 1;
-    k->init         = xbox_lpc_initfn;
+    dc->hotpluggable = false;
+    k->realize      = xbox_lpc_realize;
     //k->config_write = xbox_lpc_config_write;
     k->vendor_id    = PCI_VENDOR_ID_NVIDIA;
     k->device_id    = PCI_DEVICE_ID_NVIDIA_NFORCE_LPC;
@@ -418,7 +439,7 @@ static void xbox_lpc_class_init(ObjectClass *klass, void *data)
     k->class_id     = PCI_CLASS_BRIDGE_ISA;
 
     dc->desc        = "nForce LPC Bridge";
-    dc->no_user     = 1;
+    dc->user_creatable = false;
     dc->reset       = xbox_lpc_reset;
     //dc->vmsd        = &vmstate_xbox_lpc;
 }
@@ -433,11 +454,11 @@ static const TypeInfo xbox_lpc_info = {
 
 
 
-static int xbox_agp_initfn(PCIDevice *d)
+static void xbox_agp_realize(PCIDevice *d, Error **errp)
 {
     pci_set_word(d->config + PCI_PREF_MEMORY_BASE, PCI_PREF_RANGE_TYPE_32);
     pci_set_word(d->config + PCI_PREF_MEMORY_LIMIT, PCI_PREF_RANGE_TYPE_32);
-    return pci_bridge_initfn(d, TYPE_PCI_BUS);
+    pci_bridge_initfn(d, TYPE_PCI_BUS);
 }
 
 static void xbox_agp_class_init(ObjectClass *klass, void *data)
@@ -445,7 +466,7 @@ static void xbox_agp_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
-    k->init         = xbox_agp_initfn;
+    k->realize      = xbox_agp_realize;
     k->exit         = pci_bridge_exitfn;
     k->config_write = pci_bridge_write_config;
     k->is_bridge    = 1;
@@ -469,11 +490,9 @@ static const TypeInfo xbox_agp_info = {
 
 
 
-static int xbox_pci_initfn(PCIDevice *d)
+static void xbox_pci_realize(PCIDevice *d, Error **errp)
 {
     //XBOX_PCIState *s = DO_UPCAST(XBOX_PCIState, dev, dev);
-
-    return 0;
 }
 
 static void xbox_pci_class_init(ObjectClass *klass, void *data)
@@ -481,8 +500,8 @@ static void xbox_pci_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
-    k->no_hotplug = 1;
-    k->init = xbox_pci_initfn;
+    dc->hotpluggable = false;
+    k->realize = xbox_pci_realize;
     //k->config_write = xbox_pci_write_config;
     k->vendor_id = PCI_VENDOR_ID_NVIDIA;
     k->device_id = PCI_DEVICE_ID_NVIDIA_XBOX_PCHB;
@@ -490,7 +509,7 @@ static void xbox_pci_class_init(ObjectClass *klass, void *data)
     k->class_id = PCI_CLASS_BRIDGE_HOST;
 
     dc->desc = "Xbox PCI Host";
-    dc->no_user = 1;
+    dc->user_creatable = false;
 }
 
 static const TypeInfo xbox_pci_info = {
@@ -531,7 +550,7 @@ static void xbox_pcihost_class_init(ObjectClass *klass, void *data)
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = xbox_pcihost_initfn;
-    dc->no_user = 1;
+    dc->user_creatable = false;
 }
 
 static const TypeInfo xbox_pcihost_info = {
