@@ -77,7 +77,7 @@ void xbox_pci_init(qemu_irq *pic,
                    MemoryRegion *ram_memory,
                    PCIBus **out_host_bus,
                    ISABus **out_isa_bus,
-                   i2c_bus **out_smbus,
+                   I2CBus **out_smbus,
                    PCIBus **out_agp_bus);
 
 #endif
