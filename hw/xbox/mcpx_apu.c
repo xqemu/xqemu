@@ -16,11 +16,16 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
+
+#include "qemu/osdep.h"
 #include "hw/hw.h"
 #include "hw/i386/pc.h"
 #include "hw/pci/pci.h"
+#include "cpu.h"
 
+#ifdef DSP_READY
 #include "hw/xbox/dsp/dsp.h"
+#endif
 
 #define NV_PAPU_ISTS                                     0x00001000
 #   define NV_PAPU_ISTS_GINTSTS                               (1 << 0)
@@ -152,14 +157,18 @@ typedef struct MCPXAPUState {
     /* Global Processor */
     struct {
         MemoryRegion mmio;
+#ifdef DSP_READY
         DSPState *dsp;
+#endif
         uint32_t regs[0x10000];
     } gp;
 
     /* Encode Processor */
     struct {
         MemoryRegion mmio;
+#ifdef DSP_READY
         DSPState *dsp;
+#endif
         uint32_t regs[0x10000];
     } ep;
 
@@ -179,7 +188,7 @@ static uint32_t voice_get_mask(MCPXAPUState *d,
     assert(voice_handle < 0xFFFF);
     hwaddr voice = d->regs[NV_PAPU_VPVADDR]
                     + voice_handle * NV_PAVS_SIZE;
-    return (ldl_le_phys(voice + offset) & mask) >> (ffs(mask)-1);
+    return (ldl_le_phys(&address_space_memory, voice + offset) & mask) >> (ffs(mask)-1);
 }
 static void voice_set_mask(MCPXAPUState *d,
                            unsigned int voice_handle,
@@ -190,8 +199,8 @@ static void voice_set_mask(MCPXAPUState *d,
     assert(voice_handle < 0xFFFF);
     hwaddr voice = d->regs[NV_PAPU_VPVADDR]
                     + voice_handle * NV_PAVS_SIZE;
-    uint32_t v = ldl_le_phys(voice + offset) & ~mask;
-    stl_le_phys(voice + offset,
+    uint32_t v = ldl_le_phys(&address_space_memory, voice + offset) & ~mask;
+    stl_le_phys(&address_space_memory, voice + offset,
                 v | ((val << (ffs(mask)-1)) & mask));
 }
 
@@ -260,7 +269,7 @@ static void mcpx_apu_write(void *opaque, hwaddr addr,
         /* 'magic write'
          * This value is expected to be written to FEMEMADDR on completion of
          * something to do with notifies. Just do it now :/ */
-        stl_le_phys(d->regs[NV_PAPU_FEMEMADDR], val);
+        stl_le_phys(&address_space_memory, d->regs[NV_PAPU_FEMEMADDR], val);
         d->regs[addr] = val;
         break;
     default:
@@ -408,15 +417,15 @@ static void scratch_rw(hwaddr sge_base, unsigned int max_sge,
     for (i=0; i<len; i++) {
         unsigned int entry = (addr + i) / TARGET_PAGE_SIZE;
         assert(entry < max_sge);
-        uint32_t prd_address = ldl_le_phys(sge_base + entry*4*2);
-        uint32_t prd_control = ldl_le_phys(sge_base + entry*4*2 + 1);
+        uint32_t prd_address = ldl_le_phys(&address_space_memory, sge_base + entry*4*2);
+        uint32_t prd_control = ldl_le_phys(&address_space_memory, sge_base + entry*4*2 + 1);
 
         hwaddr paddr = prd_address + (addr + i) % TARGET_PAGE_SIZE;
 
         if (dir) {
-            stb_phys(paddr, ptr[i]);
+            stb_phys(&address_space_memory, paddr, ptr[i]);
         } else {
-            ptr[i] = ldub_phys(paddr);
+            ptr[i] = ldub_phys(&address_space_memory, paddr);
         }
     }
 }
@@ -435,6 +444,7 @@ static void ep_scratch_rw(void *opaque, uint8_t* ptr, uint32_t addr, size_t len,
                ptr, addr, len, dir);
 }
 
+#ifdef DSP_READY
 static void proc_rst_write(DSPState *dsp, uint32_t oldval, uint32_t val)
 {
     if (!(val & NV_PAPU_GPRST_GPRST) || !(val & NV_PAPU_GPRST_GPDSPRST)) {
@@ -445,6 +455,7 @@ static void proc_rst_write(DSPState *dsp, uint32_t oldval, uint32_t val)
         dsp_bootstrap(dsp);
     }
 }
+#endif
 
 /* Global Processor - programmable DSP */
 static uint64_t gp_read(void *opaque,
@@ -465,7 +476,9 @@ static void gp_write(void *opaque, hwaddr addr,
 
     switch (addr) {
     case NV_PAPU_GPRST:
+#ifdef DSP_READY
         proc_rst_write(d->gp.dsp, d->gp.regs[NV_PAPU_GPRST], val);
+#endif
         d->gp.regs[NV_PAPU_GPRST] = val;
         break;
     default:
@@ -483,9 +496,11 @@ static const MemoryRegionOps gp_ops = {
 static uint64_t ep_read(void *opaque,
                         hwaddr addr, unsigned int size)
 {
+#ifdef DSP_READY
     MCPXAPUState *d = opaque;
 
     uint64_t r = 0;
+
     switch (addr) {
     case NV_PAPU_EPXMEM ... NV_PAPU_EPXMEM + 0xC00*4: {
         uint32_t xaddr = (addr - NV_PAPU_EPXMEM) / 4;
@@ -507,7 +522,9 @@ static uint64_t ep_read(void *opaque,
         break;
     }
     MCPX_DPRINTF("mcpx apu EP: read [0x%llx] -> 0x%llx\n", addr, r);
-    return r;
+#else
+    return 0;
+#endif
 }
 static void ep_write(void *opaque, hwaddr addr,
                      uint64_t val, unsigned int size)
@@ -530,7 +547,9 @@ static void ep_write(void *opaque, hwaddr addr,
         break;
     }
     case NV_PAPU_EPRST:
+#ifdef DSP_READY
         proc_rst_write(d->ep.dsp, d->ep.regs[NV_PAPU_EPRST], val);
+#endif
         d->ep.regs[NV_PAPU_EPRST] = val;
         break;
     default:
@@ -547,6 +566,7 @@ static const MemoryRegionOps ep_ops = {
 /* TODO: this should be on a thread so it waits on the voice lock */
 static void se_frame(void *opaque)
 {
+#ifdef DSP_READY
     MCPXAPUState *d = opaque;
     timer_mod(d->se.frame_timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + 10);
     MCPX_DPRINTF("mcpx frame ping\n");
@@ -588,10 +608,11 @@ static void se_frame(void *opaque)
         // hax
         // dsp_run(d->ep.dsp, 1000);
     }
+#endif
 }
 
 
-static int mcpx_apu_initfn(PCIDevice *dev)
+static void mcpx_apu_realize(PCIDevice *dev, Error **errp)
 {
     MCPXAPUState *d = MCPX_APU_DEVICE(dev);
 
@@ -617,10 +638,10 @@ static int mcpx_apu_initfn(PCIDevice *dev)
 
     d->se.frame_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, se_frame, d);
 
+#ifdef DSP_READY
     d->gp.dsp = dsp_init(d, gp_scratch_rw);
     d->ep.dsp = dsp_init(d, ep_scratch_rw);
-
-    return 0;
+#endif
 }
 
 static void mcpx_apu_class_init(ObjectClass *klass, void *data)
@@ -632,7 +653,7 @@ static void mcpx_apu_class_init(ObjectClass *klass, void *data)
     k->device_id = PCI_DEVICE_ID_NVIDIA_MCPX_APU;
     k->revision = 210;
     k->class_id = PCI_CLASS_MULTIMEDIA_AUDIO;
-    k->init = mcpx_apu_initfn;
+    k->realize = mcpx_apu_realize;
 
     dc->desc = "MCPX Audio Processing Unit";
 }
@@ -642,6 +663,10 @@ static const TypeInfo mcpx_apu_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(MCPXAPUState),
     .class_init    = mcpx_apu_class_init,
+    .interfaces = (InterfaceInfo[]) {
+        { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+        { },
+    },
 };
 
 static void mcpx_apu_register(void)
