@@ -1,0 +1,2 @@
+# obj-y += nv2a.o nv2a_vsh.o nv2a_psh.o nv2a_shaders.o nv2a_debug.o
+# obj-y += swizzle.o g-lru-cache.o
