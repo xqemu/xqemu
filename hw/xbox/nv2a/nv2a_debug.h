@@ -21,7 +21,7 @@
 #ifndef HW_NV2A_DEBUG_H
 #define HW_NV2A_DEBUG_H
 
-// #define DEBUG_NV2A
+#define DEBUG_NV2A
 #ifdef DEBUG_NV2A
 # define NV2A_DPRINTF(format, ...)       printf("nv2a: " format, ## __VA_ARGS__)
 #else
@@ -32,7 +32,7 @@
 #ifdef DEBUG_NV2A_GL
 
 #include <stdbool.h>
-#include "gl/gloffscreen.h"
+#include "gloffscreen.h"
 
 void gl_debug_message(bool cc, const char *fmt, ...);
 void gl_debug_group_begin(const char *fmt, ...);
