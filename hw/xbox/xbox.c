@@ -275,8 +275,6 @@ static void xbox_init(MachineState *machine)
     I2CBus *smbus;
     PCIBus *agp_bus;
 
-    printf("XBOX Starting :)\n");
-
     pc_cpus_init(pcms);
 
     if (kvm_enabled() && pcmc->kvmclock_enabled) {
@@ -349,9 +347,6 @@ static void xbox_init(MachineState *machine)
         // }
         idebus[0] = qdev_get_child_bus(&dev->qdev, "ide.0");
         idebus[1] = qdev_get_child_bus(&dev->qdev, "ide.1");
-
-
-    printf("%s: %d\n", __func__, __LINE__);
     // } else {
     //     for(i = 0; i < MAX_IDE_BUS; i++) {
     //         ISADevice *dev;
@@ -391,38 +386,6 @@ static void xbox_init(MachineState *machine)
     smbus_cx25871_init(smbus, 0x45);
     smbus_adm1032_init(smbus, 0x4c);
 
-#if 0
-    if (pcmc->pci_enabled && machine_usb(machine)) {
-        pci_create_simple(pci_bus, piix3_devfn + 2, "piix3-usb-uhci");
-    }
-
-    if (pcmc->pci_enabled && acpi_enabled) {
-        DeviceState *piix4_pm;
-        I2CBus *smbus;
-
-        smi_irq = qemu_allocate_irq(pc_acpi_smi_interrupt, first_cpu, 0);
-        /* TODO: Populate SPD eeprom data.  */
-        smbus = piix4_pm_init(pci_bus, piix3_devfn + 3, 0xb100,
-                              pcms->gsi[9], smi_irq,
-                              pc_machine_is_smm_enabled(pcms),
-                              &piix4_pm);
-        smbus_eeprom_init(smbus, 8, NULL, 0);
-
-        object_property_add_link(OBJECT(machine), PC_MACHINE_ACPI_DEVICE_PROP,
-                                 TYPE_HOTPLUG_HANDLER,
-                                 (Object **)&pcms->acpi_dev,
-                                 object_property_allow_set_link,
-                                 OBJ_PROP_LINK_UNREF_ON_RELEASE, &error_abort);
-        object_property_set_link(OBJECT(machine), OBJECT(piix4_pm),
-                                 PC_MACHINE_ACPI_DEVICE_PROP, &error_abort);
-    }
-
-    if (pcms->acpi_nvdimm_state.is_enabled) {
-        nvdimm_init_acpi_state(&pcms->acpi_nvdimm_state, system_io,
-                               pcms->fw_cfg, OBJECT(pcms));
-    }
-#endif
-
     /* USB */
     PCIDevice *usb1 = pci_create(pci_bus, PCI_DEVFN(3, 0), "pci-ohci");
     qdev_prop_set_uint32(&usb1->qdev, "num-ports", 4);
@@ -452,8 +415,6 @@ static void xbox_init(MachineState *machine)
 
     /* GPU! */
     // nv2a_init(agp_bus, PCI_DEVFN(0, 0), ram_memory);
-
-    printf("%s: %d\n", __func__, __LINE__);
 }
 
 
@@ -464,7 +425,6 @@ static void xbox_machine_options(MachineClass *m)
     m->max_cpus = 1;
     m->option_rom_has_mr = true;
     m->rom_file_has_mr = false;
-
 
     m->no_floppy = 1,
     m->no_cdrom = 1,
