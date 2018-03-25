@@ -266,7 +266,7 @@ static void xbox_memory_init(PCMachineState *pcms,
         goto bios_error;
     }
     bios = g_malloc(sizeof(*bios));
-    memory_region_allocate_system_memory(bios, NULL, "xbox.bios", bios_size);
+    memory_region_init_ram(bios, NULL, "xbox.bios", bios_size, &error_fatal);
     memory_region_set_readonly(bios, true);
     ret = rom_add_file_fixed(bios_name, (uint32_t)(-bios_size), -1);
     if (ret != 0) {
@@ -278,12 +278,11 @@ bios_error:
         g_free(filename);
     }
 
-
     /* map the bios repeated at the top of memory */
     for (map_loc=(uint32_t)(-bios_size); map_loc >= 0xff000000; map_loc-=bios_size) {
         map_bios = g_malloc(sizeof(*map_bios));
-        memory_region_init_alias(map_bios, NULL, NULL, bios, 0, bios_size);
-
+        // had to add a name here otherwise it crashes when trying to go to parent node.. go figure
+        memory_region_init_alias(map_bios, NULL, "pci-bios", bios, 0, bios_size);
         memory_region_add_subregion(rom_memory, map_loc, map_bios);
         memory_region_set_readonly(map_bios, true);
     }
@@ -356,7 +355,6 @@ static void xbox_init(MachineState *machine)
     //                       pcms->below_4g_mem_size,
     //                       pcms->above_4g_mem_size,
     //                       pci_memory, ram_memory);
-        pci_bus = NULL;
     xbox_pci_init(pcms->gsi,
                   get_system_memory(), get_system_io(),
                   pci_memory, ram_memory,
@@ -404,13 +402,10 @@ static void xbox_init(MachineState *machine)
     ide_drive_get(hd, ARRAY_SIZE(hd));
     // if (pcmc->pci_enabled) {
         PCIDevice *dev;
-    printf("%s: %d\n", __func__, __LINE__);
         // if (xen_enabled()) {
             // dev = pci_piix3_xen_ide_init(pci_bus, hd, piix3_devfn + 1);
         // } else {
-    printf("pci bus is %p\n", pci_bus);
             dev = pci_piix3_ide_init(pci_bus, hd, PCI_DEVFN(9, 0));
-    printf("%s: %d\n", __func__, __LINE__);
         // }
         idebus[0] = qdev_get_child_bus(&dev->qdev, "ide.0");
         idebus[1] = qdev_get_child_bus(&dev->qdev, "ide.1");
@@ -433,7 +428,7 @@ static void xbox_init(MachineState *machine)
     //     }
     // }
 
-    // pc_cmos_init(pcms, idebus[0], idebus[1], rtc_state);
+    pc_cmos_init(pcms, idebus[0], idebus[1], rtc_state);
 
     // xbox bios wants this bit pattern set to mark the data as valid
     uint8_t bits = 0x55;
