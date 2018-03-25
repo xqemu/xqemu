@@ -1,25 +1,24 @@
 /*
- * QEMU PC System Emulator
+ * QEMU Xbox System Emulator
  *
+ * Copyright (c) 2012 espes
+ * Copyright (c) 2018 Matt Borgerson
+ *
+ * Based on pc.c and pc_piix.c
  * Copyright (c) 2003-2004 Fabrice Bellard
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 or
+ * (at your option) version 3 of the License.
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "qemu/osdep.h"
@@ -60,6 +59,8 @@
 #include "hw/timer/mc146818rtc.h"
 #include "xbox_pci.h"
 #include "smbus.h"
+
+#include "qemu/option.h"
 
 #define MAX_IDE_BUS 2
 
@@ -104,6 +105,111 @@ const uint8_t default_eeprom[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
+
+static void xbox_flash_init(MemoryRegion *rom_memory)
+{
+    char *filename;
+    int bios_size;
+    int bootrom_size;
+
+    MemoryRegion *bios;
+    MemoryRegion *map_bios;
+
+    uint32_t map_loc;
+    int rc, fd = -1;
+
+    char *bios_data;
+
+    /* Locate BIOS ROM image */
+    if (bios_name == NULL) {
+        bios_name = "bios.bin";
+    }
+
+    filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, bios_name);
+    if (filename) {
+        bios_size = get_image_size(filename);
+    } else {
+        bios_size = -1;
+    }
+    if (bios_size <= 0 ||
+        (bios_size % 65536) != 0) {
+        goto bios_error;
+    }
+
+    /* Read BIOS ROM into memory */
+    bios_data = g_malloc(bios_size);
+    assert(bios_data != NULL);
+    fd = open(filename, O_RDONLY | O_BINARY);
+    assert(fd >= 0);
+    rc = read(fd, bios_data, bios_size);
+    assert(rc == bios_size);
+    close(fd);
+    g_free(filename);
+
+    /* XBOX_FIXME: What follows is a big hack to overlay the MCPX ROM on the
+     * top 512 bytes of the ROM region. This differs from original XQEMU
+     * sources which copied it in at lpc init; new Qemu seems to be different
+     * now in that the BIOS images supplied to rom_add_file_fixed will be
+     * loaded *after* lpc init is called, so the MCPX ROM would get
+     * overwritten. Instead, let's just map it in right here while we map in
+     * BIOS.
+     *
+     * Anyway it behaves the same as before--that is, wrongly. Really, we
+     * should let the CPU execute from MMIO emulating the TSOP access with
+     * bootrom overlay being controlled by the magic bit..but this is "good
+     * enough" for now ;).
+     */
+
+    /* Locate and overlay MCPX ROM image into new copy of BIOS if provided */
+    const char *bootrom_file = qemu_opt_get(qemu_get_machine_opts(), "bootrom");
+
+    if (bootrom_file) {
+        filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, bootrom_file);
+        assert(filename);
+
+        bootrom_size = get_image_size(filename);
+        if (bootrom_size != 512) {
+            fprintf(stderr, "MCPX bootrom should be 512 bytes, got %d\n",
+                    bootrom_size);
+            exit(1);
+            return;
+        }
+
+        /* Read in MCPX ROM over last 512 bytes of BIOS data */
+        fd = open(filename, O_RDONLY | O_BINARY);
+        assert(fd >= 0);
+        rc = read(fd, &bios_data[bios_size - bootrom_size], bootrom_size);
+        assert(rc == bootrom_size);
+        close(fd);
+        g_free(filename);
+    }
+
+    /* Create BIOS region */
+    bios = g_malloc(sizeof(*bios));
+    assert(bios != NULL);
+    memory_region_init_ram(bios, NULL, "xbox.bios", bios_size, &error_fatal);
+    memory_region_set_readonly(bios, true);
+    rom_add_blob_fixed("xbox.bios", bios_data, bios_size, (uint32_t)(-2 * bios_size));
+
+    /* Assuming bios_data will be needed for duration of execution
+     * so no free(bios) here.
+     */
+
+    /* Mirror ROM from 0xff000000 - 0xffffffff */
+    for (map_loc = (uint32_t)(-bios_size); map_loc >= 0xff000000; map_loc -= bios_size) {
+        map_bios = g_malloc(sizeof(*map_bios));
+        memory_region_init_alias(map_bios, NULL, "pci-bios", bios, 0, bios_size);
+        memory_region_add_subregion(rom_memory, map_loc, map_bios);
+        memory_region_set_readonly(map_bios, true);
+    }
+
+    return;
+
+bios_error:
+    fprintf(stderr, "qemu: could not load xbox BIOS '%s'\n", bios_name);
+    exit(1);
+}
+
 static void xbox_memory_init(PCMachineState *pcms,
                              MemoryRegion *system_memory,
                              MemoryRegion *rom_memory,
@@ -133,159 +239,8 @@ static void xbox_memory_init(PCMachineState *pcms,
     memory_region_init_alias(ram_below_4g, NULL, "ram-below-4g", ram,
                              0, pcms->below_4g_mem_size);
     memory_region_add_subregion(system_memory, 0, ram_below_4g);
-#if 0
-    e820_add_entry(0, pcms->below_4g_mem_size, E820_RAM);
-    if (pcms->above_4g_mem_size > 0) {
-        ram_above_4g = g_malloc(sizeof(*ram_above_4g));
-        memory_region_init_alias(ram_above_4g, NULL, "ram-above-4g", ram,
-                                 pcms->below_4g_mem_size,
-                                 pcms->above_4g_mem_size);
-        memory_region_add_subregion(system_memory, 0x100000000ULL,
-                                    ram_above_4g);
-        e820_add_entry(0x100000000ULL, pcms->above_4g_mem_size, E820_RAM);
-    }
 
-    if (!pcmc->has_reserved_memory &&
-        (machine->ram_slots ||
-         (machine->maxram_size > machine->ram_size))) {
-        MachineClass *mc = MACHINE_GET_CLASS(machine);
-
-        error_report("\"-memory 'slots|maxmem'\" is not supported by: %s",
-                     mc->name);
-        exit(EXIT_FAILURE);
-    }
-
-    /* initialize hotplug memory address space */
-    if (pcmc->has_reserved_memory &&
-        (machine->ram_size < machine->maxram_size)) {
-        ram_addr_t hotplug_mem_size =
-            machine->maxram_size - machine->ram_size;
-
-        if (machine->ram_slots > ACPI_MAX_RAM_SLOTS) {
-            error_report("unsupported amount of memory slots: %"PRIu64,
-                         machine->ram_slots);
-            exit(EXIT_FAILURE);
-        }
-
-        if (QEMU_ALIGN_UP(machine->maxram_size,
-                          TARGET_PAGE_SIZE) != machine->maxram_size) {
-            error_report("maximum memory size must by aligned to multiple of "
-                         "%d bytes", TARGET_PAGE_SIZE);
-            exit(EXIT_FAILURE);
-        }
-
-        pcms->hotplug_memory.base =
-            ROUND_UP(0x100000000ULL + pcms->above_4g_mem_size, 1ULL << 30);
-
-        if (pcmc->enforce_aligned_dimm) {
-            /* size hotplug region assuming 1G page max alignment per slot */
-            hotplug_mem_size += (1ULL << 30) * machine->ram_slots;
-        }
-
-        if ((pcms->hotplug_memory.base + hotplug_mem_size) <
-            hotplug_mem_size) {
-            error_report("unsupported amount of maximum memory: " RAM_ADDR_FMT,
-                         machine->maxram_size);
-            exit(EXIT_FAILURE);
-        }
-
-        memory_region_init(&pcms->hotplug_memory.mr, OBJECT(pcms),
-                           "hotplug-memory", hotplug_mem_size);
-        memory_region_add_subregion(system_memory, pcms->hotplug_memory.base,
-                                    &pcms->hotplug_memory.mr);
-    }
-
-    /* Initialize PC system firmware */
-    pc_system_firmware_init(rom_memory, !pcmc->pci_enabled);
-
-    option_rom_mr = g_malloc(sizeof(*option_rom_mr));
-    memory_region_init_ram(option_rom_mr, NULL, "pc.rom", PC_ROM_SIZE,
-                           &error_fatal);
-    if (pcmc->pci_enabled) {
-        memory_region_set_readonly(option_rom_mr, true);
-    }
-    memory_region_add_subregion_overlap(rom_memory,
-                                        PC_ROM_MIN_VGA,
-                                        option_rom_mr,
-                                        1);
-
-    fw_cfg = bochs_bios_init(&address_space_memory, pcms);
-
-    rom_set_fw(fw_cfg);
-
-    if (pcmc->has_reserved_memory && pcms->hotplug_memory.base) {
-        uint64_t *val = g_malloc(sizeof(*val));
-        PCMachineClass *pcmc = PC_MACHINE_GET_CLASS(pcms);
-        uint64_t res_mem_end = pcms->hotplug_memory.base;
-
-        if (!pcmc->broken_reserved_end) {
-            res_mem_end += memory_region_size(&pcms->hotplug_memory.mr);
-        }
-        *val = cpu_to_le64(ROUND_UP(res_mem_end, 0x1ULL << 30));
-        fw_cfg_add_file(fw_cfg, "etc/reserved-memory-end", val, sizeof(*val));
-    }
-
-    if (linux_boot) {
-        load_linux(pcms, fw_cfg);
-    }
-
-    for (i = 0; i < nb_option_roms; i++) {
-        rom_add_option(option_rom[i].name, option_rom[i].bootindex);
-    }
-    pcms->fw_cfg = fw_cfg;
-
-    /* Init default IOAPIC address space */
-    pcms->ioapic_as = &address_space_memory;
-#endif
-
-
-    int ret;
-    char *filename;
-    int bios_size;
-    MemoryRegion *bios;
-
-    MemoryRegion *map_bios;
-    uint32_t map_loc;
-
-
-    /* Load the bios. (mostly from pc_sysfw)
-     * Can't use it verbatim, since we need the bios repeated
-     * over top 1MB of memory.
-     */
-    if (bios_name == NULL) {
-        bios_name = "bios.bin";
-    }
-    filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, bios_name);
-    if (filename) {
-        bios_size = get_image_size(filename);
-    } else {
-        bios_size = -1;
-    }
-    if (bios_size <= 0 ||
-        (bios_size % 65536) != 0) {
-        goto bios_error;
-    }
-    bios = g_malloc(sizeof(*bios));
-    memory_region_init_ram(bios, NULL, "xbox.bios", bios_size, &error_fatal);
-    memory_region_set_readonly(bios, true);
-    ret = rom_add_file_fixed(bios_name, (uint32_t)(-bios_size), -1);
-    if (ret != 0) {
-bios_error:
-        fprintf(stderr, "qemu: could not load xbox BIOS '%s'\n", bios_name);
-        exit(1);
-    }
-    if (filename) {
-        g_free(filename);
-    }
-
-    /* map the bios repeated at the top of memory */
-    for (map_loc=(uint32_t)(-bios_size); map_loc >= 0xff000000; map_loc-=bios_size) {
-        map_bios = g_malloc(sizeof(*map_bios));
-        // had to add a name here otherwise it crashes when trying to go to parent node.. go figure
-        memory_region_init_alias(map_bios, NULL, "pci-bios", bios, 0, bios_size);
-        memory_region_add_subregion(rom_memory, map_loc, map_bios);
-        memory_region_set_readonly(map_bios, true);
-    }
+    xbox_flash_init(rom_memory);
 }
 
 
@@ -302,8 +257,6 @@ static void xbox_init(MachineState *machine)
 
     PCIBus *pci_bus;
     ISABus *isa_bus;
-
-    int piix3_devfn = -1;
 
     qemu_irq *i8259;
     // qemu_irq smi_irq; // XBOX_TODO: SMM support?
@@ -340,21 +293,8 @@ static void xbox_init(MachineState *machine)
     xbox_memory_init(pcms, system_memory, rom_memory, &ram_memory);
 
     gsi_state = g_malloc0(sizeof(*gsi_state));
-    // if (kvm_ioapic_in_kernel()) {
-    //     kvm_pc_setup_irq_routing(pcmc->pci_enabled);
-    //     pcms->gsi = qemu_allocate_irqs(kvm_pc_gsi_handler, gsi_state,
-    //                                    GSI_NUM_PINS);
-    // } else {
-        pcms->gsi = qemu_allocate_irqs(gsi_handler, gsi_state, GSI_NUM_PINS);
-    // }
+    pcms->gsi = qemu_allocate_irqs(gsi_handler, gsi_state, GSI_NUM_PINS);
 
-    // pci_bus = i440fx_init(host_type,
-    //                       pci_type,
-    //                       &i440fx_state, &piix3_devfn, &isa_bus, pcms->gsi,
-    //                       system_memory, system_io, machine->ram_size,
-    //                       pcms->below_4g_mem_size,
-    //                       pcms->above_4g_mem_size,
-    //                       pci_memory, ram_memory);
     xbox_pci_init(pcms->gsi,
                   get_system_memory(), get_system_io(),
                   pci_memory, ram_memory,
@@ -505,11 +445,9 @@ static void xbox_init(MachineState *machine)
 #endif
 
     /* APU! */
-    // PCIDevice *apu = 
     pci_create_simple(pci_bus, PCI_DEVFN(5, 0), "mcpx-apu");
 
     /* ACI! */
-    // PCIDevice *aci =
     pci_create_simple(pci_bus, PCI_DEVFN(6, 0), "mcpx-aci");
 
     /* GPU! */
