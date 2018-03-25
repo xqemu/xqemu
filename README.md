@@ -18,7 +18,7 @@ forgotton something.
 
 Chat
 ----
-Keep up with the latest developments. Chat with me on [Discord](https://discordapp.com/channels/293096198808666122/426420029064478721). - [@mborgerson](https://github.com/mborgerson)
+Keep up with the latest developments. Chat with me on [Discord](https://discord.gg/v7gfcms). - [@mborgerson](https://github.com/mborgerson)
 
 Debugging on macOS
 ------------------
