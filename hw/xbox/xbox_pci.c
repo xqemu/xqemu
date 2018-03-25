@@ -2,6 +2,7 @@
  * QEMU Xbox PCI buses implementation
  *
  * Copyright (c) 2012 espes
+ * Copyright (c) 2018 Matt Borgerson
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -77,8 +78,6 @@
 # define XBOXPCI_DPRINTF(format, ...)     do { } while (0)
 #endif
 
-
-
 #define XBOX_NUM_INT_IRQS 8
 #define XBOX_NUM_PIRQS    4
 
@@ -152,8 +151,6 @@ static void xbox_lpc_set_acpi_irq(void *opaque, int irq_num, int level)
     qemu_set_irq(lpc->pic[irq], level);
 }
 
-
-
 void xbox_pci_init(qemu_irq *pic,
                    MemoryRegion *address_space_mem,
                    MemoryRegion *address_space_io,
@@ -211,7 +208,6 @@ void xbox_pci_init(qemu_irq *pic,
     xbox_pm_init(lpc, &lpc_state->pm, acpi_irq[0]);
     //xbox_lpc_reset(&s->dev.qdev);
 
-
     /* smbus */
     PCIDevice *smbus = pci_create_simple_multifunction(host_bus, PCI_DEVFN(1, 1),
                                                        true, "xbox-smbus");
@@ -225,8 +221,6 @@ void xbox_pci_init(qemu_irq *pic,
     //qdev = &br->dev.qdev;
     //qdev_init_nofail(qdev);
     PCIBus *agp_bus = pci_bridge_get_sec_bus(PCI_BRIDGE(agp));
-
-
 
     *out_host_bus = host_bus;
     *out_isa_bus = lpc_state->isa_bus;
@@ -302,13 +296,10 @@ static const TypeInfo xbox_smbus_info = {
     },
 };
 
-
-
 static void xbox_lpc_realize(PCIDevice *dev, Error **errp)
 {
     XBOX_LPCState *d = XBOX_LPC_DEVICE(dev);
     ISABus *isa_bus;
-    Error *local_err = NULL;
 
     isa_bus = isa_bus_new(DEVICE(d), get_system_memory(),
                           pci_address_space_io(dev), errp);
@@ -316,70 +307,13 @@ static void xbox_lpc_realize(PCIDevice *dev, Error **errp)
         return;
     }
     d->isa_bus = isa_bus;
-
-    /* southbridge chip contains and controls bootrom image.
-     * can't load it through loader.c because it overlaps with the bios...
-     * We really should just commandeer the entire top 16Mb.
-     */
-    QemuOpts *machine_opts = qemu_get_machine_opts();
-    if (machine_opts) {
-        const char *bootrom_file = qemu_opt_get(machine_opts, "bootrom");
-
-        int rc, fd = -1;
-        if (bootrom_file) {
-            char *filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, bootrom_file);
-            assert(filename);
-
-            d->bootrom_size = get_image_size(filename);
-            if (d->bootrom_size != 512) {
-                fprintf(stderr, "MCPX bootrom should be 512 bytes, got %d\n",
-                        d->bootrom_size);
-                error_propagate(errp, local_err);
-                return;
-            }
-
-            fd = open(filename, O_RDONLY | O_BINARY);
-            assert(fd >= 0);
-            rc = read(fd, d->bootrom_data, d->bootrom_size);
-            assert(rc == d->bootrom_size);
-
-            close(fd);
-        }
-    }
 }
-
-
 
 static void xbox_lpc_reset(DeviceState *dev)
 {
-    PCIDevice *d = PCI_DEVICE(dev);
-    XBOX_LPCState *s = XBOX_LPC_DEVICE(d);
-
-
-    if (s->bootrom_size) {
-        /* qemu's memory region shit is actually kinda broken -
-         * Trying to execute off a non-page-aligned memory region
-         * is fucked, so we can't just map in the bootrom.
-         *
-         * We need to be able to disable it at runtime, and
-         * it shouldn't be visible ontop of the bios mirrors. It'll have to
-         * be a hack.
-         *
-         * Be lazy for now and just write it ontop of the bios.
-         *
-         * (We do this here since loader.c loads roms into memory in a reset
-         * handler, and here we /should/ be handled after it.)
-         */
-
-        hwaddr bootrom_addr = (uint32_t)(-s->bootrom_size);
-        cpu_physical_memory_write_rom(&address_space_memory,
-                                      bootrom_addr,
-                                      s->bootrom_data,
-                                      s->bootrom_size);
-     }
-
+    // PCIDevice *d = PCI_DEVICE(dev);
+    // XBOX_LPCState *s = XBOX_LPC_DEVICE(d);
 }
-
 
 #if 0
 /* Xbox 1.1 uses a config register instead of a bar to set the pm base address */
