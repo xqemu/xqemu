@@ -396,7 +396,6 @@ static void xbox_init(MachineState *machine)
     qdev_init_nofail(&usb0->qdev);
 
     /* Ethernet! */
-#if 0
     PCIDevice *nvnet = pci_create(pci_bus, PCI_DEVFN(4, 0), "nvnet");
 
     for (i = 0; i < nb_nics; i++) {
@@ -405,7 +404,6 @@ static void xbox_init(MachineState *machine)
         qdev_set_nic_properties(&nvnet->qdev, nd);
         qdev_init_nofail(&nvnet->qdev);
     }
-#endif
 
     /* APU! */
     pci_create_simple(pci_bus, PCI_DEVFN(5, 0), "mcpx-apu");
