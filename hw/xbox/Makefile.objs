@@ -10,4 +10,4 @@ obj-y += mcpx_apu.o mcpx_aci.o
 # obj-y += xid.o
 # obj-y += chihiro-usb.o
 # 
-# obj-y += dsp/
+obj-y += dsp/
