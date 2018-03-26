@@ -18,9 +18,21 @@
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "qemu/osdep.h"
+#include "qapi/error.h"
+#include "qemu/error-report.h"
+#include "qemu/error-report.h"
 #include <assert.h>
 #include <util.h>
 #include "nv2a.h"
+
+
+#include "hw/display/vga_regs.h"
+#define DIRTY_MEMORY_NV2A DIRTY_MEMORY_VGA // FIXME
+
+DMAObject nv_dma_load(NV2AState *d, hwaddr dma_obj_address);
+void *nv_dma_map(NV2AState *d, hwaddr dma_obj_address, hwaddr *len);
+void nv2a_init(PCIBus *bus, int devfn, MemoryRegion *ram);
 
 void update_irq(NV2AState *d)
 {
@@ -55,7 +67,7 @@ void update_irq(NV2AState *d)
 
 DMAObject nv_dma_load(NV2AState *d, hwaddr dma_obj_address)
 {
-    assert(dma_obj_address < d->ramin_size);
+    assert(dma_obj_address < memory_region_size(&d->ramin));
 
     uint32_t *dma_obj = (uint32_t*)(d->ramin_ptr + dma_obj_address);
     uint32_t flags = ldl_le_p(dma_obj);
@@ -72,7 +84,7 @@ DMAObject nv_dma_load(NV2AState *d, hwaddr dma_obj_address)
 
 void *nv_dma_map(NV2AState *d, hwaddr dma_obj_address, hwaddr *len)
 {
-    assert(dma_obj_address < d->ramin_size);
+    assert(dma_obj_address < memory_region_size(&d->ramin));
 
     DMAObject dma = nv_dma_load(d, dma_obj_address);
 
@@ -82,12 +94,37 @@ void *nv_dma_map(NV2AState *d, hwaddr dma_obj_address, hwaddr *len)
 
     dma.address &= 0x07FFFFFF;
 
-    assert(dma.address + dma.limit < d->vram_size);
+    assert(dma.address + dma.limit < memory_region_size(d->vram));
     *len = dma.limit;
     return d->vram_ptr + dma.address;
 }
 
 static const char* nv2a_method_names[] = {};
+
+#define DEFINE_PROTO(prefix) \
+    uint64_t prefix ## _read(void *opaque, hwaddr addr, unsigned int size); \
+    void prefix ## _write(void *opaque, hwaddr addr, uint64_t val, unsigned int size);
+
+DEFINE_PROTO(pmc)
+DEFINE_PROTO(pbus)
+DEFINE_PROTO(pfifo)
+DEFINE_PROTO(prma)
+DEFINE_PROTO(pvideo)
+DEFINE_PROTO(ptimer)
+DEFINE_PROTO(pcounter)
+DEFINE_PROTO(pvpe)
+DEFINE_PROTO(ptv)
+DEFINE_PROTO(prmfb)
+DEFINE_PROTO(prmvio)
+DEFINE_PROTO(pfb)
+DEFINE_PROTO(pstraps)
+DEFINE_PROTO(pgraph)
+DEFINE_PROTO(pcrtc)
+DEFINE_PROTO(prmcio)
+DEFINE_PROTO(pramdac)
+DEFINE_PROTO(prmdio)
+DEFINE_PROTO(pramin)
+DEFINE_PROTO(user)
 
 // #include "nv2a_pbus.c"
 #include "nv2a_pcrtc.c"
@@ -102,6 +139,8 @@ static const char* nv2a_method_names[] = {};
 // #include "nv2a_pvideo.c"
 // #include "nv2a_stubs.c"
 #include "nv2a_user.c"
+
+#undef DEFINE_PROTO
 
 const struct NV2ABlockInfo blocktable[] = {
 
@@ -173,6 +212,9 @@ void reg_log_write(int block, hwaddr addr, uint64_t val) {
 static void nv2a_overlay_draw_line(VGACommonState *vga, uint8_t *line, int y)
 {
     NV2A_DPRINTF("nv2a_overlay_draw_line\n");
+
+    // FIXME
+#if 0
 
     NV2AState *d = container_of(vga, NV2AState, vga);
     DisplaySurface *surface = qemu_console_surface(d->vga.con);
@@ -248,6 +290,7 @@ static void nv2a_overlay_draw_line(VGACommonState *vga, uint8_t *line, int y)
             break;
         }
     }
+#endif
 }
 
 static int nv2a_get_bpp(VGACommonState *s)
@@ -303,9 +346,9 @@ static void nv2a_init_memory(NV2AState *d, MemoryRegion *ram)
 
 
     /* RAMIN - should be in vram somewhere, but not quite sure where atm */
-    memory_region_init_ram(&d->ramin, OBJECT(d), "nv2a-ramin", 0x100000);
+    memory_region_init_ram(&d->ramin, OBJECT(d), "nv2a-ramin", 0x100000, &error_fatal);
     /* memory_region_init_alias(&d->ramin, "nv2a-ramin", &d->vram,
-                         memory_region_size(&d->vram) - 0x100000,
+                         memory_region_size(d->vram) - 0x100000,
                          0x100000); */
 
     memory_region_add_subregion(&d->mmio, 0x700000, &d->ramin);
@@ -318,7 +361,8 @@ static void nv2a_init_memory(NV2AState *d, MemoryRegion *ram)
     memory_region_set_dirty(d->vram, 0, memory_region_size(d->vram));
 
     /* hacky. swap out vga's vram */
-    memory_region_destroy(&d->vga.vram);
+    // memory_region_destroy(&d->vga.vram);
+    memory_region_unref(&d->vga.vram); // FIXME: Is ths right?
     memory_region_init_alias(&d->vga.vram, OBJECT(d), "vga.vram",
                              d->vram, 0, memory_region_size(d->vram));
     d->vga.vram_ptr = memory_region_get_ram_ptr(&d->vga.vram);
@@ -328,12 +372,12 @@ static void nv2a_init_memory(NV2AState *d, MemoryRegion *ram)
     pgraph_init(d);
 
     /* fire up puller */
-    qemu_thread_create(&d->pfifo.puller_thread,
+    qemu_thread_create(&d->pfifo.puller_thread, "nv2a.puller_thread",
                        pfifo_puller_thread,
                        d, QEMU_THREAD_JOINABLE);
 }
 
-static int nv2a_realize(PCIDevice *dev, Error **errp)
+static void nv2a_realize(PCIDevice *dev, Error **errp)
 {
     int i;
     NV2AState *d;
@@ -350,7 +394,8 @@ static int nv2a_realize(PCIDevice *dev, Error **errp)
     d->pramdac.video_clock_coeff = 0x0003C20D; /* 25182Khz...? */
 
 
-
+// FIXME
+#if 0
     /* legacy VGA shit */
     VGACommonState *vga = &d->vga;
     vga->vram_size_mb = 4;
@@ -365,7 +410,7 @@ static int nv2a_realize(PCIDevice *dev, Error **errp)
     d->hw_ops = *vga->hw_ops;
     d->hw_ops.gfx_update = nv2a_vga_gfx_update;
     vga->con = graphic_console_init(DEVICE(dev), &d->hw_ops, vga);
-
+#endif
 
     /* mmio */
     memory_region_init(&d->mmio, OBJECT(dev), "nv2a-mmio", 0x1000000);
@@ -385,8 +430,6 @@ static int nv2a_realize(PCIDevice *dev, Error **errp)
     qemu_cond_init(&d->pfifo.cache1.cache_cond);
     QSIMPLEQ_INIT(&d->pfifo.cache1.cache);
     QSIMPLEQ_INIT(&d->pfifo.cache1.working_cache);
-
-    return 0;
 }
 
 static void nv2a_exitfn(PCIDevice *dev)
@@ -411,10 +454,10 @@ static void nv2a_class_init(ObjectClass *klass, void *data)
 
     k->vendor_id = PCI_VENDOR_ID_NVIDIA;
     k->device_id = PCI_DEVICE_ID_NVIDIA_GEFORCE_NV2A;
-    k->revision = 161;
-    k->class_id = PCI_CLASS_DISPLAY_3D;
-    k->init = nv2a_realize;
-    k->exit = nv2a_exitfn;
+    k->revision  = 161;
+    k->class_id  = PCI_CLASS_DISPLAY_3D;
+    k->realize   = nv2a_realize;
+    k->exit      = nv2a_exitfn;
 
     dc->desc = "GeForce NV2A Integrated Graphics";
 }
