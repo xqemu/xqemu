@@ -338,7 +338,7 @@ static void xbox_init(MachineState *machine)
     pc_basic_device_init(isa_bus, pcms->gsi, &rtc_state, true,
                          (pcms->vmport != ON_OFF_AUTO_ON), pcms->pit, 0x4);
 
-    pc_nic_init(pcmc, isa_bus, pci_bus);
+    // pc_nic_init(pcmc, isa_bus, pci_bus);
 
     ide_drive_get(hd, ARRAY_SIZE(hd));
     // if (pcmc->pci_enabled) {
@@ -415,7 +415,7 @@ static void xbox_init(MachineState *machine)
     pci_create_simple(pci_bus, PCI_DEVFN(6, 0), "mcpx-aci");
 
     /* GPU! */
-    nv2a_init(agp_bus, PCI_DEVFN(0, 0), ram_memory);
+    // nv2a_init(agp_bus, PCI_DEVFN(0, 0), ram_memory);
 }
 
 
@@ -437,7 +437,7 @@ static void xbox_machine_options(MachineClass *m)
     pcmc->gigabyte_align = false;
     pcmc->smbios_legacy_mode = true;
     pcmc->has_reserved_memory = false;
-    pcmc->default_nic_model = "ne2k_isa";
+    pcmc->default_nic_model = "nvnet";
     m->default_cpu_type = X86_CPU_TYPE_NAME("486");
 }
 
