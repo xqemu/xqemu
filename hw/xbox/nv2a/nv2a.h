@@ -21,7 +21,6 @@
 #ifndef HW_NV2A_H
 #define HW_NV2A_H
 
-#include "qemu/osdep.h"
 #include "hw/hw.h"
 #include "hw/i386/pc.h"
 #include "ui/console.h"
@@ -32,28 +31,14 @@
 // #include "queue.h"
 #include "qemu/thread.h"
 #include "qapi/qmp/qstring.h"
-#include "gl/gloffscreen.h"
-#include "gl/glextensions.h"
+#include "gloffscreen.h"
+#include "glextensions.h"
+#include "cpu.h"
 
-#include <SDL.h>
-#include <GL/glew.h>
-#include <log.h>
-#include <stdlib.h>
-
-#if 0
-typedef uint32_t hwaddr;
-typedef int qemu_irq;
-#define qemu_mutex_lock SDL_LockMutex
-#define qemu_mutex_unlock SDL_UnlockMutex
-// typedef int MemoryRegion;
-
-#define pci_irq_assert(...)
-#define pci_irq_deassert(...)
-
-#define ldl_le_p(p) (*((uint32_t*)(p)))
-#define stl_le_p(p, v) (*((uint32_t*)(p)) = (v))
-#define stq_le_p(p, v) (*((uint64_t*)(p)) = (v))
-#endif
+// #include <SDL.h>
+// #include <GL/glew.h>
+// #include <log.h>
+// #include <stdlib.h>
 
 #include "g-lru-cache.h"
 #include "swizzle.h"
@@ -229,11 +214,11 @@ typedef struct GraphicsContext {
 
 
 typedef struct PGRAPHState {
-    SDL_mutex * lock;
+    QemuMutex lock;
 
     uint32_t pending_interrupts;
     uint32_t enabled_interrupts;
-    SDL_cond * interrupt_cond;
+    QemuCond interrupt_cond;
 
     hwaddr context_table;
     hwaddr context_address;
@@ -246,9 +231,9 @@ typedef struct PGRAPHState {
     uint32_t notify_source;
 
     bool fifo_access;
-    SDL_cond * fifo_access_cond;
+    QemuCond fifo_access_cond;
 
-    SDL_cond * flip_3d;
+    QemuCond flip_3d;
 
     unsigned int channel_id;
     bool channel_valid;
@@ -370,8 +355,8 @@ typedef struct Cache1State {
     enum FIFOEngine last_engine;
 
     /* The actual command queue */
-    SDL_mutex * cache_lock;
-    SDL_cond * cache_cond;
+    QemuMutex cache_lock;
+    QemuCond cache_cond;
     QSIMPLEQ_HEAD(, CacheEntry) cache;
     QSIMPLEQ_HEAD(, CacheEntry) working_cache;
 } Cache1State;
@@ -383,24 +368,22 @@ typedef struct ChannelControl {
 } ChannelControl;
 
 typedef struct NV2AState {
-    // PCIDevice dev;
+    PCIDevice dev;
     qemu_irq irq;
     bool exiting;
 
-    // VGACommonState vga;
-    // GraphicHwOps hw_ops;
-    // QEMUTimer *vblank_timer;
+    VGACommonState vga;
+    GraphicHwOps hw_ops;
+    QEMUTimer *vblank_timer;
 
-    // MemoryRegion *vram;
-    // MemoryRegion vram_pci;
+    MemoryRegion *vram;
+    MemoryRegion vram_pci;
     uint8_t *vram_ptr;
-    size_t vram_size;
-    // MemoryRegion ramin;
+    MemoryRegion ramin;
     uint8_t *ramin_ptr;
-    size_t ramin_size;
 
-    // MemoryRegion mmio;
-    // MemoryRegion block_mmio[NV_NUM_BLOCKS];
+    MemoryRegion mmio;
+    MemoryRegion block_mmio[NV_NUM_BLOCKS];
 
     struct {
         uint32_t pending_interrupts;
@@ -408,7 +391,7 @@ typedef struct NV2AState {
     } pmc;
 
     struct {
-        SDL_Thread *puller_thread;
+        QemuThread puller_thread;
         uint32_t pending_interrupts;
         uint32_t enabled_interrupts;
         Cache1State cache1;
@@ -450,19 +433,10 @@ typedef struct NV2AState {
         ChannelControl channel_control[NV2A_NUM_CHANNELS];
     } user;
 
-
-
-    SDL_mutex *io_lock;
-    SDL_Window *sdl_window;
+    // SDL_mutex *io_lock;
+    // SDL_Window *sdl_window;
 
 } NV2AState;
-
-typedef uint64_t (*read_func)(void *opaque, hwaddr addr, unsigned int size);
-typedef void (*write_func)(void *opaque, hwaddr addr, uint64_t val, unsigned int size);
-typedef struct {
-    read_func read;
-    write_func write;
-} MemoryRegionOps;
 
 typedef struct NV2ABlockInfo {
     const char* name;
@@ -475,7 +449,8 @@ extern const struct NV2ABlockInfo blocktable[];
 extern const int blocktable_len;
 
 void pgraph_init(NV2AState *d);
-int pfifo_puller_thread(void *opaque);
+void *pfifo_puller_thread(void *opaque);
 void pgraph_destroy(PGRAPHState *pg);
+void update_irq(NV2AState *d);
 
 #endif
