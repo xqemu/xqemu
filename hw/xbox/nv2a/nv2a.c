@@ -467,6 +467,10 @@ static const TypeInfo nv2a_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(NV2AState),
     .class_init    = nv2a_class_init,
+    .interfaces          = (InterfaceInfo[]) {
+        { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+        { },
+    },
 };
 
 static void nv2a_register(void)
