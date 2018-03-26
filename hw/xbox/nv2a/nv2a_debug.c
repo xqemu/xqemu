@@ -18,15 +18,16 @@
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "hw/xbox/nv2a_debug.h"
-
 #ifdef DEBUG_NV2A_GL
+
+#include "qemu/osdep.h"
 
 #include <stdio.h>
 #include <stdarg.h>
 #include <assert.h>
 
-#include "gl/glextensions.h"
+#include "nv2a_debug.h"
+#include "glextensions.h"
 
 void gl_debug_message(bool cc, const char *fmt, ...)
 {
