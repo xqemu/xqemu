@@ -1,7 +1,9 @@
 #!/bin/bash
 ./configure \
 	--target-list=i386-softmmu \
-	--enable-cocoa \
+	--enable-sdl \
+	--disable-cocoa \
+	--with-sdlabi=2.0 \
 	--disable-curl \
 	--disable-vnc \
 	--disable-docs \
