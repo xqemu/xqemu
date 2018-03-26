@@ -1,20 +1,3 @@
-// FIXME
-#if 1
-#define qemu_mutex_lock_iothread(...) do { \
-    SDL_LockMutex(d->io_lock); \
-} while (0)
-#define qemu_mutex_unlock_iothread(...)  do { \
-    SDL_UnlockMutex(d->io_lock); \
-} while (0)
-#else
-#define qemu_mutex_lock_iothread(...)
-#define qemu_mutex_unlock_iothread(...)
-#endif
-
-// Xbox uses 4 KiB pages
-#define TARGET_PAGE_MASK 0xfff
-#define TARGET_PAGE_ALIGN(x) (((x) + 0xfff) & ~0xfff)
-
 static const GLenum pgraph_texture_min_filter_map[] = {
     0,
     GL_NEAREST,
@@ -306,7 +289,7 @@ uint64_t pgraph_read(void *opaque, hwaddr addr, unsigned int size)
 {
     NV2AState *d = (NV2AState *)opaque;
 
-    SDL_LockMutex(d->pgraph.lock);
+    qemu_mutex_lock(&d->pgraph.lock);
 
     uint64_t r = 0;
     switch (addr) {
@@ -349,7 +332,7 @@ uint64_t pgraph_read(void *opaque, hwaddr addr, unsigned int size)
         break;
     }
 
-    SDL_UnlockMutex(d->pgraph.lock);
+    qemu_mutex_unlock(&d->pgraph.lock);
 
     reg_log_read(NV_PGRAPH, addr, r);
     return r;
@@ -369,12 +352,12 @@ void pgraph_write(void *opaque, hwaddr addr, uint64_t val, unsigned int size)
 
     reg_log_write(NV_PGRAPH, addr, val);
 
-    SDL_LockMutex(d->pgraph.lock);
+    qemu_mutex_lock(&d->pgraph.lock);
 
     switch (addr) {
     case NV_PGRAPH_INTR:
         d->pgraph.pending_interrupts &= ~val;
-        SDL_CondBroadcast(d->pgraph.interrupt_cond);
+        qemu_cond_broadcast(&d->pgraph.interrupt_cond);
         break;
     case NV_PGRAPH_INTR_EN:
         d->pgraph.enabled_interrupts = val;
@@ -393,12 +376,12 @@ void pgraph_write(void *opaque, hwaddr addr, uint64_t val, unsigned int size)
                               NV_PGRAPH_SURFACE_READ_3D)+1)
                         % GET_MASK(d->pgraph.regs[NV_PGRAPH_SURFACE],
                                    NV_PGRAPH_SURFACE_MODULO_3D) );
-            SDL_CondBroadcast(d->pgraph.flip_3d);
+            qemu_cond_broadcast(&d->pgraph.flip_3d);
         }
         break;
     case NV_PGRAPH_FIFO:
         d->pgraph.fifo_access = GET_MASK(val, NV_PGRAPH_FIFO_ACCESS);
-        SDL_CondBroadcast(d->pgraph.fifo_access_cond);
+        qemu_cond_broadcast(&d->pgraph.fifo_access_cond);
         break;
     case NV_PGRAPH_CHANNEL_CTX_TABLE:
         d->pgraph.context_table =
@@ -432,7 +415,7 @@ void pgraph_write(void *opaque, hwaddr addr, uint64_t val, unsigned int size)
         break;
     }
 
-    SDL_UnlockMutex(d->pgraph.lock);
+    qemu_mutex_unlock(&d->pgraph.lock);
 }
 
 static void pgraph_method(NV2AState *d,
@@ -602,14 +585,14 @@ static void pgraph_method(NV2AState *d,
             pg->notify_source = NV_PGRAPH_NSOURCE_NOTIFICATION; /* TODO: check this */
             pg->pending_interrupts |= NV_PGRAPH_INTR_ERROR;
 
-            SDL_UnlockMutex(pg->lock);
+            qemu_mutex_unlock(&pg->lock);
             qemu_mutex_lock_iothread();
             update_irq(d);
-            SDL_LockMutex(pg->lock);
+            qemu_mutex_lock(&pg->lock);
             qemu_mutex_unlock_iothread();
 
             while (pg->pending_interrupts & NV_PGRAPH_INTR_ERROR) {
-                SDL_CondWait(pg->interrupt_cond, pg->lock);
+                qemu_cond_wait(&pg->interrupt_cond, &pg->lock);
             }
         }
         break;
@@ -652,6 +635,7 @@ static void pgraph_method(NV2AState *d,
         break;
     }
     case NV097_FLIP_STALL:
+#if 0
         // HACK HACK HACK
         glBindFramebuffer(GL_READ_FRAMEBUFFER, pg->gl_framebuffer);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -662,8 +646,7 @@ static void pgraph_method(NV2AState *d,
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, pg->gl_framebuffer);
         glBindFramebuffer(GL_FRAMEBUFFER, pg->gl_framebuffer);
         // HACK HACK HACK
-
-
+#endif
         pgraph_update_surface(d, false, true, true);
 
         while (true) {
@@ -677,7 +660,7 @@ static void pgraph_method(NV2AState *d,
                 != GET_MASK(s, NV_PGRAPH_SURFACE_WRITE_3D)) {
                 break;
             }
-            SDL_CondWait(pg->flip_3d, pg->lock);
+            qemu_cond_wait(&pg->flip_3d, &pg->lock);
         }
         NV2A_DPRINTF("flip stall done\n");
         break;
@@ -2227,7 +2210,7 @@ static void pgraph_method(NV2AState *d,
 
         pgraph_update_surface(d, false, true, true);
 
-        //SDL_UnlockMutex(d->pgraph.lock);
+        //qemu_mutex_unlock(&d->pgraph.lock);
         //qemu_mutex_lock_iothread();
 
         hwaddr semaphore_dma_len;
@@ -2238,7 +2221,7 @@ static void pgraph_method(NV2AState *d,
 
         stl_le_p((uint32_t*)semaphore_data, parameter);
 
-        //SDL_LockMutex(d->pgraph.lock);
+        //qemu_mutex_lock(&d->pgraph.lock);
         //qemu_mutex_unlock_iothread();
 
         break;
@@ -2519,23 +2502,23 @@ static void pgraph_context_switch(NV2AState *d, unsigned int channel_id)
     if (!valid) {
         NV2A_DPRINTF("puller needs to switch to ch %d\n", channel_id);
 
-        SDL_UnlockMutex(d->pgraph.lock);
+        qemu_mutex_unlock(&d->pgraph.lock);
         qemu_mutex_lock_iothread();
         d->pgraph.pending_interrupts |= NV_PGRAPH_INTR_CONTEXT_SWITCH;
         update_irq(d);
 
-        SDL_LockMutex(d->pgraph.lock);
+        qemu_mutex_lock(&d->pgraph.lock);
         qemu_mutex_unlock_iothread();
 
         while (d->pgraph.pending_interrupts & NV_PGRAPH_INTR_CONTEXT_SWITCH) {
-            SDL_CondWait(d->pgraph.interrupt_cond, d->pgraph.lock);
+            qemu_cond_wait(&d->pgraph.interrupt_cond, &d->pgraph.lock);
         }
     }
 }
 
 static void pgraph_wait_fifo_access(NV2AState *d) {
     while (!d->pgraph.fifo_access) {
-        SDL_CondWait(d->pgraph.fifo_access_cond, d->pgraph.lock);
+        qemu_cond_wait(&d->pgraph.fifo_access_cond, &d->pgraph.lock);
     }
 }
 
@@ -2623,10 +2606,10 @@ void pgraph_init(NV2AState *d)
 
     PGRAPHState *pg = &d->pgraph;
 
-    pg->lock = SDL_CreateMutex();
-    pg->interrupt_cond = SDL_CreateCond();
-    pg->fifo_access_cond = SDL_CreateCond();
-    pg->flip_3d = SDL_CreateCond();
+    qemu_mutex_init(&pg->lock);
+    qemu_cond_init(&pg->interrupt_cond);
+    qemu_cond_init(&pg->fifo_access_cond);
+    qemu_cond_init(&pg->flip_3d);
 
     /* fire up opengl */
 
@@ -2694,7 +2677,7 @@ void pgraph_init(NV2AState *d)
     glGenBuffers(1, &pg->gl_memory_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, pg->gl_memory_buffer);
     glBufferData(GL_ARRAY_BUFFER,
-                 d->vram_size,
+                 memory_region_size(d->vram),
                  NULL,
                  GL_DYNAMIC_DRAW);
 
@@ -2708,10 +2691,10 @@ void pgraph_init(NV2AState *d)
 
 void pgraph_destroy(PGRAPHState *pg)
 {
-    SDL_DestroyMutex(pg->lock);
-    SDL_DestroyCond(pg->interrupt_cond);
-    SDL_DestroyCond(pg->fifo_access_cond);
-    SDL_DestroyCond(pg->flip_3d);
+    qemu_mutex_destroy(&pg->lock);
+    qemu_cond_destroy(&pg->interrupt_cond);
+    qemu_cond_destroy(&pg->fifo_access_cond);
+    qemu_cond_destroy(&pg->flip_3d);
 
     // glo_set_current(pg->gl_context);
 
@@ -3801,7 +3784,7 @@ static void pgraph_update_memory_buffer(NV2AState *d, hwaddr addr, hwaddr size,
 
     hwaddr end = TARGET_PAGE_ALIGN(addr + size);
     addr &= TARGET_PAGE_MASK;
-    assert(end < d->vram_size);
+    assert(end < memory_region_size(d->vram));
     // if (f || memory_region_test_and_clear_dirty(d->vram,
     //                                             addr,
     //                                             end - addr,
@@ -3970,7 +3953,7 @@ static void load_graphics_object(NV2AState *d, hwaddr instance_address,
     uint8_t *obj_ptr;
     uint32_t switch1, switch2, switch3;
 
-    assert(instance_address < d->ramin_size);
+    assert(instance_address < memory_region_size(&d->ramin));
 
     obj_ptr = d->ramin_ptr + instance_address;
 

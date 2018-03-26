@@ -7,7 +7,7 @@ typedef struct RAMHTEntry {
 } RAMHTEntry;
 
 static void pfifo_run_pusher(NV2AState *d);
-int pfifo_puller_thread(void *opaque);
+void *pfifo_puller_thread(void *opaque);
 static uint32_t ramht_hash(NV2AState *d, uint32_t handle);
 static RAMHTEntry ramht_lookup(NV2AState *d, uint32_t handle);
 
@@ -36,11 +36,11 @@ uint64_t pfifo_read(void *opaque, hwaddr addr, unsigned int size)
         SET_MASK(r, NV_PFIFO_CACHE1_PUSH1_MODE, d->pfifo.cache1.mode);
         break;
     case NV_PFIFO_CACHE1_STATUS:
-        SDL_LockMutex(d->pfifo.cache1.cache_lock);
+        qemu_mutex_lock(&d->pfifo.cache1.cache_lock);
         if (QSIMPLEQ_EMPTY(&d->pfifo.cache1.cache)) {
             r |= NV_PFIFO_CACHE1_STATUS_LOW_MARK; /* low mark empty */
         }
-        SDL_UnlockMutex(d->pfifo.cache1.cache_lock);
+        qemu_mutex_unlock(&d->pfifo.cache1.cache_lock);
         break;
     case NV_PFIFO_CACHE1_DMA_PUSH:
         SET_MASK(r, NV_PFIFO_CACHE1_DMA_PUSH_ACCESS,
@@ -76,16 +76,16 @@ uint64_t pfifo_read(void *opaque, hwaddr addr, unsigned int size)
             | d->pfifo.cache1.subroutine_active;
         break;
     case NV_PFIFO_CACHE1_PULL0:
-        SDL_LockMutex(d->pfifo.cache1.cache_lock);
+        qemu_mutex_lock(&d->pfifo.cache1.cache_lock);
         r = d->pfifo.cache1.pull_enabled;
-        SDL_UnlockMutex(d->pfifo.cache1.cache_lock);
+        qemu_mutex_unlock(&d->pfifo.cache1.cache_lock);
         break;
     case NV_PFIFO_CACHE1_ENGINE:
-        SDL_LockMutex(d->pfifo.cache1.cache_lock);
+        qemu_mutex_lock(&d->pfifo.cache1.cache_lock);
         for (i=0; i<NV2A_NUM_SUBCHANNELS; i++) {
             r |= d->pfifo.cache1.bound_engines[i] << (i*2);
         }
-        SDL_UnlockMutex(d->pfifo.cache1.cache_lock);
+        qemu_mutex_unlock(&d->pfifo.cache1.cache_lock);
         break;
     case NV_PFIFO_CACHE1_DMA_DCOUNT:
         r = d->pfifo.cache1.dcount;
@@ -173,25 +173,25 @@ void pfifo_write(void *opaque, hwaddr addr, uint64_t val, unsigned int size)
             (val & NV_PFIFO_CACHE1_DMA_SUBROUTINE_STATE);
         break;
     case NV_PFIFO_CACHE1_PULL0:
-        SDL_LockMutex(d->pfifo.cache1.cache_lock);
+        qemu_mutex_lock(&d->pfifo.cache1.cache_lock);
         if ((val & NV_PFIFO_CACHE1_PULL0_ACCESS)
              && !d->pfifo.cache1.pull_enabled) {
             d->pfifo.cache1.pull_enabled = true;
 
             /* the puller thread should wake up */
-            SDL_CondSignal(d->pfifo.cache1.cache_cond);
+            qemu_cond_signal(&d->pfifo.cache1.cache_cond);
         } else if (!(val & NV_PFIFO_CACHE1_PULL0_ACCESS)
                      && d->pfifo.cache1.pull_enabled) {
             d->pfifo.cache1.pull_enabled = false;
         }
-        SDL_UnlockMutex(d->pfifo.cache1.cache_lock);
+        qemu_mutex_unlock(&d->pfifo.cache1.cache_lock);
         break;
     case NV_PFIFO_CACHE1_ENGINE:
-        SDL_LockMutex(d->pfifo.cache1.cache_lock);
+        qemu_mutex_lock(&d->pfifo.cache1.cache_lock);
         for (i=0; i<NV2A_NUM_SUBCHANNELS; i++) {
             d->pfifo.cache1.bound_engines[i] = (enum FIFOEngine)((val >> (i*2)) & 3);
         }
-        SDL_UnlockMutex(d->pfifo.cache1.cache_lock);
+        qemu_mutex_unlock(&d->pfifo.cache1.cache_lock);
         break;
     case NV_PFIFO_CACHE1_DMA_DCOUNT:
         d->pfifo.cache1.dcount =
@@ -271,10 +271,10 @@ static void pfifo_run_pusher(NV2AState *d) {
             command->subchannel = state->subchannel;
             command->nonincreasing = state->method_nonincreasing;
             command->parameter = word;
-            SDL_LockMutex(state->cache_lock);
+            qemu_mutex_lock(&state->cache_lock);
             QSIMPLEQ_INSERT_TAIL(&state->cache, command, entry);
-            SDL_CondSignal(state->cache_cond);
-            SDL_UnlockMutex(state->cache_lock);
+            qemu_cond_signal(&state->cache_cond);
+            qemu_mutex_unlock(&state->cache_lock);
 
             if (!state->method_nonincreasing) {
                 state->method += 4;
@@ -351,7 +351,7 @@ static void pfifo_run_pusher(NV2AState *d) {
     }
 }
 
-int pfifo_puller_thread(void *opaque)
+void *pfifo_puller_thread(void *opaque)
 {
     NV2AState *d = (NV2AState*)opaque;
     Cache1State *state = &d->pfifo.cache1;
@@ -359,32 +359,32 @@ int pfifo_puller_thread(void *opaque)
     // glo_set_current(d->pgraph.gl_context);
 
     // while (true) {
-        SDL_LockMutex(state->cache_lock);
+        qemu_mutex_lock(&state->cache_lock);
         while (QSIMPLEQ_EMPTY(&state->cache) || !state->pull_enabled) {
-            SDL_CondWait(state->cache_cond, state->cache_lock);
+            qemu_cond_wait(&state->cache_cond, &state->cache_lock);
 
             if (d->exiting) {
-                SDL_UnlockMutex(state->cache_lock);
+                qemu_mutex_unlock(&state->cache_lock);
                 // glo_set_current(NULL);
                 return 0;
             }
         }
         QSIMPLEQ_CONCAT(&state->working_cache, &state->cache);
-        SDL_UnlockMutex(state->cache_lock);
+        qemu_mutex_unlock(&state->cache_lock);
 
-        SDL_LockMutex(d->pgraph.lock);
+        qemu_mutex_lock(&d->pgraph.lock);
 
         while (!QSIMPLEQ_EMPTY(&state->working_cache)) {
             CacheEntry * command = QSIMPLEQ_FIRST(&state->working_cache);
             QSIMPLEQ_REMOVE_HEAD(&state->working_cache, entry);
 
             if (command->method == 0) {
-                // SDL_LockMutex_othread();
+                // qemu_mutex_lock_iothread();
                 RAMHTEntry entry = ramht_lookup(d, command->parameter);
                 assert(entry.valid);
 
                 assert(entry.channel_id == state->channel_id);
-                // SDL_UnlockMutex_othread();
+                // qemu_mutex_unlock_iothread();
 
                 switch (entry.engine) {
                 case ENGINE_GRAPHICS:
@@ -398,10 +398,10 @@ int pfifo_puller_thread(void *opaque)
                 }
 
                 /* the engine is bound to the subchannel */
-                SDL_LockMutex(state->cache_lock);
+                qemu_mutex_lock(&state->cache_lock);
                 state->bound_engines[command->subchannel] = entry.engine;
                 state->last_engine = entry.engine;
-                SDL_UnlockMutex(state->cache_lock);
+                qemu_mutex_unlock(&state->cache_lock);
             } else if (command->method >= 0x100) {
                 /* method passed to engine */
 
@@ -410,17 +410,17 @@ int pfifo_puller_thread(void *opaque)
                 /* methods that take objects.
                  * TODO: Check this range is correct for the nv2a */
                 if (command->method >= 0x180 && command->method < 0x200) {
-                    //SDL_LockMutex_othread();
+                    //qemu_mutex_lock_iothread();
                     RAMHTEntry entry = ramht_lookup(d, parameter);
                     assert(entry.valid);
                     assert(entry.channel_id == state->channel_id);
                     parameter = entry.instance;
-                    //SDL_UnlockMutex_othread();
+                    //qemu_mutex_unlock_iothread();
                 }
 
-                // SDL_LockMutex(state->cache_lock);
+                // qemu_mutex_lock(&state->cache_lock);
                 enum FIFOEngine engine = state->bound_engines[command->subchannel];
-                // SDL_UnlockMutex(state->cache_lock);
+                // qemu_mutex_unlock(&state->cache_lock);
 
                 switch (engine) {
                 case ENGINE_GRAPHICS:
@@ -433,15 +433,15 @@ int pfifo_puller_thread(void *opaque)
                     break;
                 }
 
-                // SDL_LockMutex(state->cache_lock);
+                // qemu_mutex_lock(&state->cache_lock);
                 state->last_engine = state->bound_engines[command->subchannel];
-                // SDL_UnlockMutex(state->cache_lock);
+                // qemu_mutex_unlock(&state->cache_lock);
             }
 
             g_free(command);
         }
 
-        SDL_UnlockMutex(d->pgraph.lock);
+        qemu_mutex_unlock(&d->pgraph.lock);
     // }
 
     return 0;
