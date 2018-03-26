@@ -1,6 +1,5 @@
 /* PBUS - bus control */
-static uint64_t pbus_read(void *opaque,
-                               hwaddr addr, unsigned int size)
+uint64_t pbus_read(void *opaque, hwaddr addr, unsigned int size)
 {
     NV2AState *d = opaque;
 
@@ -22,8 +21,8 @@ static uint64_t pbus_read(void *opaque,
     reg_log_read(NV_PBUS, addr, r);
     return r;
 }
-static void pbus_write(void *opaque, hwaddr addr,
-                            uint64_t val, unsigned int size)
+
+void pbus_write(void *opaque, hwaddr addr, uint64_t val, unsigned int size)
 {
     NV2AState *d = opaque;
 
