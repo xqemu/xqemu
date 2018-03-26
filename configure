@@ -2945,6 +2945,18 @@ EOF
   fi
 fi
 
+
+# Xbox hack to include ogl framework
+if test "$darwin" = "yes" ; then
+    sdl_libs="$sdl_libs -framework OpenGL"
+#     cat > $TMPC << EOF
+# #include <OpenGL/gl.h>
+# #include <OpenGL/CGLTypes.h>
+# #include <OpenGL/CGLCurrent.h>
+# int main(void) { return GL_VERSION != 0; }
+# EOF
+fi
+
 ##########################################
 # RDMA needs OpenFabrics libraries
 if test "$rdma" != "no" ; then
