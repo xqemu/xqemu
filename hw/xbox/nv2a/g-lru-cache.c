@@ -26,6 +26,10 @@
 
 #include "g-lru-cache.h"
 
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+
 #define LRU_CACHE_PRIVATE(object)          \
     (G_TYPE_INSTANCE_GET_PRIVATE((object), \
     G_TYPE_LRU_CACHE,                      \
