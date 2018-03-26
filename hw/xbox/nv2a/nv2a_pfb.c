@@ -1,4 +1,4 @@
-static uint64_t pfb_read(void *opaque, hwaddr addr, unsigned int size)
+uint64_t pfb_read(void *opaque, hwaddr addr, unsigned int size)
 {
     NV2AState *d = (NV2AState *)opaque;
 
@@ -9,7 +9,7 @@ static uint64_t pfb_read(void *opaque, hwaddr addr, unsigned int size)
         r = 3;
         break;
     case NV_PFB_CSTATUS:
-        r = d->vram_size;
+        r = memory_region_size(d->vram);
         break;
     case NV_PFB_WBC:
         r = 0; /* Flush not pending. */
@@ -22,7 +22,8 @@ static uint64_t pfb_read(void *opaque, hwaddr addr, unsigned int size)
     reg_log_read(NV_PFB, addr, r);
     return r;
 }
-static void pfb_write(void *opaque, hwaddr addr, uint64_t val, unsigned int size)
+
+void pfb_write(void *opaque, hwaddr addr, uint64_t val, unsigned int size)
 {
     NV2AState *d = (NV2AState *)opaque;
 

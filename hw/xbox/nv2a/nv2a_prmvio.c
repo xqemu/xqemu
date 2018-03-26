@@ -1,5 +1,5 @@
 /* PRMVIO - aliases VGA sequencer and graphics controller registers */
-static uint64_t prmvio_read(void *opaque,
+uint64_t prmvio_read(void *opaque,
                                   hwaddr addr, unsigned int size)
 {
     NV2AState *d = opaque;
@@ -8,7 +8,7 @@ static uint64_t prmvio_read(void *opaque,
     reg_log_read(NV_PRMVIO, addr, r);
     return r;
 }
-static void prmvio_write(void *opaque, hwaddr addr,
+void prmvio_write(void *opaque, hwaddr addr,
                                uint64_t val, unsigned int size)
 {
     NV2AState *d = opaque;

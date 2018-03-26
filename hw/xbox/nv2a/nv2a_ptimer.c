@@ -5,8 +5,8 @@ static uint64_t ptimer_get_clock(NV2AState *d)
                     d->pramdac.core_clock_freq * d->ptimer.numerator,
                     get_ticks_per_sec() * d->ptimer.denominator);
 }
-static uint64_t ptimer_read(void *opaque,
-                                  hwaddr addr, unsigned int size)
+
+uint64_t ptimer_read(void *opaque, hwaddr addr, unsigned int size)
 {
     NV2AState *d = opaque;
 
@@ -38,8 +38,7 @@ static uint64_t ptimer_read(void *opaque,
     return r;
 }
 
-static void ptimer_write(void *opaque, hwaddr addr,
-                               uint64_t val, unsigned int size)
+void ptimer_write(void *opaque, hwaddr addr, uint64_t val, unsigned int size)
 {
     NV2AState *d = opaque;
 
