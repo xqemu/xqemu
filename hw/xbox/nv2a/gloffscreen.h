@@ -35,16 +35,16 @@ extern "C" {
 
 #include <stdbool.h>
 
-// #ifdef __APPLE__
-// #include <OpenGL/gl3.h>
-// #include <OpenGL/glext.h>
-// #else
-// #include <GL/glew.h>
-// #include <GL/gl.h>
-// #endif
-
-#include <SDL.h>
+#ifdef __APPLE__
+#include <OpenGL/gl3.h>
+#include <OpenGL/glext.h>
+#else
 #include <GL/glew.h>
+#include <GL/gl.h>
+#endif
+
+// #include <SDL.h>
+// #include <GL/glew.h>
 
 /* Used to hold data for the OpenGL context */
 struct _GloContext;
