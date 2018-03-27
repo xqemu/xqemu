@@ -165,11 +165,14 @@ typedef struct VGACommonState {
     bool big_endian_fb;
     bool default_endian_fb;
     /* hardware mouse cursor support */
+    bool enable_overlay;
+    bool last_enable_overlay;
     uint32_t invalidated_y_table[VGA_MAX_HEIGHT / 32];
     uint32_t hw_cursor_x;
     uint32_t hw_cursor_y;
     void (*cursor_invalidate)(struct VGACommonState *s);
     void (*cursor_draw_line)(struct VGACommonState *s, uint8_t *d, int y);
+    void (*overlay_draw_line)(struct VGACommonState *s, uint8_t *d, int y);
     /* tell for each page if it has been updated since the last time */
     uint32_t last_palette[256];
     uint32_t last_ch_attr[CH_ATTR_SIZE]; /* XXX: make it dynamic */
