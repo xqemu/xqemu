@@ -356,7 +356,7 @@ void *pfifo_puller_thread(void *opaque)
     NV2AState *d = (NV2AState*)opaque;
     Cache1State *state = &d->pfifo.cache1;
 
-    // glo_set_current(d->pgraph.gl_context);
+    glo_set_current(d->pgraph.gl_context);
 
     // while (true) {
         qemu_mutex_lock(&state->cache_lock);
@@ -365,7 +365,7 @@ void *pfifo_puller_thread(void *opaque)
 
             if (d->exiting) {
                 qemu_mutex_unlock(&state->cache_lock);
-                // glo_set_current(NULL);
+                glo_set_current(NULL);
                 return 0;
             }
         }

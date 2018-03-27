@@ -2613,8 +2613,8 @@ void pgraph_init(NV2AState *d)
 
     /* fire up opengl */
 
-    // pg->gl_context = glo_context_create();
-    // assert(pg->gl_context);
+    pg->gl_context = glo_context_create();
+    assert(pg->gl_context);
 
 #ifdef DEBUG_NV2A_GL
     glEnable(GL_DEBUG_OUTPUT);
@@ -2623,9 +2623,9 @@ void pgraph_init(NV2AState *d)
     glextensions_init();
 
     /* DXT textures */
-    // assert(glo_check_extension("GL_EXT_texture_compression_s3tc"));
+    assert(glo_check_extension("GL_EXT_texture_compression_s3tc"));
     /*  Internal RGB565 texture format */
-    // assert(glo_check_extension("GL_ARB_ES2_compatibility"));
+    assert(glo_check_extension("GL_ARB_ES2_compatibility"));
 
     GLint max_vertex_attributes;
     glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &max_vertex_attributes);
@@ -2686,7 +2686,7 @@ void pgraph_init(NV2AState *d)
 
     assert(glGetError() == GL_NO_ERROR);
 
-    // glo_set_current(NULL);
+    glo_set_current(NULL);
 }
 
 void pgraph_destroy(PGRAPHState *pg)
@@ -2696,7 +2696,7 @@ void pgraph_destroy(PGRAPHState *pg)
     qemu_cond_destroy(&pg->fifo_access_cond);
     qemu_cond_destroy(&pg->flip_3d);
 
-    // glo_set_current(pg->gl_context);
+    glo_set_current(pg->gl_context);
 
     if (pg->gl_color_buffer) {
         glDeleteTextures(1, &pg->gl_color_buffer);
@@ -2709,9 +2709,9 @@ void pgraph_destroy(PGRAPHState *pg)
     // TODO: clear out shader cached
     // TODO: clear out texture cache
 
-    // glo_set_current(NULL);
+    glo_set_current(NULL);
 
-    // glo_context_destroy(pg->gl_context);
+    glo_context_destroy(pg->gl_context);
 }
 
 static void pgraph_shader_update_constants(PGRAPHState *pg,

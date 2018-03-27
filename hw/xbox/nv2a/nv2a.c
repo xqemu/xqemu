@@ -59,9 +59,9 @@ void update_irq(NV2AState *d)
 
     if (d->pmc.pending_interrupts && d->pmc.enabled_interrupts) {
         NV2A_DPRINTF("raise irq\n");
-        // pci_irq_assert(&d->dev);
+        pci_irq_assert(&d->dev);
     } else {
-        // pci_irq_deassert(&d->dev);
+        pci_irq_deassert(&d->dev);
     }
 }
 
@@ -126,18 +126,18 @@ DEFINE_PROTO(prmdio)
 DEFINE_PROTO(pramin)
 DEFINE_PROTO(user)
 
-// #include "nv2a_pbus.c"
+#include "nv2a_pbus.c"
 #include "nv2a_pcrtc.c"
 #include "nv2a_pfb.c"
 #include "nv2a_pgraph.c"
 #include "nv2a_pfifo.c"
 #include "nv2a_pmc.c"
 #include "nv2a_pramdac.c"
-// #include "nv2a_prmcio.c"
-// #include "nv2a_prmvio.c"
-// #include "nv2a_ptimer.c"
-// #include "nv2a_pvideo.c"
-// #include "nv2a_stubs.c"
+#include "nv2a_prmcio.c"
+#include "nv2a_prmvio.c"
+#include "nv2a_ptimer.c"
+#include "nv2a_pvideo.c"
+#include "nv2a_stubs.c"
 #include "nv2a_user.c"
 
 #undef DEFINE_PROTO
