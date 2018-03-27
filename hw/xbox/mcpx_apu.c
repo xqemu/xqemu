@@ -22,10 +22,7 @@
 #include "hw/i386/pc.h"
 #include "hw/pci/pci.h"
 #include "cpu.h"
-
-#ifdef DSP_READY
 #include "hw/xbox/dsp/dsp.h"
-#endif
 
 #define NV_PAPU_ISTS                                     0x00001000
 #   define NV_PAPU_ISTS_GINTSTS                               (1 << 0)
@@ -157,18 +154,14 @@ typedef struct MCPXAPUState {
     /* Global Processor */
     struct {
         MemoryRegion mmio;
-#ifdef DSP_READY
         DSPState *dsp;
-#endif
         uint32_t regs[0x10000];
     } gp;
 
     /* Encode Processor */
     struct {
         MemoryRegion mmio;
-#ifdef DSP_READY
         DSPState *dsp;
-#endif
         uint32_t regs[0x10000];
     } ep;
 
@@ -418,7 +411,7 @@ static void scratch_rw(hwaddr sge_base, unsigned int max_sge,
         unsigned int entry = (addr + i) / TARGET_PAGE_SIZE;
         assert(entry < max_sge);
         uint32_t prd_address = ldl_le_phys(&address_space_memory, sge_base + entry*4*2);
-        uint32_t prd_control = ldl_le_phys(&address_space_memory, sge_base + entry*4*2 + 1);
+        // uint32_t prd_control = ldl_le_phys(&address_space_memory, sge_base + entry*4*2 + 1);
 
         hwaddr paddr = prd_address + (addr + i) % TARGET_PAGE_SIZE;
 
@@ -444,7 +437,6 @@ static void ep_scratch_rw(void *opaque, uint8_t* ptr, uint32_t addr, size_t len,
                ptr, addr, len, dir);
 }
 
-#ifdef DSP_READY
 static void proc_rst_write(DSPState *dsp, uint32_t oldval, uint32_t val)
 {
     if (!(val & NV_PAPU_GPRST_GPRST) || !(val & NV_PAPU_GPRST_GPDSPRST)) {
@@ -455,7 +447,6 @@ static void proc_rst_write(DSPState *dsp, uint32_t oldval, uint32_t val)
         dsp_bootstrap(dsp);
     }
 }
-#endif
 
 /* Global Processor - programmable DSP */
 static uint64_t gp_read(void *opaque,
@@ -476,9 +467,7 @@ static void gp_write(void *opaque, hwaddr addr,
 
     switch (addr) {
     case NV_PAPU_GPRST:
-#ifdef DSP_READY
         proc_rst_write(d->gp.dsp, d->gp.regs[NV_PAPU_GPRST], val);
-#endif
         d->gp.regs[NV_PAPU_GPRST] = val;
         break;
     default:
@@ -496,7 +485,6 @@ static const MemoryRegionOps gp_ops = {
 static uint64_t ep_read(void *opaque,
                         hwaddr addr, unsigned int size)
 {
-#ifdef DSP_READY
     MCPXAPUState *d = opaque;
 
     uint64_t r = 0;
@@ -522,9 +510,7 @@ static uint64_t ep_read(void *opaque,
         break;
     }
     MCPX_DPRINTF("mcpx apu EP: read [0x%llx] -> 0x%llx\n", addr, r);
-#else
     return 0;
-#endif
 }
 static void ep_write(void *opaque, hwaddr addr,
                      uint64_t val, unsigned int size)
@@ -547,9 +533,7 @@ static void ep_write(void *opaque, hwaddr addr,
         break;
     }
     case NV_PAPU_EPRST:
-#ifdef DSP_READY
         proc_rst_write(d->ep.dsp, d->ep.regs[NV_PAPU_EPRST], val);
-#endif
         d->ep.regs[NV_PAPU_EPRST] = val;
         break;
     default:
@@ -566,7 +550,6 @@ static const MemoryRegionOps ep_ops = {
 /* TODO: this should be on a thread so it waits on the voice lock */
 static void se_frame(void *opaque)
 {
-#ifdef DSP_READY
     MCPXAPUState *d = opaque;
     timer_mod(d->se.frame_timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + 10);
     MCPX_DPRINTF("mcpx frame ping\n");
@@ -608,7 +591,6 @@ static void se_frame(void *opaque)
         // hax
         // dsp_run(d->ep.dsp, 1000);
     }
-#endif
 }
 
 
@@ -637,11 +619,8 @@ static void mcpx_apu_realize(PCIDevice *dev, Error **errp)
 
 
     d->se.frame_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, se_frame, d);
-
-#ifdef DSP_READY
     d->gp.dsp = dsp_init(d, gp_scratch_rw);
     d->ep.dsp = dsp_init(d, ep_scratch_rw);
-#endif
 }
 
 static void mcpx_apu_class_init(ObjectClass *klass, void *data)
