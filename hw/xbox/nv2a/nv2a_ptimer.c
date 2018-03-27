@@ -1,3 +1,10 @@
+
+/* FIXME */
+static inline int64_t get_ticks_per_sec(void)
+{
+    return 1000000000LL;
+}
+
 /* PIMTER - time measurement and time-based alarms */
 static uint64_t ptimer_get_clock(NV2AState *d)
 {
