@@ -14,14 +14,15 @@ Status
 ------
 Booting to kernel! The very basics are ported. Everything should (hopefully)
 require minimal effort to get working. See TODO list and add to it if I've
-forgotton something.
+forgotton something. nvnet and nv2a are starting, but graphics is no working
+yet (it's very close!).
 
 Chat
 ----
 Keep up with the latest developments. Chat with me on [Discord](https://discord.gg/v7gfcms). - [@mborgerson](https://github.com/mborgerson)
 
-Debugging on macOS
-------------------
+macOS Dev
+---------
 Use build.sh to build. Then run it like:
 
 	./i386-softmmu/qemu-system-i386 \
@@ -29,24 +30,22 @@ Use build.sh to build. Then run it like:
 		-machine xbox,bootrom=$MCPX \
 		-m 64 \
 		-bios $BIOS \
-		-s -S \
 		-drive file=$HDD,index=0,media=disk \
 		-monitor stdio
 
-This will halt at the reset vector and wait for GDB connection. It will also
-start the Qemu monitor on the command line, which includes lots of really
-helpful debugging commands!
+This will start the Qemu monitor on the command line, which includes lots of
+really helpful debugging commands!
 
-### Debugging on macOS
+### Debugging
 
 If your build of Qemu is crashing, I've found it easiest to use the Xcode
 debugger to look at stack traces. Fire up Xcode, create a project, edit the
 "Scheme" to run the xqemu binary, then click the run button. Xcode has a nice
 GUI for analyzing the stack frame and looking at local variables to quickly
-track down bugs. Let me know if you find a better method. - @mborgerson
+track down bugs. Let me know if you find a better method. You can also attach
+to running processes. - @mborgerson
 
 Todo (barebones)
 ----------------
-* Probably need to add IDE lock/unlock code
-* Get drivers to build properly (esp nv2a and nvnet)
-* Get DSP working
+* Need to add IDE lock/unlock code
+* Get drivers WORKING! They build. The nv2a needs some help.
