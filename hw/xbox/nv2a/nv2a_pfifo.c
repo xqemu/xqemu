@@ -358,7 +358,7 @@ void *pfifo_puller_thread(void *opaque)
 
     glo_set_current(d->pgraph.gl_context);
 
-    // while (true) {
+    while (true) {
         qemu_mutex_lock(&state->cache_lock);
         while (QSIMPLEQ_EMPTY(&state->cache) || !state->pull_enabled) {
             qemu_cond_wait(&state->cache_cond, &state->cache_lock);
@@ -442,7 +442,7 @@ void *pfifo_puller_thread(void *opaque)
         }
 
         qemu_mutex_unlock(&d->pgraph.lock);
-    // }
+    }
 
     return 0;
 }
