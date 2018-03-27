@@ -1133,6 +1133,9 @@ bool memory_region_get_dirty(MemoryRegion *mr, hwaddr addr,
 void memory_region_set_dirty(MemoryRegion *mr, hwaddr addr,
                              hwaddr size);
 
+void memory_region_set_client_dirty(MemoryRegion *mr, hwaddr addr,
+                                    hwaddr size, unsigned client);
+
 /**
  * memory_region_snapshot_and_clear_dirty: Get a snapshot of the dirty
  *                                         bitmap and clear it.

@@ -1921,6 +1921,11 @@ void memory_region_set_log(MemoryRegion *mr, bool log, unsigned client)
     uint8_t mask = 1 << client;
     uint8_t old_logging;
 
+    if (mr->alias) {
+        memory_region_set_log(mr->alias, log, client);
+        return;
+    }
+
     assert(client == DIRTY_MEMORY_VGA);
     old_logging = mr->vga_logging_count;
     mr->vga_logging_count += log ? 1 : -1;
@@ -1937,6 +1942,10 @@ void memory_region_set_log(MemoryRegion *mr, bool log, unsigned client)
 bool memory_region_get_dirty(MemoryRegion *mr, hwaddr addr,
                              hwaddr size, unsigned client)
 {
+    if (mr->alias) {
+        return memory_region_get_dirty(mr->alias, addr - mr->alias_offset,
+                                       size, client);
+    }
     assert(mr->ram_block);
     return cpu_physical_memory_get_dirty(memory_region_get_ram_addr(mr) + addr,
                                          size, client);
@@ -1945,10 +1954,27 @@ bool memory_region_get_dirty(MemoryRegion *mr, hwaddr addr,
 void memory_region_set_dirty(MemoryRegion *mr, hwaddr addr,
                              hwaddr size)
 {
+    if (mr->alias) {
+        return memory_region_set_dirty(mr->alias, addr - mr->alias_offset,
+                                       size);
+    }
     assert(mr->ram_block);
     cpu_physical_memory_set_dirty_range(memory_region_get_ram_addr(mr) + addr,
                                         size,
                                         memory_region_get_dirty_log_mask(mr));
+}
+
+void memory_region_set_client_dirty(MemoryRegion *mr, hwaddr addr,
+                                    hwaddr size, unsigned client)
+{
+    if (mr->alias) {
+        return memory_region_set_client_dirty(mr->alias,
+                                              addr - mr->alias_offset,
+                                              size, client);
+    }
+    assert(mr->terminates);
+    return cpu_physical_memory_set_dirty_range(memory_region_get_ram_addr(mr) + addr,
+                                               size, 1 << client);
 }
 
 static void memory_region_sync_dirty_bitmap(MemoryRegion *mr)
@@ -2021,6 +2047,11 @@ void memory_region_rom_device_set_romd(MemoryRegion *mr, bool romd_mode)
 void memory_region_reset_dirty(MemoryRegion *mr, hwaddr addr,
                                hwaddr size, unsigned client)
 {
+    if (mr->alias) {
+        memory_region_reset_dirty(mr->alias, addr - mr->alias_offset,
+                                  size, client);
+        return;
+    }
     assert(mr->ram_block);
     cpu_physical_memory_test_and_clear_dirty(
         memory_region_get_ram_addr(mr) + addr, size, client);
@@ -2044,6 +2075,10 @@ void *memory_region_get_ram_ptr(MemoryRegion *mr)
 {
     void *ptr;
     uint64_t offset = 0;
+
+    if (mr->alias) {
+        return memory_region_get_ram_ptr(mr->alias) + mr->alias_offset;
+    }
 
     rcu_read_lock();
     while (mr->alias) {
