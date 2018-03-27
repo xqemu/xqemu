@@ -101,6 +101,34 @@ void *nv_dma_map(NV2AState *d, hwaddr dma_obj_address, hwaddr *len)
 
 static const char* nv2a_method_names[] = {};
 
+#define STUB 0
+
+#if STUB
+void *pfifo_puller_thread(void *opaque) { return NULL; }
+void pgraph_init(NV2AState *d){}
+static void pfifo_run_pusher(NV2AState *d){}
+void pgraph_destroy(PGRAPHState *pg){}
+static uint8_t cliptobyte(int x)
+{
+    return (uint8_t)((x < 0) ? 0 : ((x > 255) ? 255 : x));
+}
+static void convert_yuy2_to_rgb(const uint8_t *line, unsigned int ix,
+                                uint8_t *r, uint8_t *g, uint8_t* b) {
+    int c, d, e;
+    c = (int)line[ix * 2] - 16;
+    if (ix % 2) {
+        d = (int)line[ix * 2 - 1] - 128;
+        e = (int)line[ix * 2 + 1] - 128;
+    } else {
+        d = (int)line[ix * 2 + 1] - 128;
+        e = (int)line[ix * 2 + 3] - 128;
+    }
+    *r = cliptobyte((298 * c + 409 * e + 128) >> 8);
+    *g = cliptobyte((298 * c - 100 * d - 208 * e + 128) >> 8);
+    *b = cliptobyte((298 * c + 516 * d + 128) >> 8);
+}
+#endif
+
 #define DEFINE_PROTO(prefix) \
     uint64_t prefix ## _read(void *opaque, hwaddr addr, unsigned int size); \
     void prefix ## _write(void *opaque, hwaddr addr, uint64_t val, unsigned int size);
@@ -126,11 +154,15 @@ DEFINE_PROTO(prmdio)
 DEFINE_PROTO(pramin)
 DEFINE_PROTO(user)
 
+#undef DEFINE_PROTO
+
 #include "nv2a_pbus.c"
 #include "nv2a_pcrtc.c"
 #include "nv2a_pfb.c"
+#if !STUB
 #include "nv2a_pgraph.c"
 #include "nv2a_pfifo.c"
+#endif
 #include "nv2a_pmc.c"
 #include "nv2a_pramdac.c"
 #include "nv2a_prmcio.c"
@@ -140,7 +172,31 @@ DEFINE_PROTO(user)
 #include "nv2a_stubs.c"
 #include "nv2a_user.c"
 
-#undef DEFINE_PROTO
+#if STUB
+void pgraph_write(void *opaque, hwaddr addr, uint64_t val, unsigned int size)
+{
+    reg_log_write(NV_PGRAPH, addr, val);
+}
+
+uint64_t pgraph_read(void *opaque, 
+                                   hwaddr addr, unsigned int size)
+{
+    reg_log_read(NV_PGRAPH, addr, 0);
+    return 0;
+}
+
+void pfifo_write(void *opaque, hwaddr addr, uint64_t val, unsigned int size)
+{
+    reg_log_write(NV_PFIFO, addr, val);
+}
+
+uint64_t pfifo_read(void *opaque, 
+                                   hwaddr addr, unsigned int size)
+{
+    reg_log_read(NV_PFIFO, addr, 0);
+    return 0;
+}
+#endif
 
 const struct NV2ABlockInfo blocktable[] = {
 
@@ -151,24 +207,24 @@ const struct NV2ABlockInfo blocktable[] = {
     }, \
 
     ENTRY(PMC,      0x000000, 0x001000, pmc_read,      pmc_write)
-    ENTRY(PBUS,     0x001000, 0x001000, NULL, NULL) // pbus_read,     pbus_write)
+    ENTRY(PBUS,     0x001000, 0x001000, pbus_read,     pbus_write)
     ENTRY(PFIFO,    0x002000, 0x002000, pfifo_read,    pfifo_write)
-    ENTRY(PRMA,     0x007000, 0x001000, NULL, NULL) // prma_read,     prma_write)
-    ENTRY(PVIDEO,   0x008000, 0x001000, NULL, NULL) // pvideo_read,   pvideo_write)
-    ENTRY(PTIMER,   0x009000, 0x001000, NULL, NULL) // ptimer_read,   ptimer_write)
-    ENTRY(PCOUNTER, 0x00a000, 0x001000, NULL, NULL) // pcounter_read, pcounter_write)
-    ENTRY(PVPE,     0x00b000, 0x001000, NULL, NULL) // pvpe_read,     pvpe_write)
-    ENTRY(PTV,      0x00d000, 0x001000, NULL, NULL) // ptv_read,      ptv_write)
-    ENTRY(PRMFB,    0x0a0000, 0x020000, NULL, NULL) // prmfb_read,    prmfb_write)
-    ENTRY(PRMVIO,   0x0c0000, 0x001000, NULL, NULL) // prmvio_read,   prmvio_write)
+    ENTRY(PRMA,     0x007000, 0x001000, prma_read,     prma_write)
+    ENTRY(PVIDEO,   0x008000, 0x001000, pvideo_read,   pvideo_write)
+    ENTRY(PTIMER,   0x009000, 0x001000, ptimer_read,   ptimer_write)
+    ENTRY(PCOUNTER, 0x00a000, 0x001000, pcounter_read, pcounter_write)
+    ENTRY(PVPE,     0x00b000, 0x001000, pvpe_read,     pvpe_write)
+    ENTRY(PTV,      0x00d000, 0x001000, ptv_read,      ptv_write)
+    ENTRY(PRMFB,    0x0a0000, 0x020000, prmfb_read,    prmfb_write)
+    ENTRY(PRMVIO,   0x0c0000, 0x001000, prmvio_read,   prmvio_write)
     ENTRY(PFB,      0x100000, 0x001000, pfb_read,      pfb_write)
-    ENTRY(PSTRAPS,  0x101000, 0x001000, NULL, NULL) // pstraps_read,  pstraps_write)
+    ENTRY(PSTRAPS,  0x101000, 0x001000, pstraps_read,  pstraps_write)
     ENTRY(PGRAPH,   0x400000, 0x002000, pgraph_read,   pgraph_write)
     ENTRY(PCRTC,    0x600000, 0x001000, pcrtc_read,    pcrtc_write)
-    ENTRY(PRMCIO,   0x601000, 0x001000, NULL, NULL) // prmcio_read,   prmcio_write)
+    ENTRY(PRMCIO,   0x601000, 0x001000, prmcio_read,   prmcio_write)
     ENTRY(PRAMDAC,  0x680000, 0x001000, pramdac_read,  pramdac_write)
-    ENTRY(PRMDIO,   0x681000, 0x001000, NULL, NULL) // prmdio_read,   prmdio_write)
-    ENTRY(PRAMIN,   0x700000, 0x100000, NULL, NULL) // pramin_read,   pramin_write)
+    ENTRY(PRMDIO,   0x681000, 0x001000, prmdio_read,   prmdio_write)
+    // ENTRY(PRAMIN,   0x700000, 0x100000, pramin_read,   pramin_write)
     ENTRY(USER,     0x800000, 0x800000, user_read,     user_write)
 #undef ENTRY
 };
@@ -209,12 +265,27 @@ void reg_log_write(int block, hwaddr addr, uint64_t val) {
     }
 }
 
+
+/* FIXME: Probably totally wrong */
+static inline unsigned int rgb_to_pixel8(unsigned int r, unsigned int g,
+                                         unsigned int b)
+{
+    return ((r >> 5) << 5) | ((g >> 5) << 2) | (b >> 6);
+}
+static inline unsigned int rgb_to_pixel16(unsigned int r, unsigned int g,
+                                          unsigned int b)
+{
+    return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+}
+static inline unsigned int rgb_to_pixel32(unsigned int r, unsigned int g,
+                                          unsigned int b)
+{
+    return (r << 16) | (g << 8) | b;
+}
+
 static void nv2a_overlay_draw_line(VGACommonState *vga, uint8_t *line, int y)
 {
     NV2A_DPRINTF("nv2a_overlay_draw_line\n");
-
-    // FIXME
-#if 0
 
     NV2AState *d = container_of(vga, NV2AState, vga);
     DisplaySurface *surface = qemu_console_surface(d->vga.con);
@@ -274,23 +345,22 @@ static void nv2a_overlay_draw_line(VGACommonState *vga, uint8_t *line, int y)
         uint8_t r,g,b;
         convert_yuy2_to_rgb(in_line, ix, &r, &g, &b);
 
-        unsigned int pixel = vga->rgb_to_pixel(r, g, b);
+        // unsigned int pixel = vga->rgb_to_pixel(r, g, b);
         switch (surf_bpp) {
         case 1:
-            ((uint8_t*)line)[ox] = pixel;
+            ((uint8_t*)line)[ox] = (uint8_t)rgb_to_pixel8(r,g,b);
             break;
         case 2:
-            ((uint16_t*)line)[ox] = pixel;
+            ((uint16_t*)line)[ox] = (uint16_t)rgb_to_pixel16(r,g,b);
             break;
         case 4:
-            ((uint32_t*)line)[ox] = pixel;
+            ((uint32_t*)line)[ox] = (uint32_t)rgb_to_pixel32(r,g,b);
             break;
         default:
             assert(false);
             break;
         }
     }
-#endif
 }
 
 static int nv2a_get_bpp(VGACommonState *s)
@@ -393,24 +463,20 @@ static void nv2a_realize(PCIDevice *dev, Error **errp)
     d->pramdac.memory_clock_coeff = 0;
     d->pramdac.video_clock_coeff = 0x0003C20D; /* 25182Khz...? */
 
-
-// FIXME
-#if 0
     /* legacy VGA shit */
     VGACommonState *vga = &d->vga;
     vga->vram_size_mb = 4;
     /* seems to start in color mode */
     vga->msr = VGA_MIS_COLOR;
 
-    vga_common_init(vga, OBJECT(dev));
+    vga_common_init(vga, OBJECT(dev), false); // FIXME: true or false? idk
     vga->get_bpp = nv2a_get_bpp;
     vga->get_offsets = nv2a_get_offsets;
     vga->overlay_draw_line = nv2a_overlay_draw_line;
 
     d->hw_ops = *vga->hw_ops;
     d->hw_ops.gfx_update = nv2a_vga_gfx_update;
-    vga->con = graphic_console_init(DEVICE(dev), &d->hw_ops, vga);
-#endif
+    vga->con = graphic_console_init(DEVICE(dev), 0, &d->hw_ops, vga);
 
     /* mmio */
     memory_region_init(&d->mmio, OBJECT(dev), "nv2a-mmio", 0x1000000);
