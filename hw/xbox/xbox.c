@@ -415,7 +415,7 @@ static void xbox_init(MachineState *machine)
     pci_create_simple(pci_bus, PCI_DEVFN(6, 0), "mcpx-aci");
 
     /* GPU! */
-    // nv2a_init(agp_bus, PCI_DEVFN(0, 0), ram_memory);
+    nv2a_init(agp_bus, PCI_DEVFN(0, 0), ram_memory);
 }
 
 
