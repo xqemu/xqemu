@@ -19,7 +19,7 @@ yet (it's very close!).
 
 Chat
 ----
-Keep up with the latest developments. Chat with me on [Discord](https://discord.gg/v7gfcms). - [@mborgerson](https://github.com/mborgerson)
+Keep up with the latest developments. Chat with us on [Discord](https://discord.gg/v7gfcms). - [@mborgerson](https://github.com/mborgerson)
 
 macOS Dev
 ---------
