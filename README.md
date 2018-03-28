@@ -19,7 +19,7 @@ yet (it's very close!).
 
 Chat
 ----
-Keep up with the latest developments. Chat with us on #xqemu on irc.freenode.net. - [@mborgerson](https://github.com/mborgerson)
+Keep up with the latest developments. Chat with us on #xqemu on irc.freenode.net or on [Discord](https://discord.gg/WxJPPyz). - [@mborgerson](https://github.com/mborgerson)
 
 macOS Dev
 ---------
