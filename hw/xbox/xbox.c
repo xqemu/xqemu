@@ -247,6 +247,9 @@ static void xbox_memory_init(PCMachineState *pcms,
 /* FIXME: Move to header file */
 void nv2a_init(PCIBus *bus, int devfn, MemoryRegion *ram);
 
+#include "hw/timer/i8254.h"
+#include "hw/audio/pcspk.h"
+
 /* PC hardware initialisation */
 static void xbox_init(MachineState *machine)
 {
@@ -308,18 +311,19 @@ static void xbox_init(MachineState *machine)
 
     isa_bus_irqs(isa_bus, pcms->gsi);
 
-    if (kvm_pic_in_kernel()) {
-        i8259 = kvm_i8259_init(isa_bus);
+    // if (kvm_pic_in_kernel()) {
+    //     i8259 = kvm_i8259_init(isa_bus);
     // } else if (xen_enabled()) {
     //     i8259 = xen_interrupt_controller_init();
-    } else {
+    // } else {
         i8259 = i8259_init(isa_bus, pc_allocate_cpu_irq());
-    }
+    // }
 
     for (i = 0; i < ISA_NUM_IRQS; i++) {
         gsi_state->i8259_irq[i] = i8259[i];
     }
     g_free(i8259);
+
     // if (pcmc->pci_enabled) {
     //     ioapic_init_gsi(gsi_state, "i440fx");
     // }
@@ -335,8 +339,25 @@ static void xbox_init(MachineState *machine)
 
     /* init basic PC hardware */
     pcms->pit = 1; // XBOX_FIXME: What's the right way to do this?
-    pc_basic_device_init(isa_bus, pcms->gsi, &rtc_state, true,
-                         (pcms->vmport != ON_OFF_AUTO_ON), pcms->pit, 0x4);
+    // pc_basic_device_init(isa_bus, pcms->gsi, &rtc_state, true,
+    //                      (pcms->vmport != ON_OFF_AUTO_ON), pcms->pit, 0x4);
+    rtc_state = mc146818_rtc_init(isa_bus, 2000, NULL);
+
+    // qemu_register_boot_set(pc_boot_set, rtc_state);
+    ISADevice *pit = NULL;
+
+    if (kvm_pit_in_kernel()) {
+        pit = kvm_pit_init(isa_bus, 0x40);
+    } else {
+        pit = i8254_pit_init(isa_bus, 0x40, 0, NULL);
+    }
+    // if (hpet) {
+    //     /* connect PIT to output control line of the HPET */
+    //     qdev_connect_gpio_out(hpet, 0, qdev_get_gpio_in(DEVICE(pit), 0));
+    // }
+    pcspk_init(isa_bus, pit);
+
+    // i8257_dma_init(isa_bus, 0);
 
     // pc_nic_init(pcmc, isa_bus, pci_bus);
 
