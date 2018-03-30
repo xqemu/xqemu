@@ -1984,7 +1984,7 @@ void memory_region_set_client_dirty(MemoryRegion *mr, hwaddr addr,
     }
     assert(mr->terminates);
     return cpu_physical_memory_set_dirty_range(memory_region_get_ram_addr(mr) + addr,
-                                               size, memory_region_get_dirty_log_mask(mr));
+                                               size, 1 << client);
 }
 
 bool memory_region_test_and_clear_dirty(MemoryRegion *mr, hwaddr addr,
@@ -2043,7 +2043,7 @@ DirtyBitmapSnapshot *memory_region_snapshot_and_clear_dirty(MemoryRegion *mr,
                                                             unsigned client)
 {
     if (mr->alias) {
-        return memory_region_snapshot_and_clear_dirty(mr->alias, addr, size, client);
+        return memory_region_snapshot_and_clear_dirty(mr->alias, addr - mr->alias_offset, size, client);
     }
     assert(mr->ram_block);
     memory_region_sync_dirty_bitmap(mr);
@@ -2055,7 +2055,7 @@ bool memory_region_snapshot_get_dirty(MemoryRegion *mr, DirtyBitmapSnapshot *sna
                                       hwaddr addr, hwaddr size)
 {
     if (mr->alias) {
-        return memory_region_snapshot_get_dirty(mr->alias, snap, addr, size);
+        return memory_region_snapshot_get_dirty(mr->alias, snap, addr - mr->alias_offset, size);
     }
     assert(mr->ram_block);
     return cpu_physical_memory_snapshot_get_dirty(snap,
