@@ -3207,6 +3207,7 @@ static void pgraph_update_surface_part(NV2AState *d, bool upload, bool color) {
 
     bool dirty = surface->buffer_dirty;
     if (color) {
+        // dirty |= 1;
         dirty |= memory_region_test_and_clear_dirty(d->vram,
                                                dma.address + surface->offset,
                                                surface->pitch * height,
