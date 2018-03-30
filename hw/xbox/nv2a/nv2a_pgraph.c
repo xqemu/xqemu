@@ -3207,14 +3207,10 @@ static void pgraph_update_surface_part(NV2AState *d, bool upload, bool color) {
 
     bool dirty = surface->buffer_dirty;
     if (color) {
-#if 1
-        dirty |= 1;
-#else
         dirty |= memory_region_test_and_clear_dirty(d->vram,
                                                dma.address + surface->offset,
                                                surface->pitch * height,
                                                DIRTY_MEMORY_NV2A);
-#endif
     }
     if (upload && dirty) {
         /* surface modified (or moved) by the cpu.
@@ -3306,7 +3302,6 @@ static void pgraph_update_surface_part(NV2AState *d, bool upload, bool color) {
 
     if (!upload && surface->draw_dirty) {
         /* read the opengl framebuffer into the surface */
-
         glo_readpixels(gl_format, gl_type,
                        bytes_per_pixel, surface->pitch,
                        width, height,
@@ -3321,10 +3316,10 @@ static void pgraph_update_surface_part(NV2AState *d, bool upload, bool color) {
                          bytes_per_pixel);
         }
 
-        // memory_region_set_client_dirty(d->vram,
-        //                                dma.address + surface->offset,
-        //                                surface->pitch * height,
-        //                                DIRTY_MEMORY_VGA);
+        memory_region_set_client_dirty(d->vram,
+                                       dma.address + surface->offset,
+                                       surface->pitch * height,
+                                       DIRTY_MEMORY_VGA);
 
         if (color) {
             pgraph_update_memory_buffer(d, dma.address + surface->offset,
@@ -3785,12 +3780,12 @@ static void pgraph_update_memory_buffer(NV2AState *d, hwaddr addr, hwaddr size,
     hwaddr end = TARGET_PAGE_ALIGN(addr + size);
     addr &= TARGET_PAGE_MASK;
     assert(end < memory_region_size(d->vram));
-    // if (f || memory_region_test_and_clear_dirty(d->vram,
-    //                                             addr,
-    //                                             end - addr,
-    //                                             DIRTY_MEMORY_NV2A)) {
+    if (f || memory_region_test_and_clear_dirty(d->vram,
+                                                addr,
+                                                end - addr,
+                                                DIRTY_MEMORY_NV2A)) {
         glBufferSubData(GL_ARRAY_BUFFER, addr, end - addr, d->vram_ptr + addr);
-    // }
+    }
 }
 
 static void pgraph_bind_vertex_attributes(NV2AState *d,
