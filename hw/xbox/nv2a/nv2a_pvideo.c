@@ -37,12 +37,12 @@ void pvideo_write(void *opaque, hwaddr addr,
     switch (addr) {
     case NV_PVIDEO_BUFFER:
         d->pvideo.regs[addr] = val;
-        d->vga.enable_overlay = true;
+        // d->vga.enable_overlay = true;
         pvideo_vga_invalidate(d);
         break;
     case NV_PVIDEO_STOP:
         d->pvideo.regs[NV_PVIDEO_BUFFER] = 0;
-        d->vga.enable_overlay = false;
+        // d->vga.enable_overlay = false;
         pvideo_vga_invalidate(d);
         break;
     default:

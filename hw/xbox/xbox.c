@@ -232,8 +232,8 @@ static void xbox_memory_init(PCMachineState *pcms,
      * with older qemus that used qemu_ram_alloc().
      */
     ram = g_malloc(sizeof(*ram));
-    memory_region_allocate_system_memory(ram, NULL, "pc.ram",
-                                         machine->ram_size);
+    memory_region_init_ram(ram, NULL, "pc.ram",
+                           machine->ram_size, &error_fatal);
     *ram_memory = ram;
     ram_below_4g = g_malloc(sizeof(*ram_below_4g));
     memory_region_init_alias(ram_below_4g, NULL, "ram-below-4g", ram,

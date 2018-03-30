@@ -465,14 +465,16 @@ static void nv2a_realize(PCIDevice *dev, Error **errp)
 
     /* legacy VGA shit */
     VGACommonState *vga = &d->vga;
-    vga->vram_size_mb = 4;
+    vga_common_reset(vga);
+
+    vga->vram_size_mb = 64;
     /* seems to start in color mode */
     vga->msr = VGA_MIS_COLOR;
 
     vga_common_init(vga, OBJECT(dev), false); // FIXME: true or false? idk
     vga->get_bpp = nv2a_get_bpp;
     vga->get_offsets = nv2a_get_offsets;
-    vga->overlay_draw_line = nv2a_overlay_draw_line;
+    // vga->overlay_draw_line = nv2a_overlay_draw_line;
 
     d->hw_ops = *vga->hw_ops;
     d->hw_ops.gfx_update = nv2a_vga_gfx_update;

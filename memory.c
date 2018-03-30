@@ -1984,7 +1984,7 @@ void memory_region_set_client_dirty(MemoryRegion *mr, hwaddr addr,
     }
     assert(mr->terminates);
     return cpu_physical_memory_set_dirty_range(memory_region_get_ram_addr(mr) + addr,
-                                               size, 1 << client);
+                                               size, memory_region_get_dirty_log_mask(mr));
 }
 
 bool memory_region_test_and_clear_dirty(MemoryRegion *mr, hwaddr addr,
