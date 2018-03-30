@@ -1136,6 +1136,19 @@ void memory_region_set_dirty(MemoryRegion *mr, hwaddr addr,
 bool memory_region_test_and_clear_dirty(MemoryRegion *mr, hwaddr addr,
                                         hwaddr size, unsigned client);
 
+/**
+ * memory_region_set_client_dirty: Mark a range of bytes as dirty
+ *                                 in a memory region for a specified client.
+ *
+ * Marks a range of bytes as dirty, after it has been dirtied outside
+ * guest code.
+ *
+ * @mr: the memory region being dirtied.
+ * @addr: the address (relative to the start of the region) being dirtied.
+ * @size: size of the range being dirtied.
+ * @client: the user of the logging information; %DIRTY_MEMORY_MIGRATION or
+ *          %DIRTY_MEMORY_VGA.
+ */
 void memory_region_set_client_dirty(MemoryRegion *mr, hwaddr addr,
                                     hwaddr size, unsigned client);
 
