@@ -1557,9 +1557,8 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
         s->last_line_offset = s->line_offset;
         s->last_depth = depth;
         s->last_byteswap = byteswap;
-        s->last_enable_overlay = s->enable_overlay;
         full_update = 1;
-    } else if (!s->enable_overlay && is_buffer_shared(surface) &&
+    } else if (is_buffer_shared(surface) &&
                (full_update || surface_data(surface) != s->vram_ptr
                 + (s->start_addr * 4))) {
         pixman_format_code_t format =
@@ -1679,8 +1678,6 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
                 y_start = y;
             if (!(is_buffer_shared(surface))) {
                 vga_draw_line(s, d, addr, width);
-                if (s->overlay_draw_line)
-                    s->overlay_draw_line(s, d, y);
                 if (s->cursor_draw_line)
                     s->cursor_draw_line(s, d, y);
             }
