@@ -1133,6 +1133,9 @@ bool memory_region_get_dirty(MemoryRegion *mr, hwaddr addr,
 void memory_region_set_dirty(MemoryRegion *mr, hwaddr addr,
                              hwaddr size);
 
+bool memory_region_test_and_clear_dirty(MemoryRegion *mr, hwaddr addr,
+                                        hwaddr size, unsigned client);
+
 void memory_region_set_client_dirty(MemoryRegion *mr, hwaddr addr,
                                     hwaddr size, unsigned client);
 
@@ -2014,6 +2017,8 @@ address_space_write_cached(MemoryRegionCache *cache, hwaddr addr,
     assert(addr < cache->len && len <= cache->len - addr);
     address_space_write(cache->as, cache->xlat + addr, MEMTXATTRS_UNSPECIFIED, buf, len);
 }
+
+void memory_region_destroy(MemoryRegion *mr);
 
 #endif
 

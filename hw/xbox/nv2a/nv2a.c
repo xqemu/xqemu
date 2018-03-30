@@ -431,8 +431,8 @@ static void nv2a_init_memory(NV2AState *d, MemoryRegion *ram)
     memory_region_set_dirty(d->vram, 0, memory_region_size(d->vram));
 
     /* hacky. swap out vga's vram */
-    // memory_region_destroy(&d->vga.vram);
-    memory_region_unref(&d->vga.vram); // FIXME: Is ths right?
+    memory_region_destroy(&d->vga.vram);
+    // memory_region_unref(&d->vga.vram); // FIXME: Is ths right?
     memory_region_init_alias(&d->vga.vram, OBJECT(d), "vga.vram",
                              d->vram, 0, memory_region_size(d->vram));
     d->vga.vram_ptr = memory_region_get_ram_ptr(&d->vga.vram);
