@@ -2006,7 +2006,7 @@ bool memory_region_test_and_clear_dirty(MemoryRegion *mr, hwaddr addr,
     // }
     // return ret;
     return cpu_physical_memory_test_and_clear_dirty(
-            memory_region_get_ram_addr(mr) + addr, size, client); // not sure if 1 << client is right
+            memory_region_get_ram_addr(mr) + addr, size, client);
 }
 
 static void memory_region_sync_dirty_bitmap(MemoryRegion *mr)
