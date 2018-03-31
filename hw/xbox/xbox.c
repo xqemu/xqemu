@@ -217,13 +217,9 @@ static void xbox_memory_init(PCMachineState *pcms,
 {
     // int linux_boot, i;
     MemoryRegion *ram;//, *option_rom_mr;
-    MemoryRegion *ram_below_4g;//, *ram_above_4g;
     // FWCfgState *fw_cfg;
     MachineState *machine = MACHINE(pcms);
     // PCMachineClass *pcmc = PC_MACHINE_GET_CLASS(pcms);
-
-    pcms->below_4g_mem_size = 256 * 0x100000;
-    assert(machine->ram_size <= pcms->below_4g_mem_size);
 
     // linux_boot = (machine->kernel_filename != NULL);
 
@@ -232,13 +228,11 @@ static void xbox_memory_init(PCMachineState *pcms,
      * with older qemus that used qemu_ram_alloc().
      */
     ram = g_malloc(sizeof(*ram));
-    memory_region_init_ram(ram, NULL, "pc.ram",
+    memory_region_init_ram(ram, NULL, "xbox.ram",
                            machine->ram_size, &error_fatal);
+
     *ram_memory = ram;
-    ram_below_4g = g_malloc(sizeof(*ram_below_4g));
-    memory_region_init_alias(ram_below_4g, NULL, "ram-below-4g", ram,
-                             0, pcms->below_4g_mem_size);
-    memory_region_add_subregion(system_memory, 0, ram_below_4g);
+    memory_region_add_subregion(system_memory, 0, ram);
 
     xbox_flash_init(rom_memory);
 }
