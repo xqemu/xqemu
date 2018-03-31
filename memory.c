@@ -1936,12 +1936,12 @@ void memory_region_set_log(MemoryRegion *mr, bool log, unsigned client)
         return;
     }
 
-    assert(client == DIRTY_MEMORY_VGA);
-    old_logging = mr->vga_logging_count;
-    mr->vga_logging_count += log ? 1 : -1;
-    if (!!old_logging == !!mr->vga_logging_count) {
-        return;
-    }
+    // assert(client == DIRTY_MEMORY_VGA);
+    // old_logging = mr->vga_logging_count;
+    // mr->vga_logging_count += log ? 1 : -1;
+    // if (!!old_logging == !!mr->vga_logging_count) {
+    //     return;
+    // }
 
     memory_region_transaction_begin();
     mr->dirty_log_mask = (mr->dirty_log_mask & ~mask) | (log * mask);
@@ -2006,7 +2006,7 @@ bool memory_region_test_and_clear_dirty(MemoryRegion *mr, hwaddr addr,
     // }
     // return ret;
     return cpu_physical_memory_test_and_clear_dirty(
-            memory_region_get_ram_addr(mr) + addr, size, 1 << client); // not sure if 1 << client is right
+            memory_region_get_ram_addr(mr) + addr, size, client); // not sure if 1 << client is right
 }
 
 static void memory_region_sync_dirty_bitmap(MemoryRegion *mr)

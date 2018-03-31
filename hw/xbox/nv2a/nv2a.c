@@ -25,10 +25,7 @@
 #include <assert.h>
 #include <util.h>
 #include "nv2a.h"
-
-
 #include "hw/display/vga_regs.h"
-#define DIRTY_MEMORY_NV2A DIRTY_MEMORY_VGA // FIXME
 
 DMAObject nv_dma_load(NV2AState *d, hwaddr dma_obj_address);
 void *nv_dma_map(NV2AState *d, hwaddr dma_obj_address, hwaddr *len);
