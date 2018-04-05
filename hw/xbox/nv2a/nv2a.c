@@ -23,9 +23,28 @@
 #include "qemu/error-report.h"
 #include "qemu/error-report.h"
 #include <assert.h>
+#ifndef __WINNT__
 #include <util.h>
+#endif
 #include "nv2a.h"
 #include "hw/display/vga_regs.h"
+
+#ifdef __WINNT__
+// HACK: mingw-w64 doesn't provide ffs, for now we just shove it here
+// TODO: decide on a better location
+int ffs(register int valu)
+{
+    register int bit;
+
+    if (valu == 0)
+        return 0;
+
+    for (bit = 1; !(valu & 1); bit++)
+        valu >>= 1;
+
+    return bit;
+}
+#endif
 
 DMAObject nv_dma_load(NV2AState *d, hwaddr dma_obj_address);
 void *nv_dma_map(NV2AState *d, hwaddr dma_obj_address, hwaddr *len);
