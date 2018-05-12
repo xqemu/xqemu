@@ -21,73 +21,25 @@
 #include "hw/hw.h"
 #include "hw/i386/pc.h"
 #include "hw/pci/pci.h"
-// #include "hw/audio/ac97_int.h"
+#include "hw/audio/ac97_int.h"
 
-// #define MCPX_DEBUG
+#define MCPX_DEBUG
 #ifdef MCPX_DEBUG
 # define MCPX_DPRINTF(format, ...)       printf(format, ## __VA_ARGS__)
 #else
 # define MCPX_DPRINTF(format, ...)       do { } while (0)
 #endif
 
-#define IS_READY 0
-
-
 typedef struct MCPXACIState {
     PCIDevice dev;
 
-#if IS_READY
     AC97LinkState ac97;
-#else
-    int ac97;
-    uint32_t regs[0x10000];
-#endif
 
     MemoryRegion io_nam, io_nabm;
 
     MemoryRegion mmio;
     MemoryRegion nam_mmio, nabm_mmio;
 } MCPXACIState;
-
-
-#if !IS_READY
-static uint64_t mcpx_aci_read(void *opaque,
-                              hwaddr addr, unsigned int size)
-{
-    MCPXACIState *d = opaque;
-
-    uint64_t r = 0;
-    switch (addr) {
-    default:
-        if (addr < 0x10000) {
-            r = d->regs[addr];
-        }
-        break;
-    }
-
-    MCPX_DPRINTF("%s: read [0x%llx] -> 0x%llx\n", __func__, addr, r);
-    return r;
-}
-
-static void mcpx_aci_write(void *opaque, hwaddr addr,
-                           uint64_t val, unsigned int size)
-{
-    // MCPXACIState *d = opaque;
-    MCPX_DPRINTF("%s: [0x%llx] = 0x%llx\n", __func__, addr, val);
-}
-
-static const MemoryRegionOps ac97_io_nam_ops = {
-    .read = mcpx_aci_read,
-    .write = mcpx_aci_write,
-};
-static const MemoryRegionOps ac97_io_nabm_ops = { // wrong
-    .read = mcpx_aci_read,
-    .write = mcpx_aci_write,
-};
-#endif
-
-
-
 
 #define MCPX_ACI_DEVICE(obj) \
     OBJECT_CHECK(MCPXACIState, (obj), "mcpx-aci")
@@ -120,10 +72,7 @@ static void mcpx_aci_realize(PCIDevice *dev, Error **errp)
     memory_region_add_subregion(&d->mmio, 0x100, &d->io_nabm);
 
     pci_register_bar(&d->dev, 2, PCI_BASE_ADDRESS_SPACE_MEMORY, &d->mmio);
-
-#if IS_READY
-    ac97_common_init(&d->ac97, &d->dev, pci_get_address_space(&d->dev));
-#endif
+    ac97_common_init(&d->ac97, &d->dev); //, pci_get_address_space(&d->dev));
 }
 
 static void mcpx_aci_class_init(ObjectClass *klass, void *data)
