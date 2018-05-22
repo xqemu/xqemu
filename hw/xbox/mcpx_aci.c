@@ -72,7 +72,7 @@ static void mcpx_aci_realize(PCIDevice *dev, Error **errp)
     memory_region_add_subregion(&d->mmio, 0x100, &d->io_nabm);
 
     pci_register_bar(&d->dev, 2, PCI_BASE_ADDRESS_SPACE_MEMORY, &d->mmio);
-    ac97_common_init(&d->ac97, &d->dev); //, pci_get_address_space(&d->dev));
+    ac97_common_init(&d->ac97, &d->dev, pci_get_address_space(&d->dev));
 }
 
 static void mcpx_aci_class_init(ObjectClass *klass, void *data)

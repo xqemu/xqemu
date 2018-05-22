@@ -26,46 +26,55 @@
 #include "hw/pci/pci.h"
 #include "sysemu/dma.h"
 
+enum {
+    PI_INDEX = 0,   /* PCM in */
+    PO_INDEX,       /* PCM out */
+    MC_INDEX,       /* Mic in */
+    SO_INDEX = 7,   /* SPDIF out */
+    LAST_INDEX
+};
+
 typedef struct BD {
     uint32_t addr;
     uint32_t ctl_len;
 } BD;
 
 typedef struct AC97BusMasterRegs {
-    uint32_t bdbar;             /* rw 0 */
-    uint8_t civ;                /* ro 0 */
-    uint8_t lvi;                /* rw 0 */
-    uint16_t sr;                /* rw 1 */
-    uint16_t picb;              /* ro 0 */
-    uint8_t piv;                /* ro 0 */
-    uint8_t cr;                 /* rw 0 */
+    uint32_t bdbar;             /* rw 0, buffer descriptor list base address register */
+    uint8_t civ;                /* ro 0, current index value */
+    uint8_t lvi;                /* rw 0, last valid index */
+    uint16_t sr;                /* rw 1, status register */
+    uint16_t picb;              /* ro 0, position in current buffer */
+    uint8_t piv;                /* ro 0, prefetched index value */
+    uint8_t cr;                 /* rw 0, control register */
     unsigned int bd_valid;
     BD bd;
 } AC97BusMasterRegs;
 
 typedef struct AC97LinkState {
-    PCIDevice *dev;
+    PCIDevice *pci_dev;
+    AddressSpace *as;
     QEMUSoundCard card;
-    uint32_t use_broken_id;
     uint32_t glob_cnt;
     uint32_t glob_sta;
-    uint32_t cas;
+    uint32_t cas; /* Codec Access Semaphore Register */
     uint32_t last_samp;
-    AC97BusMasterRegs bm_regs[3];
+    AC97BusMasterRegs bm_regs[LAST_INDEX];
     uint8_t mixer_data[256];
     SWVoiceIn *voice_pi;
     SWVoiceOut *voice_po;
     SWVoiceIn *voice_mc;
-    int invalid_freq[3];
+    int invalid_freq[LAST_INDEX];
     uint8_t silence[128];
     int bup_flag;
-    MemoryRegion io_nam;
-    MemoryRegion io_nabm;
 } AC97LinkState;
+
+void ac97_common_init (AC97LinkState *s,
+                       PCIDevice *pci_dev,
+                       AddressSpace *as);
 
 extern const MemoryRegionOps ac97_io_nam_ops;
 extern const MemoryRegionOps ac97_io_nabm_ops;
 
-void ac97_common_init(AC97LinkState *s, PCIDevice *dev);
-
 #endif
+
