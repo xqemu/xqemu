@@ -12,12 +12,9 @@ contribute.
 
 Status
 ------
-Booting to kernel! The very basics are ported. Everything should (hopefully)
-require minimal effort to get working. See TODO list and add to it if I've
-forgotton something. Cromwell is booting! Getting 3D graphics running is now
-top priority.
+3D graphics are now working!
 
-![Cromwell](https://cdn.discordapp.com/attachments/428359372842991616/429166779651325973/Screen_Shot_2018-03-29_at_11.34.46_PM.png)
+![Halo](screenshot.png)
 
 Chat
 ----
@@ -37,6 +34,7 @@ Then run with something like:
 		-m 64 \
 		-bios $BIOS \
 		-drive file=$HDD,index=0,media=disk \
+		-drive index=1,media=cdrom,file=$DISC \
 		-monitor stdio \
 		-s
 
@@ -56,4 +54,3 @@ Todo (barebones)
 ----------------
 * IDE: Need to add IDE lock code
 * USB: Needs testing
-* NV2A: 3d graphics not working yet
