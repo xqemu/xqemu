@@ -110,7 +110,7 @@ void *nv_dma_map(NV2AState *d, hwaddr dma_obj_address, hwaddr *len)
 
     dma.address &= 0x07FFFFFF;
 
-    assert(dma.address + dma.limit < memory_region_size(d->vram));
+    // assert(dma.address + dma.limit < memory_region_size(d->vram));
     *len = dma.limit;
     return d->vram_ptr + dma.address;
 }
