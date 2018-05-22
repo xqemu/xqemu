@@ -25,8 +25,6 @@
 #include "sysemu/dma.h"
 #include "ac97_int.h"
 
-#define DEBUG_AC97
-
 enum {
     AC97_Reset                     = 0x00,
     AC97_Master_Volume_Mute        = 0x02,
