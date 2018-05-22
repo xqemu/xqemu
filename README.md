@@ -4,7 +4,7 @@
 Hello! This is the bleeding edge development branch focused on rebasing the
 xqemu project onto the latest [Qemu](https://github.com/qemu/qemu) tag, which
 at the time of writing is
-[v2.12.0-rc1](https://github.com/qemu/qemu/tree/v2.12.0-rc1). This will bring
+[v2.12.0](https://github.com/qemu/qemu/tree/v2.12.0). This will bring
 many years of performance enhancements to xqemu including support for native
 virtualization APIs. If you are interested in helping to create a functional,
 accurate, and **performant** Xbox emulator, you are **most welcome** to
@@ -20,8 +20,8 @@ Chat
 ----
 Keep up with the latest developments. Chat with us on #xqemu on irc.freenode.net or on [Discord](https://discord.gg/WxJPPyz). - [@mborgerson](https://github.com/mborgerson)
 
-macOS Dev
----------
+macOS Build
+-----------
 Use the build script to build:
 
 	./build_macos.sh
@@ -41,8 +41,15 @@ Then run with something like:
 This will start the Qemu monitor on the command line, which includes lots of
 really helpful debugging commands!
 
-### Debugging
+Windows Build
+-------------
+You can [probably follow this](https://github.com/xqemu/xqemu/wiki/Getting-
+Started#for-windows) for installing prerequisites, then use the
+`build_windows.sh` script in this tree to do the build. Luke has got it working,
+you can bug him for directions :).
 
+Debugging on macOS
+------------------
 If your build of Qemu is crashing, I've found it easiest to use the Xcode
 debugger to look at stack traces. Fire up Xcode, create a project, edit the
 "Scheme" to run the xqemu binary, then click the run button. Xcode has a nice
