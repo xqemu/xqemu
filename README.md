@@ -43,8 +43,8 @@ really helpful debugging commands!
 
 Windows Build
 -------------
-You can [probably follow this](https://github.com/xqemu/xqemu/wiki/Getting-
-Started#for-windows) for installing prerequisites, then use the
+You can [probably follow 
+this](https://github.com/xqemu/xqemu/wiki/Getting-Started#for-windows) for installing prerequisites, then use the
 `build_windows.sh` script in this tree to do the build. Luke has got it working,
 you can bug him for directions :).
 
