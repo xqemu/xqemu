@@ -12,11 +12,19 @@ contribute.
 
 Status
 ------
-3D graphics are now working!
+3D graphics are now working! Keyboard based controller emu is now back! See below for handy controller mapping.
 
 ![Halo](screenshot.png)
 
-Keyboard based controller emu is now back! See below for handy controller mapping.
+Remaining Items Until Merge (Tentative Work List)
+-------------------------------------------------
+* IDE: Need to add back IDE locking code
+* Fix Linux Build (Check if kvm works, check xbox.c)
+* Move ac97 stuff into hw/xbox, let it live by itself
+* Add back short_anim option to bypass boot intro
+* Port over espes's gfx changes that were added after I split nv2a code up
+* Chihiro
+* Cleanup and merging
 
 Chat
 ----
@@ -37,6 +45,7 @@ Then run with something like:
 		-bios $BIOS \
 		-drive file=$HDD,index=0,media=disk \
 		-drive index=1,media=cdrom,file=$DISC \
+		-usb -device usb-xbox-gamepad  \
 		-monitor stdio \
 		-s
 
@@ -58,10 +67,6 @@ debugger to look at stack traces. Fire up Xcode, create a project, edit the
 GUI for analyzing the stack frame and looking at local variables to quickly
 track down bugs. Let me know if you find a better method. You can also attach
 to running processes. - @mborgerson
-
-Todo (barebones)
-----------------
-* IDE: Need to add IDE lock code
 
 Appendix A: Keyboard-Controller Mapping
 ---------------------------------------
