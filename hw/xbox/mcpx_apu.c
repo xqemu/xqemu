@@ -510,7 +510,7 @@ static uint64_t ep_read(void *opaque,
         break;
     }
     MCPX_DPRINTF("mcpx apu EP: read [0x%llx] -> 0x%llx\n", addr, r);
-    return 0;
+    return r;
 }
 static void ep_write(void *opaque, hwaddr addr,
                      uint64_t val, unsigned int size)
