@@ -2,6 +2,7 @@
  * QEMU USB XID Devices
  *
  * Copyright (c) 2013 espes
+ * Copyright (c) 2018 Matt Borgerson
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -250,35 +251,6 @@ static void xbox_gamepad_keyboard_event(DeviceState *dev, QemuConsole *src,
 
     DPRINTF("xid keyboard_event %d %d %d\n", code, button, up);
 
-    // if (code == Q_KEY_CODE_UP) { printf("Q_KEY_CODE_UP\n"); return; }
-    // if (code == Q_KEY_CODE_KP_8) { printf("Q_KEY_CODE_KP_8\n"); return; }
-    // if (code == Q_KEY_CODE_DOWN) { printf("Q_KEY_CODE_DOWN\n"); return; }
-    // if (code == Q_KEY_CODE_KP_2) { printf("Q_KEY_CODE_KP_2\n"); return; }
-    // if (code == Q_KEY_CODE_LEFT) { printf("Q_KEY_CODE_LEFT\n"); return; }
-    // if (code == Q_KEY_CODE_KP_4) { printf("Q_KEY_CODE_KP_4\n"); return; }
-    // if (code == Q_KEY_CODE_RIGHT) { printf("Q_KEY_CODE_RIGHT\n"); return; }
-    // if (code == Q_KEY_CODE_KP_6) { printf("Q_KEY_CODE_KP_6\n"); return; }
-    // if (code == Q_KEY_CODE_RET) { printf("Q_KEY_CODE_RET\n"); return; }
-    // if (code == Q_KEY_CODE_BACKSPACE) { printf("Q_KEY_CODE_BACKSPACE\n"); return; }
-    // if (code == Q_KEY_CODE_W) { printf("Q_KEY_CODE_W\n"); return; }
-    // if (code == Q_KEY_CODE_E) { printf("Q_KEY_CODE_E\n"); return; }
-    // if (code == Q_KEY_CODE_S) { printf("Q_KEY_CODE_S\n"); return; }
-    // if (code == Q_KEY_CODE_D) { printf("Q_KEY_CODE_D\n"); return; }
-    // if (code == Q_KEY_CODE_X) { printf("Q_KEY_CODE_X\n"); return; }
-    // if (code == Q_KEY_CODE_C) { printf("Q_KEY_CODE_C\n"); return; }
-    // if (code == Q_KEY_CODE_Q) { printf("Q_KEY_CODE_Q\n"); return; }
-    // if (code == Q_KEY_CODE_R) { printf("Q_KEY_CODE_R\n"); return; }
-    // if (code == Q_KEY_CODE_V) { printf("Q_KEY_CODE_V\n"); return; }
-    // if (code == Q_KEY_CODE_T) { printf("Q_KEY_CODE_T\n"); return; }
-    // if (code == Q_KEY_CODE_F) { printf("Q_KEY_CODE_F\n"); return; }
-    // if (code == Q_KEY_CODE_G) { printf("Q_KEY_CODE_G\n"); return; }
-    // if (code == Q_KEY_CODE_H) { printf("Q_KEY_CODE_H\n"); return; }
-    // if (code == Q_KEY_CODE_M) { printf("Q_KEY_CODE_M\n"); return; }
-    // if (code == Q_KEY_CODE_I) { printf("Q_KEY_CODE_I\n"); return; }
-    // if (code == Q_KEY_CODE_J) { printf("Q_KEY_CODE_J\n"); return; }
-    // if (code == Q_KEY_CODE_K) { printf("Q_KEY_CODE_K\n"); return; }
-    // if (code == Q_KEY_CODE_L) { printf("Q_KEY_CODE_L\n"); return; }
-
     uint16_t mask;
     switch (button) {
     case GAMEPAD_A ... GAMEPAD_RIGHT_TRIGGER:
@@ -472,12 +444,6 @@ static void usb_xbox_gamepad_realize(USBDevice *dev, Error **errp)
 
 static void usb_xbox_gamepad_unrealize(USBDevice *dev, Error **errp)
 {
-    // USBWacomState *s = (USBWacomState *) dev;
-
-    // if (s->mouse_grabbed) {
-    //     qemu_remove_mouse_event_handler(s->eh_entry);
-    //     s->mouse_grabbed = 0;
-    // }
 }
 
 static const VMStateDescription vmstate_usb_xbox = {
