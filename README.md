@@ -23,6 +23,7 @@ Remaining Items Until Merge (Tentative Work List)
 * Move ac97 stuff into hw/xbox, let it live by itself
 * Add back short_anim option to bypass boot intro
 * Port over espes's gfx changes that were added after I split nv2a code up
+* Fix timers (rdtsc and pm timer)
 * Chihiro
 * Cleanup and merging
 
