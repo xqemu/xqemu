@@ -1,5 +1,6 @@
 #!/bin/bash
 ./configure \
+	--python=python2 \
 	--enable-debug \
 	--extra-cflags="-march=native -g3 -O0 -Wno-error" \
 	--target-list=i386-softmmu \
