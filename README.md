@@ -18,7 +18,7 @@ Status
 
 Remaining Items Until Merge (Tentative Work List)
 -------------------------------------------------
-* IDE: Need to add back IDE locking code
+* IDE: Need to add back IDE locking code (partially complete!)
 * Fix Linux Build (Check if kvm works, check xbox.c)
 * Move ac97 stuff into hw/xbox, let it live by itself
 * Add back short_anim option to bypass boot intro
