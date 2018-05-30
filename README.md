@@ -55,10 +55,11 @@ really helpful debugging commands!
 
 Windows Build
 -------------
-You can [probably follow 
-this](https://github.com/xqemu/xqemu/wiki/Getting-Started#for-windows) for installing prerequisites, then use the
-`build_windows.sh` script in this tree to do the build. Luke has got it working,
-you can bug him for directions :).
+Start by setting up MSYS2 and follow the update guide on their [website](https://www.msys2.org/). Make sure you're open in `MSYS2 MinGW 64-bit`. Once that's done you should be able to up install all of the needed packages with...
+
+```pacman -S git python2 make autoconf automake-wrapper mingw-w64-x86_64-libtool mingw-w64-x86_64-gcc mingw-w64-x86_64-pkg-config mingw-w64-x86_64-glib2 mingw-w64-x86_64-glew mingw-w64-x86_64-SDL mingw-w64-x86_64-SDL2 mingw-w64-x86_64-pixman```
+
+Clone the repo, checkout `xbox-2.x-rebase` and run `./build_windows.sh`.
 
 Debugging on macOS
 ------------------
