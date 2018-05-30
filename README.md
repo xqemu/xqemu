@@ -20,7 +20,6 @@ Remaining Items Until Merge (Tentative Work List)
 -------------------------------------------------
 * Fix Linux Build (Check if kvm works, check xbox.c)
 * Move ac97 stuff into hw/xbox, let it live by itself
-* Add back short_anim option to bypass boot intro
 * Port over espes's gfx changes that were added after I split nv2a code up
 * Fix timers (rdtsc and pm timer)
 * Chihiro
@@ -51,6 +50,9 @@ Then run with something like:
 
 This will start the Qemu monitor on the command line, which includes lots of
 really helpful debugging commands!
+
+The Xbox boot animation sequence can be bypassed by adding the
+`,short-animation` option to the `-machine` switch above.
 
 Windows Build
 -------------
