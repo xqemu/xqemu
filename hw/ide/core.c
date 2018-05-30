@@ -215,7 +215,7 @@ static void ide_identify(IDEState *s)
     }
 
     /* 2: locked, 1: security enabled, 0: security supported */
-    if (dev) { // FIXME_MB: add cmd arg to enable locking // && dev->locked) {
+    if (dev && dev->locked) {
         put_le16(p + 128, (1 << 2) | (1 << 1) | 1);
     } else {
         put_le16(p + 128, (1 << 0));
