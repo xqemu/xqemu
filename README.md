@@ -44,7 +44,7 @@ Then run with something like:
 		-machine xbox,bootrom=$MCPX \
 		-m 64 \
 		-bios $BIOS \
-		-drive file=$HDD,index=0,media=disk \
+		-drive index=0,media=disk,file=$HDD,locked \
 		-drive index=1,media=cdrom,file=$DISC \
 		-usb -device usb-xbox-gamepad  \
 		-monitor stdio \
