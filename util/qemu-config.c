@@ -237,10 +237,6 @@ static QemuOptsList machine_opts = {
             .help = "Up to 8 chars in set of [A-Za-z0-9. ](lower case chars"
                     " converted to upper case) to pass to machine"
                     " loader, boot manager, and guest kernel",
-        },{
-            .name = "bootrom",
-            .type = QEMU_OPT_STRING,
-            .help = "Xbox bootrom file",
         },
         { /* End of list */ }
     }

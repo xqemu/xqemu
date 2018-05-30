@@ -244,7 +244,6 @@ struct MachineState {
     bool enforce_config_section;
     bool enable_graphics;
     char *memory_encryption;
-    char *bootrom;
 
     ram_addr_t ram_size;
     ram_addr_t maxram_size;

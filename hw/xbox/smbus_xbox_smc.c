@@ -177,14 +177,12 @@ static uint8_t smc_read_data(SMBusDevice *dev, uint8_t cmd, int n)
 
 static int smbus_smc_init(SMBusDevice *dev)
 {
-    QemuOpts *opts;
     SMBusSMCDevice *smc = (SMBusSMCDevice *)dev;
 
     smc->version_string_index = 0;
     smc->scratch_reg = 0;
 
-    opts = qemu_opts_find(qemu_find_opts("machine"), NULL);
-    if (opts && qemu_opt_get_bool(opts, "short_animation", 0)) {
+    if (object_property_get_bool(qdev_get_machine(), "short-animation", NULL)) {
         smc->scratch_reg = SMC_REG_SCRATCH_SHORT_ANIMATION;
     }
 
@@ -211,15 +209,12 @@ static TypeInfo smbus_smc_info = {
     .class_init = smbus_smc_class_initfn,
 };
 
-
-
 static void smbus_smc_register_devices(void)
 {
     type_register_static(&smbus_smc_info);
 }
 
 type_init(smbus_smc_register_devices)
-
 
 void smbus_xbox_smc_init(I2CBus *smbus, int address)
 {

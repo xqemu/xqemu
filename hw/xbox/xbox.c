@@ -61,8 +61,16 @@
 #include "smbus.h"
 
 #include "qemu/option.h"
+#include "xbox.h"
 
 #define MAX_IDE_BUS 2
+
+static char *machine_get_bootrom(Object *obj, Error **errp);
+static void machine_set_bootrom(Object *obj, const char *value,
+                                        Error **errp);
+static void machine_set_short_animation(Object *obj, bool value,
+                                        Error **errp);
+static bool machine_get_short_animation(Object *obj, Error **errp);
 
 // static const int ide_iobase[MAX_IDE_BUS] = { 0x1f0, 0x170 };
 // static const int ide_iobase2[MAX_IDE_BUS] = { 0x3f6, 0x376 };
@@ -161,9 +169,9 @@ static void xbox_flash_init(MemoryRegion *rom_memory)
      */
 
     /* Locate and overlay MCPX ROM image into new copy of BIOS if provided */
-    const char *bootrom_file = qemu_opt_get(qemu_get_machine_opts(), "bootrom");
+    const char *bootrom_file = object_property_get_str(qdev_get_machine(), "bootrom", NULL);
 
-    if (bootrom_file) {
+    if ((bootrom_file != NULL) && *bootrom_file) {
         filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, bootrom_file);
         assert(filename);
 
@@ -456,5 +464,78 @@ static void xbox_machine_options(MachineClass *m)
     m->default_cpu_type = X86_CPU_TYPE_NAME("486");
 }
 
-DEFINE_PC_MACHINE(xbox, "xbox", xbox_init,
-                  xbox_machine_options);
+static char *machine_get_bootrom(Object *obj, Error **errp)
+{
+    XboxMachineState *ms = XBOX_MACHINE(obj);
+
+    return g_strdup(ms->bootrom);
+}
+
+static void machine_set_bootrom(Object *obj, const char *value,
+                                        Error **errp)
+{
+    XboxMachineState *ms = XBOX_MACHINE(obj);
+
+    g_free(ms->bootrom);
+    ms->bootrom = g_strdup(value);
+}
+
+static void machine_set_short_animation(Object *obj, bool value,
+                                        Error **errp)
+{
+    XboxMachineState *ms = XBOX_MACHINE(obj);
+
+    ms->short_animation = value;
+}
+
+static bool machine_get_short_animation(Object *obj, Error **errp)
+{
+    XboxMachineState *ms = XBOX_MACHINE(obj);
+    return ms->short_animation;
+}
+
+static inline void xbox_machine_initfn(Object *obj)
+{
+    object_property_add_str(obj, "bootrom", machine_get_bootrom,
+                            machine_set_bootrom, NULL);
+    object_property_set_description(obj, "bootrom",
+                                    "Xbox bootrom file", NULL);
+
+    object_property_add_bool(obj, "short-animation",
+                             machine_get_short_animation,
+                             machine_set_short_animation, NULL);
+    object_property_set_description(obj, "short-animation",
+                                    "Skip Xbox boot animation",
+                                    NULL);
+    object_property_set_bool(obj, false, "short-animation", NULL);
+
+}
+
+static void xbox_machine_class_init(ObjectClass *oc, void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    xbox_machine_options(mc);
+    mc->init = xbox_init;
+}
+
+static const TypeInfo pc_machine_type_xbox = {
+    .name = TYPE_XBOX_MACHINE,
+    .parent = TYPE_PC_MACHINE,
+    .abstract = false,
+    .instance_size = sizeof(XboxMachineState),
+    .instance_init = xbox_machine_initfn,
+    .class_size = sizeof(XboxMachineClass),
+    .class_init = xbox_machine_class_init,
+    .interfaces = (InterfaceInfo[]) {
+         // { TYPE_HOTPLUG_HANDLER },
+         // { TYPE_NMI },
+         { }
+    },
+};
+
+static void pc_machine_init_xbox(void)
+{
+    type_register(&pc_machine_type_xbox);
+}
+
+type_init(pc_machine_init_xbox)
