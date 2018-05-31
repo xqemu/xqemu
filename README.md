@@ -18,7 +18,6 @@ Status
 
 Remaining Items Until Merge (Tentative Work List)
 -------------------------------------------------
-* Fix crash when exiting input grab mode
 * Fix Linux Build (Check if kvm works, check xbox.c)
 * Move ac97 stuff into hw/xbox, let it live by itself
 * Port over espes's gfx changes that were added after I split nv2a code up
