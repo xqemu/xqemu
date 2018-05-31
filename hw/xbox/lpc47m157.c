@@ -17,11 +17,10 @@
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "hw/isa/isa.h"
+#include "qemu/osdep.h"
 #include "hw/char/serial.h"
-#include "sysemu/sysemu.h"
-#include "sysemu/char.h"
-#include "qapi/qmp/qerror.h"
+#include "hw/isa/isa.h"
+#include "qapi/error.h"
 
 #define MAX_DEVICE 0xC
 #define DEVICE_FDD              0x0
@@ -169,6 +168,12 @@ static const MemoryRegionOps lpc47m157_io_ops = {
     },
 };
 
+static Property lpc47m157_properties[] = {
+    DEFINE_PROP_CHR("chardev0", LPC47M157State, serial[0].state.chr),
+    DEFINE_PROP_CHR("chardev1", LPC47M157State, serial[1].state.chr),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
 static void lpc47m157_realize(DeviceState *dev, Error **errp)
 {
     LPC47M157State *s = LPC47M157_DEVICE(dev);
@@ -185,25 +190,17 @@ static void lpc47m157_realize(DeviceState *dev, Error **errp)
     /* init serial cores */
     int i;
     for (i=0; i<2; i++) {
-        CharDriverState *chr = serial_hds[i];
+        Chardev *chr = serial_hds[i];
         if (chr == NULL) {
             char name[5];
             snprintf(name, sizeof(name), "ser%d", i);
-            chr = qemu_chr_new(name, "null", NULL);
+            chr = qemu_chr_new(name, "null");
         }
 
         SerialState *ss = &s->serial[i].state;
-        ss->chr = chr;
         ss->baudbase = 115200;
-
-        Error *err = NULL;
-        serial_realize_core(ss, &err);
-        if (err != NULL) {
-            qerror_report_err(err);
-            error_free(err);
-            exit(1);
-        }
-
+        qdev_prop_set_chr(dev, i == 0 ? "chardev0" : "chardev1", chr);
+        serial_realize_core(ss, errp);
         memory_region_init_io(&ss->io, OBJECT(s),
                               &serial_io_ops, ss, "serial", 8);
     }
@@ -229,7 +226,7 @@ static void lpc47m157_class_init(ObjectClass *klass, void *data)
     dc->realize = lpc47m157_realize;
     dc->vmsd = &vmstate_lpc47m157;
     //dc->reset = pc87312_reset;
-    //dc->props = pc87312_properties;
+    dc->props = lpc47m157_properties;
 }
 
 static const TypeInfo lpc47m157_type_info = {
