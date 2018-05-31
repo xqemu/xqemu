@@ -18,7 +18,6 @@ Status
 
 Remaining Items Until Merge (Tentative Work List)
 -------------------------------------------------
-* Port lpc47m157 (hw/xbox/lpc47m157.c)
 * Fix crash when exiting input grab mode
 * Fix Linux Build (Check if kvm works, check xbox.c)
 * Move ac97 stuff into hw/xbox, let it live by itself
