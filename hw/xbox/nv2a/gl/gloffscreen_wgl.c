@@ -165,7 +165,7 @@ static void glo_kill(void) {
     UnregisterClass(GLO_WINDOW_CLASS, glo.hInstance);
 }
 
-GGloContext *glo_context_create(void) {
+GloContext *glo_context_create(void) {
     if (!glo_inited)
       glo_init();
 
