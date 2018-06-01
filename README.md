@@ -18,7 +18,7 @@ Status
 
 Remaining Items Until Merge (Tentative Work List)
 -------------------------------------------------
-* Fix Linux Build (Check if kvm works, check xbox.c)
+* Test Linux Build (Check if kvm works, check xbox.c)
 * Move ac97 stuff into hw/xbox, let it live by itself
 * Port over espes's gfx changes that were added after I split nv2a code up
 * Fix timers (rdtsc and pm timer)
@@ -62,6 +62,25 @@ Start by setting up MSYS2 and follow the update guide on their [website](https:/
 ```pacman -S git python2 make autoconf automake-wrapper mingw-w64-x86_64-libtool mingw-w64-x86_64-gcc mingw-w64-x86_64-pkg-config mingw-w64-x86_64-glib2 mingw-w64-x86_64-glew mingw-w64-x86_64-SDL mingw-w64-x86_64-SDL2 mingw-w64-x86_64-pixman```
 
 Clone the repo, checkout `xbox-2.x-rebase` and run `./build_windows.sh`.
+
+Linux Build
+-----------
+First enable `deb-src` via:
+
+    sudo gedit /etc/apt/sources.list
+
+In this file, uncomment first `deb-src` line. Now refresh packages:
+
+    sudo apt-get update
+
+Install build deps:
+
+    sudo apt-get build-dep qemu 
+    sudo apt-get install git libsdl2-dev libglew-dev
+
+Then clone, checkout, and use the build script:
+
+    ./build_linux.sh
 
 Debugging on macOS
 ------------------
