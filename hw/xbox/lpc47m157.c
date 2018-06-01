@@ -100,7 +100,7 @@ static void lpc47m157_io_write(void *opaque, hwaddr addr, uint64_t val,
     LPC47M157State *s = opaque;
 
 #ifdef DEBUG_LPC47M157
-    printf("lpc47m157 io write 0x%llx = 0x%llx\n", addr, val);
+    printf("lpc47m157 io write 0x%"HWADDR_PRIx" = 0x%"PRIx64"\n", addr, val);
 #endif
 
     if (addr == 0) { //INDEX_PORT
@@ -125,7 +125,7 @@ static void lpc47m157_io_write(void *opaque, hwaddr addr, uint64_t val,
             uint8_t* dev = s->device_regs[s->config_regs[CONFIG_DEVICE_NUMBER]];
             dev[s->selected_reg] = val;
 #ifdef DEBUG_LPC47M157
-            printf("lpc47m157 dev %x . %x = %llx\n", s->config_regs[CONFIG_DEVICE_NUMBER], s->selected_reg, val);
+            printf("lpc47m157 dev %x . %x = %"PRIx64"\n", s->config_regs[CONFIG_DEVICE_NUMBER], s->selected_reg, val);
 #endif
         }
     } else {
@@ -153,7 +153,7 @@ static uint64_t lpc47m157_io_read(void *opaque, hwaddr addr, unsigned int size)
     }
 
 #ifdef DEBUG_LPC47M157
-    printf("lpc47m157 io read 0x%llx -> 0x%x\n", addr, val);
+    printf("lpc47m157 io read 0x%"HWADDR_PRIx" -> 0x%x\n", addr, val);
 #endif
 
     return val;

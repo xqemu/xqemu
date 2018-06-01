@@ -2957,6 +2957,10 @@ if test "$darwin" = "yes" ; then
 # EOF
 fi
 
+if test "$linux" = "yes" ; then
+    sdl_libs="$sdl_libs -lGLEW -lGLU -lGL"
+fi
+
 ##########################################
 # RDMA needs OpenFabrics libraries
 if test "$rdma" != "no" ; then

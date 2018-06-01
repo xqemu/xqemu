@@ -308,7 +308,6 @@ static void nvnet_class_init(ObjectClass *klass, void *data);
 static void nvnet_cleanup(NetClientState *nc);
 static void nvnet_reset(void *opaque);
 static void qdev_nvnet_reset(DeviceState *dev);
-static void nvnet_class_init(ObjectClass *klass, void *data);
 static void nvnet_register(void);
 
 /* MMIO / IO / Phy / Device Register Access */

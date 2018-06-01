@@ -1929,19 +1929,11 @@ int memory_region_iommu_get_attr(IOMMUMemoryRegion *iommu_mr,
 void memory_region_set_log(MemoryRegion *mr, bool log, unsigned client)
 {
     uint8_t mask = 1 << client;
-    uint8_t old_logging;
 
     if (mr->alias) {
         memory_region_set_log(mr->alias, log, client);
         return;
     }
-
-    // assert(client == DIRTY_MEMORY_VGA);
-    // old_logging = mr->vga_logging_count;
-    // mr->vga_logging_count += log ? 1 : -1;
-    // if (!!old_logging == !!mr->vga_logging_count) {
-    //     return;
-    // }
 
     memory_region_transaction_begin();
     mr->dirty_log_mask = (mr->dirty_log_mask & ~mask) | (log * mask);
@@ -1995,16 +1987,7 @@ bool memory_region_test_and_clear_dirty(MemoryRegion *mr, hwaddr addr,
                                                   addr - mr->alias_offset,
                                                   size, client);
     }
-    bool ret;
     assert(mr->terminates);
-    // ret = cpu_physical_memory_get_dirty(memory_region_get_ram_addr(mr) + addr, size,
-    //                                     1 << client);
-    // if (ret) {
-    //     cpu_physical_memory_reset_dirty(memory_region_get_ram_addr(mr) + addr,
-    //                                     memory_region_get_ram_addr(mr) + addr + size,
-    //                                     1 << client);
-    // }
-    // return ret;
     return cpu_physical_memory_test_and_clear_dirty(
             memory_region_get_ram_addr(mr) + addr, size, client);
 }

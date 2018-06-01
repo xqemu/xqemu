@@ -1439,7 +1439,7 @@ static void ac97_class_init (ObjectClass *klass, void *data)
     dc->desc = "Intel 82801AA AC97 Audio";
     dc->vmsd = &vmstate_ac97;
     dc->props = ac97_properties;
-    dc->reset = ac97_on_reset;
+    dc->reset = (DeviceReset)ac97_on_reset;
 }
 
 static const TypeInfo ac97_info = {

@@ -56,7 +56,7 @@ static int tm_init(SMBusDevice *dev)
 
 static void smbus_adm1032_class_initfn(ObjectClass *klass, void *data)
 {
-    DeviceClass *dc = DEVICE_CLASS(klass);
+    // DeviceClass *dc = DEVICE_CLASS(klass);
     SMBusDeviceClass *sc = SMBUS_DEVICE_CLASS(klass);
 
     sc->init = tm_init;
