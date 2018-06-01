@@ -1,8 +1,10 @@
 #!/bin/bash
+set -e
+set -x
 ./configure \
 	--python=python2 \
 	--enable-debug \
-	--extra-cflags="-march=native -g3 -O0 -Wno-error" \
+	--extra-cflags="-march=native -g -O0 -Wno-error" \
 	--target-list=i386-softmmu \
 	--enable-sdl \
 	--disable-cocoa \

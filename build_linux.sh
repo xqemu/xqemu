@@ -1,7 +1,9 @@
 #!/bin/bash
+set -e
+set -x
 ./configure \
 	--enable-debug \
-	--extra-cflags="-march=native -g3 -O0 -Wno-error=redundant-decls -Wno-error=unused-but-set-variable" \
+	--extra-cflags="-march=native -g -O0 -Wno-error=redundant-decls -Wno-error=unused-but-set-variable" \
 	--disable-werror \
 	--target-list=i386-softmmu \
 	--enable-sdl \

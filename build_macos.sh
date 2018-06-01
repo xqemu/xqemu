@@ -1,7 +1,9 @@
 #!/bin/bash
+set -e
+set -x
 ./configure \
 	--enable-debug \
-	--extra-cflags="-march=native -g3 -O0" \
+	--extra-cflags="-march=native -g -O0" \
 	--target-list=i386-softmmu \
 	--enable-sdl \
 	--disable-cocoa \
