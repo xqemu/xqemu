@@ -32,7 +32,7 @@
 #ifdef DEBUG_NV2A_GL
 
 #include <stdbool.h>
-#include "gloffscreen.h"
+#include "gl/gloffscreen.h"
 
 void gl_debug_message(bool cc, const char *fmt, ...);
 void gl_debug_group_begin(const char *fmt, ...);

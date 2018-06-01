@@ -29,10 +29,6 @@
 #ifndef GLOFFSCREEN_H_
 #define GLOFFSCREEN_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdbool.h>
 
 #ifdef __APPLE__
@@ -42,9 +38,6 @@ extern "C" {
 #include <GL/glew.h>
 #include <GL/gl.h>
 #endif
-
-// #include <SDL.h>
-// #include <GL/glew.h>
 
 /* Used to hold data for the OpenGL context */
 struct _GloContext;
@@ -67,10 +60,5 @@ void glo_context_destroy(GloContext *context);
 void glo_readpixels(GLenum gl_format, GLenum gl_type,
                     unsigned int bytes_per_pixel, unsigned int stride,
                     unsigned int width, unsigned int height, void *data);
-
-
-#ifdef __cplusplus
-}
-#endif
  
 #endif /* GLOFFSCREEN_H_ */

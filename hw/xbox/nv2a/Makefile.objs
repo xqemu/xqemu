@@ -1,5 +1,4 @@
 obj-y += g-lru-cache.o
-obj-y += glextensions.o gloffscreen.o
 obj-y += swizzle.o
 
 obj-y += nv2a.o
@@ -26,3 +25,5 @@ obj-y += nv2a_shaders.o
 
 obj-y += nv2a_psh.o
 obj-y += nv2a_vsh.o
+
+obj-y += gl/

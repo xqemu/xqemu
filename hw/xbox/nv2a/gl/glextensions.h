@@ -19,11 +19,6 @@
 #ifndef GLEXTEENSIONS_H_
 #define GLEXTEENSIONS_H_
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifdef __APPLE__
 #include "gloffscreen.h"
 extern void (*glFrameTerminatorGREMEDY)(void);
@@ -45,10 +40,5 @@ extern void (*glObjectLabel)(GLenum identifier, GLuint name, GLsizei length,
 #endif
 
 void glextensions_init(void);
-
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

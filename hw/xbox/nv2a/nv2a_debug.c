@@ -27,7 +27,7 @@
 #include <assert.h>
 
 #include "nv2a_debug.h"
-#include "glextensions.h"
+#include "gl/glextensions.h"
 
 void gl_debug_message(bool cc, const char *fmt, ...)
 {

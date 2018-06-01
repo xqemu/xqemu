@@ -31,8 +31,8 @@
 // #include "queue.h"
 #include "qemu/thread.h"
 #include "qapi/qmp/qstring.h"
-#include "gloffscreen.h"
-#include "glextensions.h"
+#include "gl/gloffscreen.h"
+#include "gl/glextensions.h"
 #include "cpu.h"
 
 // #include <SDL.h>
@@ -46,8 +46,8 @@
 #include "nv2a_debug.h"
 #include "nv2a_int.h"
 
-#include "gloffscreen.h"
-#include "glextensions.h"
+#include "gl/gloffscreen.h"
+#include "gl/glextensions.h"
 
 #define USE_TEXTURE_CACHE
 
