@@ -23,9 +23,6 @@
 #include "qemu/error-report.h"
 #include "qemu/error-report.h"
 #include <assert.h>
-#ifndef __WINNT__
-#include <util.h>
-#endif
 #include "nv2a.h"
 #include "hw/display/vga_regs.h"
 
