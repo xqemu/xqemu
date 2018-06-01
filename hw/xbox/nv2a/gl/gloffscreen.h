@@ -41,10 +41,12 @@
 #include <GL/gl.h>
 #include <GL/wglext.h>
 #else                                  /* Assume GLX */
+#ifndef __gl_h_                        /* gloffscreen_wgl.c calls them first */
 #include <GL/glew.h>
 #include <GL/glx.h>
 #include <GL/glxext.h>
 #include <GL/gl.h>
+#endif
 #endif
 
 /* Used to hold data for the OpenGL context */
