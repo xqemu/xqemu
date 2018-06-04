@@ -22,7 +22,6 @@
  */
 
 #include "qemu/osdep.h"
-
 #include "hw/hw.h"
 #include "hw/loader.h"
 #include "hw/i386/pc.h"
@@ -255,6 +254,11 @@ void nv2a_init(PCIBus *bus, int devfn, MemoryRegion *ram);
 /* PC hardware initialisation */
 static void xbox_init(MachineState *machine)
 {
+    xbox_init_common(machine, default_eeprom, NULL, NULL);
+}
+
+void xbox_init_common(MachineState *machine, const char *eeprom, PCIBus **pci_bus_out, ISABus **isa_bus_out)
+{
     PCMachineState *pcms = PC_MACHINE(machine);
     PCMachineClass *pcmc = PC_MACHINE_GET_CLASS(pcms);
 
@@ -405,7 +409,7 @@ static void xbox_init(MachineState *machine)
 
     /* smbus devices */
     uint8_t *eeprom_buf = g_malloc0(256);
-    memcpy(eeprom_buf, default_eeprom, 256);
+    memcpy(eeprom_buf, eeprom, 256);
     smbus_eeprom_init_single(smbus, 0x54, eeprom_buf);
 
     smbus_xbox_smc_init(smbus, 0x10);
@@ -439,8 +443,10 @@ static void xbox_init(MachineState *machine)
 
     /* GPU! */
     nv2a_init(agp_bus, PCI_DEVFN(0, 0), ram_memory);
-}
 
+    if (pci_bus_out) *pci_bus_out = pci_bus;
+    if (isa_bus_out) *isa_bus_out = isa_bus;
+}
 
 static void xbox_machine_options(MachineClass *m)
 {
