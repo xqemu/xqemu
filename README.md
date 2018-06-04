@@ -18,7 +18,6 @@ Status
 
 Remaining Items Until Merge (Tentative Work List)
 -------------------------------------------------
-* Test Linux Build (Check if kvm works, check xbox.c)
 * Fix timers (rdtsc and pm timer)
 * Chihiro
 * Simplify build by reducing amount of HW linked in 
