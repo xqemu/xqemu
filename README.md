@@ -22,7 +22,6 @@ Status
 Remaining Items Until Merge (Tentative Work List)
 -------------------------------------------------
 * Fix timers (rdtsc and pm timer)
-* Chihiro
 * Simplify build by reducing amount of HW linked in 
 * Cleanup and merging
 
