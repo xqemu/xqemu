@@ -12,6 +12,8 @@ contribute.
 
 Status
 ------
+![Travis-CI Status](https://travis-ci.org/xqemu/xqemu.svg?branch=xbox-2.x-rebase)
+
 3D graphics are now working! Keyboard based controller emu is now back! See below for handy controller mapping.
 
 ![Halo](screenshot.png)
