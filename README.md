@@ -12,7 +12,11 @@ contribute.
 
 Status
 ------
-* macOS/Linux Builds: [![Travis-CI Status](https://travis-ci.org/xqemu/xqemu.svg?branch=xbox-2.x-rebase)](https://travis-ci.org/xqemu/xqemu)
+| Platform | Status |
+| -------- | ------ |
+| Windows | [![Build status](https://ci.appveyor.com/api/projects/status/uq15hyv04dgkil64/branch/xbox-2.x-rebase?svg=true)](https://ci.appveyor.com/project/mborgerson/xqemu-99msh/branch/xbox-2.x-rebase) |
+| Linux | [![Travis-CI Status](https://travis-ci.org/xqemu/xqemu.svg?branch=xbox-2.x-rebase)](https://travis-ci.org/xqemu/xqemu) |
+| macOS | [![Travis-CI Status](https://travis-ci.org/xqemu/xqemu.svg?branch=xbox-2.x-rebase)](https://travis-ci.org/xqemu/xqemu) |
 
 3D graphics are now working! Keyboard based controller emu is now back! See below for handy controller mapping.
 
