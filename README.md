@@ -8,17 +8,14 @@ at the time of writing is
 many years of performance enhancements to xqemu including support for native
 virtualization APIs. If you are interested in helping to create a functional,
 accurate, and **performant** Xbox emulator, you are **most welcome** to
-contribute.
+contribute. Keep up with the latest developments. Chat with us on #xqemu on
+irc.freenode.net or on [Discord](https://discord.gg/WxJPPyz).
 
 Status
 ------
-| Platform | Status |
-| -------- | ------ |
-| Windows | [![Build status](https://ci.appveyor.com/api/projects/status/uq15hyv04dgkil64/branch/xbox-2.x-rebase?svg=true)](https://ci.appveyor.com/project/mborgerson/xqemu-99msh/branch/xbox-2.x-rebase) |
-| Linux | [![Travis-CI Status](https://travis-ci.org/xqemu/xqemu.svg?branch=xbox-2.x-rebase)](https://travis-ci.org/xqemu/xqemu) |
-| macOS | [![Travis-CI Status](https://travis-ci.org/xqemu/xqemu.svg?branch=xbox-2.x-rebase)](https://travis-ci.org/xqemu/xqemu) |
-
-3D graphics are now working! Keyboard based controller emu is now back! See below for handy controller mapping.
+| Windows | Linux | macOS |
+| ------- | ----- | ----- |
+| [![Build status](https://ci.appveyor.com/api/projects/status/uq15hyv04dgkil64/branch/xbox-2.x-rebase?svg=true)](https://ci.appveyor.com/project/mborgerson/xqemu-99msh/branch/xbox-2.x-rebase) | [![Travis-CI Status](https://travis-ci.org/xqemu/xqemu.svg?branch=xbox-2.x-rebase)](https://travis-ci.org/xqemu/xqemu) | [![Travis-CI Status](https://travis-ci.org/xqemu/xqemu.svg?branch=xbox-2.x-rebase)](https://travis-ci.org/xqemu/xqemu) |
 
 ![Halo](screenshot.png)
 
@@ -28,10 +25,6 @@ Remaining Items Until Merge (Tentative Work List)
 * Chihiro
 * Simplify build by reducing amount of HW linked in 
 * Cleanup and merging
-
-Chat
-----
-Keep up with the latest developments. Chat with us on #xqemu on irc.freenode.net or on [Discord](https://discord.gg/WxJPPyz). - [@mborgerson](https://github.com/mborgerson)
 
 macOS Build
 -----------
