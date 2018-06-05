@@ -27,6 +27,14 @@ Remaining Items Until Merge (Tentative Work List)
 
 macOS Build
 -----------
+Clone the repo
+    
+    git clone -b xbox-2.x-rebase https://github.com/xqemu/xqemu.git
+
+Then change directory
+
+    cd xqemu
+
 Use the build script to build:
 
 	./build_macos.sh
@@ -84,7 +92,15 @@ Install build deps:
     sudo apt-get build-dep qemu 
     sudo apt-get install git libsdl2-dev libglew-dev
 
-Then clone, checkout, and use the build script:
+Then clone the repo
+    
+    git clone -b xbox-2.x-rebase https://github.com/xqemu/xqemu.git
+
+Then change directory
+
+    cd xqemu
+
+Use the build script:
 
     ./build_linux.sh
 
