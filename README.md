@@ -58,15 +58,11 @@ Start by setting up MSYS2 and follow the update guide on their [website](https:/
 
 Clone the repo
     
-    git clone https://github.com/xqemu/xqemu.git
+    git clone -b xbox-2.x-rebase https://github.com/xqemu/xqemu.git
 
 Then change directory
 
     cd xqemu
-
-Then switch branch
-
-    git checkout xbox-2.x-rebase
 
 And run
 
