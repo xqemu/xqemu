@@ -56,7 +56,22 @@ Start by setting up MSYS2 and follow the update guide on their [website](https:/
 
 ```pacman -S git python2 make autoconf automake-wrapper mingw-w64-x86_64-libtool mingw-w64-x86_64-gcc mingw-w64-x86_64-pkg-config mingw-w64-x86_64-glib2 mingw-w64-x86_64-glew mingw-w64-x86_64-SDL mingw-w64-x86_64-SDL2 mingw-w64-x86_64-pixman```
 
-Clone the repo, checkout `xbox-2.x-rebase` and run `./build_windows.sh`.
+Clone the repo
+    
+    git clone https://github.com/xqemu/xqemu.git
+
+Then change directory
+
+    cd xqemu
+
+Then switch branch
+
+    git checkout xbox-2.x-rebase
+
+And run
+
+    sh ././build_windows.sh
+   
 
 Linux Build
 -----------
