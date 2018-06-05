@@ -70,7 +70,7 @@ Then switch branch
 
 And run
 
-    sh ././build_windows.sh
+    sh ./build_windows.sh
    
 
 Linux Build
