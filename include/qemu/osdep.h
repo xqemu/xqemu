@@ -248,8 +248,7 @@ extern int daemon(int, int);
 #define QEMU_IS_ARRAY(x) (!__builtin_types_compatible_p(typeof(x), \
                                                         typeof(&(x)[0])))
 #ifndef ARRAY_SIZE
-#define ARRAY_SIZE(x) ((sizeof(x) / sizeof((x)[0])) + \
-                       QEMU_BUILD_BUG_ON_ZERO(!QEMU_IS_ARRAY(x)))
+#define ARRAY_SIZE(x) ((sizeof(x) / sizeof(*(x))))
 #endif
 
 int qemu_daemon(int nochdir, int noclose);
