@@ -19,18 +19,12 @@
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
-/* FIXME */
-static inline int64_t get_ticks_per_sec(void)
-{
-    return 1000000000LL;
-}
-
 /* PIMTER - time measurement and time-based alarms */
 static uint64_t ptimer_get_clock(NV2AState *d)
 {
     return muldiv64(qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL),
                     d->pramdac.core_clock_freq * d->ptimer.numerator,
-                    get_ticks_per_sec() * d->ptimer.denominator);
+                    NANOSECONDS_PER_SECOND * d->ptimer.denominator);
 }
 
 uint64_t ptimer_read(void *opaque, hwaddr addr, unsigned int size)

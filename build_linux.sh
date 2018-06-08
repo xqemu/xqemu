@@ -3,7 +3,7 @@ set -e
 set -x
 ./configure \
 	--enable-debug \
-	--extra-cflags="-march=native -g -O0 -Wno-error=redundant-decls -Wno-error=unused-but-set-variable" \
+	--extra-cflags="-march=native -g -O0 -Wno-error=redundant-decls -Wno-error=unused-but-set-variable -DXBOX=1" \
 	--disable-werror \
 	--target-list=i386-softmmu \
 	--enable-sdl \

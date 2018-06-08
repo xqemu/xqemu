@@ -3,7 +3,7 @@ set -e
 set -x
 ./configure \
 	--enable-debug \
-	--extra-cflags="-march=native -g -O0" \
+	--extra-cflags="-march=native -g -O0 -DXBOX=1" \
 	--target-list=i386-softmmu \
 	--enable-sdl \
 	--disable-cocoa \

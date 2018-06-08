@@ -4,7 +4,7 @@ set -x
 ./configure \
 	--python=python2 \
 	--enable-debug \
-	--extra-cflags="-march=native -g -O0 -Wno-error" \
+	--extra-cflags="-march=native -g -O0 -Wno-error -DXBOX=1" \
 	--target-list=i386-softmmu \
 	--enable-sdl \
 	--disable-cocoa \
