@@ -26,12 +26,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <GL/glew.h>
-#include <GL/glx.h>
-#include <GL/glxext.h>
-#include <X11/Xlib.h>
-
 #include "gloffscreen.h"
+#include <X11/Xlib.h>
 
 struct _GloContext {
     GLXDrawable     glx_drawable;

@@ -26,11 +26,10 @@
 #include <string.h>
 #include <dlfcn.h>
 
-#include <OpenGL/OpenGL.h>
+#include "gloffscreen.h"
+
 #include <OpenGL/CGLTypes.h>
 #include <OpenGL/CGLCurrent.h>
-
-#include "gloffscreen.h"
 
 struct _GloContext {
   CGLContextObj     cglContext;

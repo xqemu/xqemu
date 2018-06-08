@@ -32,11 +32,6 @@
 #include <windows.h>
 #include <wingdi.h>
 
-#include <GL/glew.h>
-#include <GL/wglew.h>
-#include <GL/gl.h>
-#include <GL/wglext.h>
-
 #include "gloffscreen.h"
 
 /* In Windows, you must create a window *before* you can create a pbuffer or

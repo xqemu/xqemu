@@ -28,17 +28,9 @@
 #include "ui/console.h"
 #include "hw/display/vga.h"
 #include "hw/display/vga_int.h"
-// #include "queue.h"
 #include "qemu/thread.h"
 #include "qapi/qmp/qstring.h"
-#include "gl/gloffscreen.h"
-#include "gl/glextensions.h"
 #include "cpu.h"
-
-// #include <SDL.h>
-// #include <GL/glew.h>
-// #include <log.h>
-// #include <stdlib.h>
 
 #include "g-lru-cache.h"
 #include "swizzle.h"

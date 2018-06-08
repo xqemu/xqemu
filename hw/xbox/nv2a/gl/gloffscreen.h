@@ -31,11 +31,19 @@
 
 #include <stdbool.h>
 
-#ifdef __APPLE__
+#if defined(__APPLE__)                 /* macOS-Specific GL Includes */
+#include <OpenGL/OpenGL.h>
 #include <OpenGL/gl3.h>
 #include <OpenGL/glext.h>
-#else
+#elif defined(_WIN32)                  /* Windows-Specific GL Includes */
 #include <GL/glew.h>
+#include <GL/wglew.h>
+#include <GL/gl.h>
+#include <GL/wglext.h>
+#else                                  /* Assume GLX */
+#include <GL/glew.h>
+#include <GL/glx.h>
+#include <GL/glxext.h>
 #include <GL/gl.h>
 #endif
 
