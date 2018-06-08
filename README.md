@@ -2,14 +2,13 @@
 ==========
 
 Hello! This is the bleeding edge development branch focused on rebasing the
-xqemu project onto the latest [Qemu](https://github.com/qemu/qemu) tag, which
-at the time of writing is
-[v2.12.0](https://github.com/qemu/qemu/tree/v2.12.0). This will bring
-many years of performance enhancements to xqemu including support for native
-virtualization APIs. If you are interested in helping to create a functional,
-accurate, and **performant** Xbox emulator, you are **most welcome** to
-contribute. Keep up with the latest developments. Chat with us on #xqemu on
-irc.freenode.net or on [Discord](https://discord.gg/WxJPPyz).
+xqemu project onto the latest [Qemu](https://github.com/qemu/qemu) tag, which at
+the time of writing is [v2.12.0](https://github.com/qemu/qemu/tree/v2.12.0).
+This will bring many years of enhancements to xqemu, including support for
+native virtualization APIs. If you are interested in helping to create a
+functional, accurate, and performant Xbox emulator, you are most welcome to
+contribute. Keep up with the latest developments. Chat with us on
+#xqemu on irc.freenode.net or on [Discord](https://discord.gg/WxJPPyz).
 
 Status
 ------
@@ -21,7 +20,6 @@ Status
 
 Remaining Items Until Merge (Tentative Work List)
 -------------------------------------------------
-* Fix timers (rdtsc and pm timer)
 * Simplify build by reducing amount of HW linked in 
 * Cleanup and merging
 
