@@ -113,8 +113,6 @@ void *nv_dma_map(NV2AState *d, hwaddr dma_obj_address, hwaddr *len)
     return d->vram_ptr + dma.address;
 }
 
-static const char* nv2a_method_names[] = {};
-
 #define STUB 0
 
 #if STUB

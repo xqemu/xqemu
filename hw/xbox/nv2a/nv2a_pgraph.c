@@ -2542,6 +2542,8 @@ static void pgraph_wait_fifo_access(NV2AState *d) {
     }
 }
 
+// static const char* nv2a_method_names[] = {};
+
 static void pgraph_method_log(unsigned int subchannel,
                               unsigned int graphics_class,
                               unsigned int method, uint32_t parameter) {
@@ -2552,28 +2554,28 @@ static void pgraph_method_log(unsigned int subchannel,
                      subchannel, last, count);
     }
     if (method != 0x1800) {
-        const char* method_name = NULL;
-        unsigned int nmethod = 0;
-        switch (graphics_class) {
-            case NV_KELVIN_PRIMITIVE:
-                nmethod = method | (0x5c << 16);
-                break;
-            case NV_CONTEXT_SURFACES_2D:
-                nmethod = method | (0x6d << 16);
-                break;
-            default:
-                break;
-        }
-        if (nmethod != 0 && nmethod < ARRAY_SIZE(nv2a_method_names)) {
-            method_name = nv2a_method_names[nmethod];
-        }
-        if (method_name) {
-            NV2A_DPRINTF("pgraph method (%d): %s (0x%x)\n",
-                         subchannel, method_name, parameter);
-        } else {
+        // const char* method_name = NULL;
+        // unsigned int nmethod = 0;
+        // switch (graphics_class) {
+        //     case NV_KELVIN_PRIMITIVE:
+        //         nmethod = method | (0x5c << 16);
+        //         break;
+        //     case NV_CONTEXT_SURFACES_2D:
+        //         nmethod = method | (0x6d << 16);
+        //         break;
+        //     default:
+        //         break;
+        // }
+        // if (nmethod != 0 && nmethod < ARRAY_SIZE(nv2a_method_names)) {
+        //     method_name = nv2a_method_names[nmethod];
+        // }
+        // if (method_name) {
+        //     NV2A_DPRINTF("pgraph method (%d): %s (0x%x)\n",
+        //                  subchannel, method_name, parameter);
+        // } else {
             NV2A_DPRINTF("pgraph method (%d): 0x%x -> 0x%04x (0x%x)\n",
                          subchannel, graphics_class, method, parameter);
-        }
+        // }
 
     }
     if (method == last) { count++; }
