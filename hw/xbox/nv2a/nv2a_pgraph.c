@@ -301,7 +301,6 @@ static gboolean shader_equal(gconstpointer a, gconstpointer b);
 static unsigned int kelvin_map_stencil_op(uint32_t parameter);
 static unsigned int kelvin_map_polygon_mode(uint32_t parameter);
 static unsigned int kelvin_map_texgen(uint32_t parameter, unsigned int channel);
-static void pgraph_method_log(unsigned int subchannel, unsigned int graphics_class, unsigned int method, uint32_t parameter);
 static uint64_t fnv_hash(const uint8_t *data, size_t len);
 static uint64_t fast_hash(const uint8_t *data, size_t len, unsigned int samples);
 
@@ -3305,7 +3304,7 @@ static void pgraph_update_surface_part(NV2AState *d, bool upload, bool color) {
         }
         surface->buffer_dirty = false;
 
-
+#ifdef DEBUG_NV2A
         uint8_t *out = data + surface->offset + 64;
         NV2A_DPRINTF("upload_surface %s 0x%" HWADDR_PRIx " - 0x%" HWADDR_PRIx ", "
                       "(0x%" HWADDR_PRIx " - 0x%" HWADDR_PRIx ", "
@@ -3319,7 +3318,7 @@ static void pgraph_update_surface_part(NV2AState *d, bool upload, bool color) {
             pg->surface_shape.clip_height,
             surface->pitch,
             out[0], out[1], out[2], out[3]);
-
+#endif
     }
 
     if (!upload && surface->draw_dirty) {
@@ -3351,6 +3350,7 @@ static void pgraph_update_surface_part(NV2AState *d, bool upload, bool color) {
         surface->draw_dirty = false;
         surface->write_enabled_cache = false;
 
+#ifdef DEBUG_NV2A
         uint8_t *out = data + surface->offset + 64;
         NV2A_DPRINTF("read_surface %s 0x%" HWADDR_PRIx " - 0x%" HWADDR_PRIx ", "
                       "(0x%" HWADDR_PRIx " - 0x%" HWADDR_PRIx ", "
@@ -3363,7 +3363,7 @@ static void pgraph_update_surface_part(NV2AState *d, bool upload, bool color) {
             pg->surface_shape.clip_width, pg->surface_shape.clip_height,
             surface->pitch,
             out[0], out[1], out[2], out[3]);
-
+#endif
     }
 
     if (swizzle) {
@@ -3473,9 +3473,10 @@ static void pgraph_bind_textures(NV2AState *d)
         unsigned int rect_height =
             GET_MASK(pg->regs[NV_PGRAPH_TEXIMAGERECT0 + i*4],
                      NV_PGRAPH_TEXIMAGERECT0_HEIGHT);
-
+#ifdef DEBUG_NV2A
         unsigned int lod_bias =
             GET_MASK(filter, NV_PGRAPH_TEXFILTER0_MIPMAP_LOD_BIAS);
+#endif
         unsigned int min_filter = GET_MASK(filter, NV_PGRAPH_TEXFILTER0_MIN);
         unsigned int mag_filter = GET_MASK(filter, NV_PGRAPH_TEXFILTER0_MAG);
 

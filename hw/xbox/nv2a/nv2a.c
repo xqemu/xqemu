@@ -245,18 +245,18 @@ const struct NV2ABlockInfo blocktable[] = {
 
 const int blocktable_len = ARRAY_SIZE(blocktable);
 
-static const char* nv2a_reg_names[] = {};
+// static const char* nv2a_reg_names[] = {};
 
 void reg_log_read(int block, hwaddr addr, uint64_t val) {
     if (blocktable[block].name) {
-        hwaddr naddr = blocktable[block].offset + addr;
-        if (naddr < ARRAY_SIZE(nv2a_reg_names) && nv2a_reg_names[naddr]) {
-            NV2A_DPRINTF("%s: read [%s] -> 0x%" PRIx64 "\n",
-                    blocktable[block].name, nv2a_reg_names[naddr], val);
-        } else {
+        // hwaddr naddr = blocktable[block].offset + addr;
+        // if (naddr < ARRAY_SIZE(nv2a_reg_names) && nv2a_reg_names[naddr]) {
+        //     NV2A_DPRINTF("%s: read [%s] -> 0x%" PRIx64 "\n",
+        //             blocktable[block].name, nv2a_reg_names[naddr], val);
+        // } else {
             NV2A_DPRINTF("%s: read [%" HWADDR_PRIx "] -> 0x%" PRIx64 "\n",
                     blocktable[block].name, addr, val);
-        }
+        // }
     } else {
         NV2A_DPRINTF("(%d?): read [%" HWADDR_PRIx "] -> 0x%" PRIx64 "\n",
                 block, addr, val);
@@ -265,21 +265,21 @@ void reg_log_read(int block, hwaddr addr, uint64_t val) {
 
 void reg_log_write(int block, hwaddr addr, uint64_t val) {
     if (blocktable[block].name) {
-        hwaddr naddr = blocktable[block].offset + addr;
-        if (naddr < ARRAY_SIZE(nv2a_reg_names) && nv2a_reg_names[naddr]) {
-            NV2A_DPRINTF("%s: [%s] = 0x%" PRIx64 "\n",
-                    blocktable[block].name, nv2a_reg_names[naddr], val);
-        } else {
+        // hwaddr naddr = blocktable[block].offset + addr;
+        // if (naddr < ARRAY_SIZE(nv2a_reg_names) && nv2a_reg_names[naddr]) {
+        //     NV2A_DPRINTF("%s: [%s] = 0x%" PRIx64 "\n",
+        //             blocktable[block].name, nv2a_reg_names[naddr], val);
+        // } else {
             NV2A_DPRINTF("%s: [%" HWADDR_PRIx "] = 0x%" PRIx64 "\n",
                     blocktable[block].name, addr, val);
-        }
+        // }
     } else {
         NV2A_DPRINTF("(%d?): [%" HWADDR_PRIx "] = 0x%" PRIx64 "\n",
                 block, addr, val);
     }
 }
 
-
+#if 0
 /* FIXME: Probably totally wrong */
 static inline unsigned int rgb_to_pixel8(unsigned int r, unsigned int g,
                                          unsigned int b)
@@ -376,6 +376,7 @@ static void nv2a_overlay_draw_line(VGACommonState *vga, uint8_t *line, int y)
         }
     }
 }
+#endif
 
 static int nv2a_get_bpp(VGACommonState *s)
 {

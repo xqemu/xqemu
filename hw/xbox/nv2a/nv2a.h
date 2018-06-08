@@ -426,9 +426,6 @@ typedef struct NV2AState {
         ChannelControl channel_control[NV2A_NUM_CHANNELS];
     } user;
 
-    // SDL_mutex *io_lock;
-    // SDL_Window *sdl_window;
-
 } NV2AState;
 
 typedef struct NV2ABlockInfo {
