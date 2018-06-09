@@ -45,12 +45,7 @@ Then run with something like:
 		-bios $BIOS \
 		-drive index=0,media=disk,file=$HDD,locked \
 		-drive index=1,media=cdrom,file=$DISC \
-		-usb -device usb-xbox-gamepad  \
-		-monitor stdio \
-		-s
-
-This will start the Qemu monitor on the command line, which includes lots of
-really helpful debugging commands!
+		-usb -device usb-xbox-gamepad
 
 The Xbox boot animation sequence can be bypassed by adding the
 `,short-animation` option to the `-machine` switch above.
