@@ -20,7 +20,6 @@ Status
 
 Remaining Items Until Merge (Tentative Work List)
 -------------------------------------------------
-* Simplify build by reducing amount of HW linked in 
 * Cleanup and merging
 
 macOS Build
