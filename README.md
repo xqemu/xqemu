@@ -8,13 +8,13 @@ This will bring many years of enhancements to xqemu, including support for
 native virtualization APIs. If you are interested in helping to create a
 functional, accurate, and performant Xbox emulator, you are most welcome to
 contribute. Keep up with the latest developments. Chat with us on
-#xqemu on irc.freenode.net or on [Discord](https://discord.gg/WxJPPyz).
+`#xqemu` on irc.freenode.net or on [Discord](https://discord.gg/WxJPPyz).
 
 Status
 ------
 | Windows | Linux | macOS |
 | ------- | ----- | ----- |
-| [![Build status](https://ci.appveyor.com/api/projects/status/uq15hyv04dgkil64/branch/xbox-2.x-rebase?svg=true)](https://ci.appveyor.com/project/mborgerson/xqemu-99msh/branch/xbox-2.x-rebase) | [![Travis-CI Status](https://travis-ci.org/xqemu/xqemu.svg?branch=xbox-2.x-rebase)](https://travis-ci.org/xqemu/xqemu) | [![Travis-CI Status](https://travis-ci.org/xqemu/xqemu.svg?branch=xbox-2.x-rebase)](https://travis-ci.org/xqemu/xqemu) |
+| [![Build status](https://ci.appveyor.com/api/projects/status/sl3l57l6wklw08wo?svg=true)](https://ci.appveyor.com/project/xqemu-bot/xqemu) | [![Travis-CI Status](https://travis-ci.org/xqemu/xqemu.svg?branch=xbox-2.x-rebase)](https://travis-ci.org/xqemu/xqemu) | [![Travis-CI Status](https://travis-ci.org/xqemu/xqemu.svg?branch=xbox-2.x-rebase)](https://travis-ci.org/xqemu/xqemu) |
 
 ![Halo](screenshot.png)
 
