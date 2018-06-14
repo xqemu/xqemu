@@ -2,6 +2,8 @@
  * QEMU USB XID Devices
  *
  * Copyright (c) 2013 espes
+ * Copyright (c) 2017 Jannik Vogel
+ * Copyright (c) 2018 Matt Borgerson
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -17,12 +19,14 @@
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "qemu/osdep.h"
 #include "hw/hw.h"
 #include "ui/console.h"
 #include "hw/usb.h"
 #include "hw/usb/desc.h"
+#include "ui/input.h"
 
-#include <SDL/SDL.h>
+#include <SDL2/SDL.h>
 
 //#define FORCE_FEEDBACK
 #define UPDATE
@@ -47,6 +51,22 @@
 #define HID_GET_REPORT       0x01
 #define HID_SET_REPORT       0x09
 #define XID_GET_CAPABILITIES 0x01
+
+
+#define TYPE_USB_XID_SDL "usb-xbox-gamepad-sdl"
+#define USB_XID(obj) OBJECT_CHECK(USBXIDState, (obj), TYPE_USB_XID_SDL)
+
+enum {
+    STR_MANUFACTURER = 1,
+    STR_PRODUCT,
+    STR_SERIALNUMBER,
+};
+
+static const USBDescStrings desc_strings = {
+    [STR_MANUFACTURER]     = "QEMU",
+    [STR_PRODUCT]          = "Microsoft Gamepad",
+    [STR_SERIALNUMBER]     = "1",
+};
 
 
 
@@ -127,7 +147,7 @@ static const USBDescDevice desc_device_xbox_gamepad = {
         {
             .bNumInterfaces        = 1,
             .bConfigurationValue   = 1,
-            .bmAttributes          = 0x80,
+            .bmAttributes          = USB_CFG_ATT_ONE,
             .bMaxPower             = 50,
             .nif = 1,
             .ifs = &desc_iface_xbox_gamepad,
@@ -140,8 +160,12 @@ static const USBDesc desc_xbox_gamepad = {
         .idVendor          = 0x045e,
         .idProduct         = 0x0202,
         .bcdDevice         = 0x0100,
+        .iManufacturer     = STR_MANUFACTURER,
+        .iProduct          = STR_PRODUCT,
+        .iSerialNumber     = STR_SERIALNUMBER,
     },
     .full = &desc_device_xbox_gamepad,
+    .str  = desc_strings,
 };
 
 static const XIDDesc desc_xid_xbox_gamepad = {
@@ -291,7 +315,7 @@ static void usb_xid_handle_reset(USBDevice *dev)
 static void usb_xid_handle_control(USBDevice *dev, USBPacket *p,
                int request, int value, int index, int length, uint8_t *data)
 {
-    USBXIDState *s = DO_UPCAST(USBXIDState, dev, dev);
+    USBXIDState *s = (USBXIDState *)dev;
 
     DPRINTF("xid handle_control 0x%x 0x%x\n", request, value);
 
@@ -389,6 +413,7 @@ static void usb_xid_handle_data(USBDevice *dev, USBPacket *p)
     }
 }
 
+#if 0
 static void usb_xid_handle_destroy(USBDevice *dev)
 {
     USBXIDState *s = DO_UPCAST(USBXIDState, dev, dev);
@@ -400,6 +425,11 @@ static void usb_xid_handle_destroy(USBDevice *dev)
 #endif
     SDL_JoystickClose(s->sdl_joystick);
 }
+#endif
+
+static void usb_xbox_gamepad_unrealize(USBDevice *dev, Error **errp)
+{
+}
 
 static void usb_xid_class_initfn(ObjectClass *klass, void *data)
 {
@@ -408,13 +438,13 @@ static void usb_xid_class_initfn(ObjectClass *klass, void *data)
     uc->handle_reset   = usb_xid_handle_reset;
     uc->handle_control = usb_xid_handle_control;
     uc->handle_data    = usb_xid_handle_data;
-    uc->handle_destroy = usb_xid_handle_destroy;
+    // uc->handle_destroy = usb_xid_handle_destroy;
     uc->handle_attach  = usb_desc_attach;
 }
 
-static int usb_xbox_gamepad_initfn(USBDevice *dev)
+static void usb_xbox_gamepad_realize(USBDevice *dev, Error **errp)
 {
-    USBXIDState *s = DO_UPCAST(USBXIDState, dev, dev);
+    USBXIDState *s = USB_XID(dev);
     usb_desc_init(dev);
     s->intr = usb_ep_get(dev, USB_TOKEN_IN, 2);
 
@@ -441,14 +471,21 @@ static int usb_xbox_gamepad_initfn(USBDevice *dev)
 
     int i;
     int index = 0;
+    SDL_Joystick *sdl_joystick;
     for(i = 0; i < num_joysticks; i++) {
-        const char* name = SDL_JoystickName(i);
+        sdl_joystick = SDL_JoystickOpen(i);
+        const char* name = SDL_JoystickName(sdl_joystick);
         printf("Found '%s'\n", name);
+        assert(sdl_joystick != NULL);
+        printf("%s == %s ?\n", name, search_name);
         if (!strcmp(name, search_name)) {
             if (search_index == index) {
                 break;
             }
             index++;
+        }
+        if (SDL_JoystickGetAttached(sdl_joystick)) {
+            SDL_JoystickClose(sdl_joystick);
         }
     }
 
@@ -458,7 +495,7 @@ static int usb_xbox_gamepad_initfn(USBDevice *dev)
                 search_name, search_index);
         exit(1);
     }
-    SDL_Joystick *sdl_joystick = SDL_JoystickOpen(i);
+    // SDL_Joystick *sdl_joystick = SDL_JoystickOpen(i);
     if (sdl_joystick == NULL) {
         fprintf(stderr, "Couldn't open joystick '%s' [%d] (SDL-Index %d)\n",
                 search_name, search_index, i);
@@ -518,8 +555,6 @@ static int usb_xbox_gamepad_initfn(USBDevice *dev)
 
 
     s->xid_desc = &desc_xid_xbox_gamepad;
-
-    return 0;
 }
 
 static Property xid_sdl_properties[] = {
@@ -528,22 +563,29 @@ static Property xid_sdl_properties[] = {
     DEFINE_PROP_END_OF_LIST(),
 };
 
+static const VMStateDescription vmstate_usb_xbox = {
+    .name = TYPE_USB_XID_SDL,
+    .unmigratable = 1,
+};
+
 static void usb_xbox_gamepad_class_initfn(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     USBDeviceClass *uc = USB_DEVICE_CLASS(klass);
 
-    usb_xid_class_initfn(klass, data);
-    uc->init           = usb_xbox_gamepad_initfn;
     uc->product_desc   = "Microsoft Xbox Controller";
     uc->usb_desc       = &desc_xbox_gamepad;
-    //dc->vmsd = &vmstate_usb_kbd;
-    dc->props = xid_sdl_properties;
+    uc->realize        = usb_xbox_gamepad_realize;
+    uc->unrealize      = usb_xbox_gamepad_unrealize;
+    usb_xid_class_initfn(klass, data);
     set_bit(DEVICE_CATEGORY_INPUT, dc->categories);
+    dc->vmsd  = &vmstate_usb_xbox;
+    dc->props = xid_sdl_properties;
+    dc->desc  = "Microsoft Xbox Controller";
 }
 
 static const TypeInfo usb_xbox_gamepad_info = {
-    .name          = "usb-xbox-gamepad-sdl",
+    .name          = TYPE_USB_XID_SDL,
     .parent        = TYPE_USB_DEVICE,
     .instance_size = sizeof(USBXIDState),
     .class_init    = usb_xbox_gamepad_class_initfn,
