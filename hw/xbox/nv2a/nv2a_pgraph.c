@@ -876,6 +876,20 @@ static void pgraph_method(NV2AState *d,
         SET_MASK(pg->regs[NV_PGRAPH_FOGCOLOR], NV_PGRAPH_FOGCOLOR_ALPHA, alpha);
         break;
     }
+    case NV097_SET_WINDOW_CLIP_TYPE:
+        SET_MASK(pg->regs[NV_PGRAPH_SETUPRASTER],
+                 NV_PGRAPH_SETUPRASTER_WINDOWCLIPTYPE, parameter);
+        break;
+    case NV097_SET_WINDOW_CLIP_HORIZONTAL ...
+            NV097_SET_WINDOW_CLIP_HORIZONTAL + 0x1c:
+        slot = (method - NV097_SET_WINDOW_CLIP_HORIZONTAL) / 4;
+        pg->regs[NV_PGRAPH_WINDOWCLIPX0 + slot * 4] = parameter;
+        break;
+    case NV097_SET_WINDOW_CLIP_VERTICAL ...
+            NV097_SET_WINDOW_CLIP_VERTICAL + 0x1c:
+        slot = (method - NV097_SET_WINDOW_CLIP_VERTICAL) / 4;
+        pg->regs[NV_PGRAPH_WINDOWCLIPY0 + slot * 4] = parameter;
+        break;
     case NV097_SET_ALPHA_TEST_ENABLE:
         SET_MASK(pg->regs[NV_PGRAPH_CONTROL_0],
                  NV_PGRAPH_CONTROL_0_ALPHATESTENABLE, parameter);
@@ -2411,6 +2425,8 @@ static void pgraph_method(NV2AState *d,
         /* FIXME: Should this really be inverted instead of ymin? */
         glScissor(scissor_x, scissor_y, scissor_width, scissor_height);
 
+        /* FIXME: Respect window clip?!?! */
+
         NV2A_DPRINTF("------------------CLEAR 0x%x %d,%d - %d,%d  %x---------------\n",
             parameter, xmin, ymin, xmax, ymax, d->pgraph.regs[NV_PGRAPH_COLORCLEARVALUE]);
 
@@ -2946,6 +2962,8 @@ static void pgraph_bind_shaders(PGRAPHState *pg)
     ShaderState state = {
         .psh = (PshState){
             /* register combier stuff */
+            .window_clip_exclusive = pg->regs[NV_PGRAPH_SETUPRASTER]
+                                       & NV_PGRAPH_SETUPRASTER_WINDOWCLIPTYPE,
             .combiner_control = pg->regs[NV_PGRAPH_COMBINECTL],
             .shader_stage_program = pg->regs[NV_PGRAPH_SHADERPROG],
             .other_stage_input = pg->regs[NV_PGRAPH_SHADERCTL],
@@ -3041,6 +3059,39 @@ static void pgraph_bind_shaders(PGRAPHState *pg)
         }
     }
 
+    /* Window clip */
+    assert(!state.psh.window_clip_exclusive); /* FIXME: Untested */
+    state.psh.window_clip_count = 0;
+    /* Create region which covers the entire surface */
+    /* FIXME: Does Multisampling affect this?! */
+    uint32_t all_x = 0x00000000;
+    uint32_t all_y = 0x00000000;
+    SET_MASK(all_x, NV_PGRAPH_WINDOWCLIPX0_XMIN, 0);
+    SET_MASK(all_x, NV_PGRAPH_WINDOWCLIPX0_XMAX,
+                         pg->surface_shape.clip_width - 1);
+    SET_MASK(all_y, NV_PGRAPH_WINDOWCLIPX0_XMIN, 0);
+    SET_MASK(all_y, NV_PGRAPH_WINDOWCLIPX0_XMAX,
+                         pg->surface_shape.clip_height - 1);
+    uint32_t last_x = all_x;
+    uint32_t last_y = all_y;
+    /* Check if the last region is duplicated and ignore duplicates
+     * We'll also early out on regions which cover the entire surface
+     */
+    for (i = 0; i < 8; i++) {
+        uint32_t x = pg->regs[NV_PGRAPH_WINDOWCLIPX0 + i * 4];
+        uint32_t y = pg->regs[NV_PGRAPH_WINDOWCLIPY0 + i * 4];
+        /* Region covers entire surface = other regions will be overlap */
+        if ((x == all_x) && (y == all_y)) {
+            state.psh.window_clip_count = 0;
+            break;
+        }
+        if (x != last_x || y != last_y) {
+            state.psh.window_clip_count = i + 1;
+            last_x = x;
+            last_y = y;
+        }
+    }
+
     for (i = 0; i < 8; i++) {
         state.psh.rgb_inputs[i] = pg->regs[NV_PGRAPH_COMBINECOLORI0 + i * 4];
         state.psh.rgb_outputs[i] = pg->regs[NV_PGRAPH_COMBINECOLORO0 + i * 4];
@@ -3086,6 +3137,26 @@ static void pgraph_bind_shaders(PGRAPHState *pg)
     bool binding_changed = (pg->shader_binding != old_binding);
 
     glUseProgram(pg->shader_binding->gl_program);
+
+    /* Clipping regions */
+    for (i = 0; i < state.psh.window_clip_count; i++) {
+        char name[32];
+
+        uint32_t x = pg->regs[NV_PGRAPH_WINDOWCLIPX0 + i * 4];
+        GLint xmin = GET_MASK(x, NV_PGRAPH_WINDOWCLIPX0_XMIN);
+        GLint xmax = GET_MASK(x, NV_PGRAPH_WINDOWCLIPX0_XMAX);
+        uint32_t y = pg->regs[NV_PGRAPH_WINDOWCLIPY0 + i * 4];
+        GLint ymin = pg->surface_shape.clip_height - 1 -
+                     GET_MASK(y, NV_PGRAPH_WINDOWCLIPX0_XMIN);
+        GLint ymax = pg->surface_shape.clip_height - 1 -
+                     GET_MASK(y, NV_PGRAPH_WINDOWCLIPX0_XMAX);
+
+        snprintf(name, sizeof(name), "clipRegion[%d]", i);
+        GLint loc = glGetUniformLocation(pg->shader_binding->gl_program, name);
+        if (loc != -1) {
+            glUniform4i(loc, xmin, ymax, xmax, ymin);
+        }
+    }
 
     pgraph_shader_update_constants(pg, pg->shader_binding, binding_changed,
                                    vertex_program, fixed_function);
