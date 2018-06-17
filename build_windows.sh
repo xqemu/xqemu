@@ -1,6 +1,9 @@
 #!/bin/bash
-set -e
-set -x
+
+set -e # exit if a command fails
+set -x # Print commands
+set -o pipefail # Will return the exit status of make if it fails
+
 ./configure \
 	--python=python2 \
 	--enable-debug \
@@ -24,7 +27,7 @@ set -x
 	--disable-user \
 	--disable-opengl \
 
-time make -j4 | tee build.log
+time make -j4 2>&1 | tee build.log
 
 mkdir -p dist
 cp i386-softmmu/qemu-system-i386.exe dist/xqemu.exe
