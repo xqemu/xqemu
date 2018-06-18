@@ -244,7 +244,9 @@ static void xbox_gamepad_keyboard_event(DeviceState *dev, QemuConsole *src,
     key = evt->u.key.data;
     code = qemu_input_key_value_to_qcode(key->key);
 
-    if (code >= Q_KEY_CODE__MAX) return;
+    if (code >= Q_KEY_CODE__MAX) {
+        return;
+    }
 
     bool up = !key->down;
     int button = gamepad_mapping[code];
@@ -254,38 +256,40 @@ static void xbox_gamepad_keyboard_event(DeviceState *dev, QemuConsole *src,
     uint16_t mask;
     switch (button) {
     case GAMEPAD_A ... GAMEPAD_RIGHT_TRIGGER:
-        s->in_state.bAnalogButtons[button] = up?0:0xff;
+        s->in_state.bAnalogButtons[button] = up ? 0 : 0xff;
         break;
     case GAMEPAD_DPAD_UP ... GAMEPAD_RIGHT_THUMB:
-        mask = (1 << (button-GAMEPAD_DPAD_UP));
+        mask = (1 << (button - GAMEPAD_DPAD_UP));
         s->in_state.wButtons &= ~mask;
-        if (!up) s->in_state.wButtons |= mask;
+        if (!up) {
+            s->in_state.wButtons |= mask;
+        }
         break;
 
     case GAMEPAD_LEFT_THUMB_UP:
-        s->in_state.sThumbLY = up?0:32767;
+        s->in_state.sThumbLY = up ? 0 : 32767;
         break;
     case GAMEPAD_LEFT_THUMB_DOWN:
-        s->in_state.sThumbLY = up?0:-32768;
+        s->in_state.sThumbLY = up ? 0 : -32768;
         break;
     case GAMEPAD_LEFT_THUMB_LEFT:
-        s->in_state.sThumbLX = up?0:-32768;
+        s->in_state.sThumbLX = up ? 0 : -32768;
         break;
     case GAMEPAD_LEFT_THUMB_RIGHT:
-        s->in_state.sThumbLX = up?0:32767;
+        s->in_state.sThumbLX = up ? 0 : 32767;
         break;
 
     case GAMEPAD_RIGHT_THUMB_UP:
-        s->in_state.sThumbRY = up?0:32767;
+        s->in_state.sThumbRY = up ? 0 : 32767;
         break;
     case GAMEPAD_RIGHT_THUMB_DOWN:
-        s->in_state.sThumbRY = up?0:-32768;
+        s->in_state.sThumbRY = up ? 0 : -32768;
         break;
     case GAMEPAD_RIGHT_THUMB_LEFT:
-        s->in_state.sThumbRX = up?0:-32768;
+        s->in_state.sThumbRX = up ? 0 : -32768;
         break;
     case GAMEPAD_RIGHT_THUMB_RIGHT:
-        s->in_state.sThumbRX = up?0:32767;
+        s->in_state.sThumbRX = up ? 0 : 32767;
         break;
     default:
         break;
@@ -312,7 +316,8 @@ static void usb_xid_handle_control(USBDevice *dev, USBPacket *p,
 
     DPRINTF("xid handle_control 0x%x 0x%x\n", request, value);
 
-    int ret = usb_desc_handle_control(dev, p, request, value, index, length, data);
+    int ret = usb_desc_handle_control(dev, p, request, value,
+                                      index, length, data);
     if (ret >= 0) {
         DPRINTF("xid handled by usb_desc_handle_control: %d\n", ret);
         return;
@@ -324,7 +329,7 @@ static void usb_xid_handle_control(USBDevice *dev, USBPacket *p,
         DPRINTF("xid GET_REPORT 0x%x\n", value);
         if (value == 0x100) { /* input */
             assert(s->in_state.bLength <= length);
-//          s->in_state.bReportId++; /* FIXME: I'm not sure if bReportId is just a counter */
+            // s->in_state.bReportId++; /* FIXME: I'm not sure if bReportId is just a counter */
             memcpy(data, &s->in_state, s->in_state.bLength);
             p->actual_length = s->in_state.bLength;
         } else {
@@ -364,7 +369,7 @@ static void usb_xid_handle_control(USBDevice *dev, USBPacket *p,
         p->status = USB_RET_STALL;
         //assert(false);
         break;
-    case ((USB_DIR_IN|USB_TYPE_CLASS|USB_RECIP_DEVICE)<<8)
+    case ((USB_DIR_IN | USB_TYPE_CLASS | USB_RECIP_DEVICE) << 8)
              | USB_REQ_GET_DESCRIPTOR:
         /* FIXME: ! */
         DPRINTF("xid unknown xpad request 0x%x: value = 0x%x\n",
@@ -374,7 +379,7 @@ static void usb_xid_handle_control(USBDevice *dev, USBPacket *p,
         p->status = USB_RET_STALL;
         //assert(false);
         break;
-    case ((USB_DIR_OUT|USB_TYPE_STANDARD|USB_RECIP_ENDPOINT)<<8)
+    case ((USB_DIR_OUT | USB_TYPE_STANDARD | USB_RECIP_ENDPOINT) << 8)
              | USB_REQ_CLEAR_FEATURE:
         /* FIXME: ! */
         DPRINTF("xid unknown xpad request 0x%x: value = 0x%x\n",

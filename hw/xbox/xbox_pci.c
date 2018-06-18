@@ -33,32 +33,20 @@
 #include "hw/i386/ioapic.h"
 #include "qapi/visitor.h"
 #include "qemu/error-report.h"
-
-
-#include "hw/hw.h"
-#include "qemu/range.h"
-#include "hw/isa/isa.h"
-#include "hw/sysbus.h"
 #include "hw/loader.h"
 #include "qemu/config-file.h"
-#include "hw/i386/pc.h"
-#include "hw/pci/pci.h"
 #include "hw/pci/pci_bus.h"
 #include "hw/pci/pci_bridge.h"
 #include "exec/address-spaces.h"
 #include "qemu-common.h"
-
 #include "qemu/option.h"
-
 #include "hw/xbox/acpi_xbox.h"
 #include "hw/xbox/amd_smbus.h"
-
 #include "hw/xbox/xbox_pci.h"
-
 
  /*
   * xbox chipset based on nForce 420, which was based on AMD-760
-  * 
+  *
   * http://support.amd.com/us/ChipsetMotherboard_TechDocs/24494.pdf
   * http://support.amd.com/us/ChipsetMotherboard_TechDocs/24416.pdf
   * http://support.amd.com/us/ChipsetMotherboard_TechDocs/24467.pdf
@@ -99,7 +87,7 @@ static void xbox_lpc_set_irq(void *opaque, int pirq, int level)
     if (pirq < XBOX_NUM_INT_IRQS) {
         /* devices on the internal bus */
         uint32_t routing = pci_get_long(lpc->dev.config + XBOX_LPC_INT_IRQ_ROUT);
-        pic_irq = (routing >> (pirq*4)) & 0xF;
+        pic_irq = (routing >> (pirq * 4)) & 0xF;
 
         if (pic_irq == 0) {
             return;
@@ -143,7 +131,7 @@ static void xbox_lpc_set_acpi_irq(void *opaque, int irq_num, int level)
     assert(irq_num == 0 || irq_num == 1);
 
     uint32_t routing = pci_get_long(lpc->dev.config + XBOX_LPC_ACPI_IRQ_ROUT);
-    int irq = (routing >> (irq_num*8)) & 0xff;
+    int irq = (routing >> (irq_num * 8)) & 0xff;
 
     if (irq == 0 || irq >= XBOX_NUM_PIC_IRQS) {
         return;
@@ -189,7 +177,7 @@ void xbox_pci_init(qemu_irq *pic,
                              "pci-hole",
                              bridge_state->pci_address_space,
                              ram_size,
-                             0x100000000ULL - ram_size);    
+                             0x100000000ULL - ram_size);
     memory_region_add_subregion(bridge_state->system_memory, ram_size,
                                 &bridge_state->pci_hole);
 
@@ -209,7 +197,8 @@ void xbox_pci_init(qemu_irq *pic,
     //xbox_lpc_reset(&s->dev.qdev);
 
     /* smbus */
-    PCIDevice *smbus = pci_create_simple_multifunction(host_bus, PCI_DEVFN(1, 1),
+    PCIDevice *smbus = pci_create_simple_multifunction(host_bus,
+                                                       PCI_DEVFN(1, 1),
                                                        true, "xbox-smbus");
 
     XBOX_SMBState *smbus_state = XBOX_SMBUS_DEVICE(smbus);
@@ -227,7 +216,6 @@ void xbox_pci_init(qemu_irq *pic,
     *out_smbus = smbus_state->smb.smbus;
     *out_agp_bus = agp_bus;
 }
-
 
 #define XBOX_SMBUS_BASE_BAR 1
 
@@ -268,7 +256,6 @@ static void xbox_smbus_realize(PCIDevice *dev, Error **errp)
     pci_register_bar(dev, XBOX_SMBUS_BASE_BAR, PCI_BASE_ADDRESS_SPACE_IO,
                      &s->smb_bar);
 }
-
 
 static void xbox_smbus_class_init(ObjectClass *klass, void *data)
 {
@@ -393,9 +380,6 @@ static const TypeInfo xbox_lpc_info = {
     },
 };
 
-
-
-
 static void xbox_agp_realize(PCIDevice *d, Error **errp)
 {
     pci_set_word(d->config + PCI_PREF_MEMORY_BASE, PCI_PREF_RANGE_TYPE_32);
@@ -431,11 +415,6 @@ static const TypeInfo xbox_agp_info = {
     },
 };
 
-
-
-
-
-
 static void xbox_pci_realize(PCIDevice *d, Error **errp)
 {
     //XBOX_PCIState *s = DO_UPCAST(XBOX_PCIState, dev, dev);
@@ -469,8 +448,6 @@ static const TypeInfo xbox_pci_info = {
     },
 };
 
-
-
 #define CONFIG_ADDR 0xcf8
 #define CONFIG_DATA 0xcfc
 
@@ -493,7 +470,6 @@ static int xbox_pcihost_initfn(SysBusDevice *dev)
     return 0;
 }
 
-
 static void xbox_pcihost_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
@@ -509,7 +485,6 @@ static const TypeInfo xbox_pcihost_info = {
     .instance_size = sizeof(PCIHostState),
     .class_init    = xbox_pcihost_class_init,
 };
-
 
 static void xboxpci_register_types(void)
 {

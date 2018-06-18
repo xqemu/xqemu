@@ -31,7 +31,6 @@
 #include "hw/acpi/acpi.h"
 #include "hw/xbox/acpi_xbox.h"
 
-
 typedef struct XBOX_PCIState {
     PCIDevice dev;
 
@@ -67,8 +66,6 @@ typedef struct XBOX_LPCState {
 
 #define XBOX_LPC_DEVICE(obj) \
     OBJECT_CHECK(XBOX_LPCState, (obj), "xbox-lpc")
-
-
 
 void xbox_pci_init(qemu_irq *pic,
                    MemoryRegion *address_space_mem,

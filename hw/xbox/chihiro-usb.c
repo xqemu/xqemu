@@ -23,7 +23,7 @@
 #include "hw/usb.h"
 #include "hw/usb/desc.h"
 
-#define DEBUG_CUSB
+// #define DEBUG_CUSB
 #ifdef DEBUG_CUSB
 #define DPRINTF(s, ...) printf("chihiro-usb: " s, ## __VA_ARGS__)
 #else
@@ -145,10 +145,6 @@ static const USBDesc desc_chihiro_an2131qc = {
     .str  = chihiro_usb_stringtable,
 };
 
-
-
-
-
 static const USBDescIface desc_iface_chihiro_an2131sc = {
     .bInterfaceNumber              = 0,
     .bNumEndpoints                 = 6,
@@ -224,8 +220,6 @@ static const USBDesc desc_chihiro_an2131sc = {
     .str  = chihiro_usb_stringtable,
 };
 
-
-
 static void handle_reset(USBDevice *dev)
 {
     DPRINTF("usb reset\n");
@@ -236,7 +230,8 @@ static void handle_control(USBDevice *dev, USBPacket *p,
 {
     DPRINTF("handle control %d %d %d %d\n", request, value, index, length);
 
-    int ret = usb_desc_handle_control(dev, p, request, value, index, length, data);
+    int ret = usb_desc_handle_control(dev, p, request, value, index,
+                                      length, data);
     if (ret >= 0) {
         DPRINTF("handled by usb_desc_handle_control: %d\n", ret);
         return;

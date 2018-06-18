@@ -148,7 +148,7 @@ static void chihiro_lpc_realize(DeviceState *dev, Error **errp)
 {
     ChihiroLPCState *s = CHIHIRO_LPC_DEVICE(dev);
     ISADevice *isa = ISA_DEVICE(dev);
-    
+
     memory_region_init_io(&s->ioport, OBJECT(dev), &chihiro_lpc_io_ops, s,
                           "chihiro-lpc-io", 0x100);
     isa_register_ioport(isa, &s->ioport, 0x4000);
@@ -227,7 +227,9 @@ static void chihiro_ide_interface_init(const char *rom_file,
     /* read files */
     int rc, fd = -1;
 
-    if (!rom_file || (*rom_file == '\x00')) rom_file = "fpr21042_m29w160et.bin";
+    if (!rom_file || (*rom_file == '\x00')) {
+        rom_file = "fpr21042_m29w160et.bin";
+    }
     char *rom_filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, rom_file);
     if (rom_filename) {
         int rom_size = get_image_size(rom_filename);
@@ -316,8 +318,10 @@ static void chihiro_init(MachineState *machine)
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     };
 
-    const char *mediaboard_rom_file = object_property_get_str(qdev_get_machine(), "mediaboard_rom", NULL);
-    const char *mediaboard_filesystem_file = object_property_get_str(qdev_get_machine(), "mediaboard_filesystem", NULL);
+    const char *mediaboard_rom_file = object_property_get_str(
+        qdev_get_machine(), "mediaboard_rom", NULL);
+    const char *mediaboard_filesystem_file = object_property_get_str(
+        qdev_get_machine(), "mediaboard_filesystem", NULL);
     chihiro_ide_interface_init(mediaboard_rom_file,
                                mediaboard_filesystem_file);
 
@@ -329,14 +333,15 @@ static void chihiro_init(MachineState *machine)
 static void chihiro_machine_options(MachineClass *m)
 {
     PCMachineClass *pcmc = PC_MACHINE_CLASS(m);
+
     m->desc = "Sega Chihiro";
     m->max_cpus = 1;
     m->option_rom_has_mr = true;
     m->rom_file_has_mr = false;
-
     m->no_floppy = 1,
     m->no_cdrom = 1,
     m->no_sdcard = 1,
+    m->default_cpu_type = X86_CPU_TYPE_NAME("486");
 
     pcmc->pci_enabled = true;
     pcmc->has_acpi_build = false;
@@ -345,7 +350,6 @@ static void chihiro_machine_options(MachineClass *m)
     pcmc->smbios_legacy_mode = true;
     pcmc->has_reserved_memory = false;
     pcmc->default_nic_model = "nvnet";
-    m->default_cpu_type = X86_CPU_TYPE_NAME("486");
 }
 
 static char *machine_get_mediaboard_rom(Object *obj, Error **errp)
@@ -355,7 +359,8 @@ static char *machine_get_mediaboard_rom(Object *obj, Error **errp)
     return g_strdup(ms->mediaboard_rom);
 }
 
-static void machine_set_mediaboard_rom(Object *obj, const char *value, Error **errp)
+static void machine_set_mediaboard_rom(Object *obj, const char *value,
+                                       Error **errp)
 {
     ChihiroMachineState *ms = CHIHIRO_MACHINE(obj);
 
@@ -370,7 +375,8 @@ static char *machine_get_mediaboard_filesystem(Object *obj, Error **errp)
     return g_strdup(ms->mediaboard_filesystem);
 }
 
-static void machine_set_mediaboard_filesystem(Object *obj, const char *value, Error **errp)
+static void machine_set_mediaboard_filesystem(Object *obj, const char *value,
+                                              Error **errp)
 {
     ChihiroMachineState *ms = CHIHIRO_MACHINE(obj);
 
@@ -378,15 +384,16 @@ static void machine_set_mediaboard_filesystem(Object *obj, const char *value, Er
     ms->mediaboard_filesystem = g_strdup(value);
 }
 
-
 static inline void chihiro_machine_initfn(Object *obj)
 {
-    object_property_add_str(obj, "mediaboard_rom", machine_get_mediaboard_rom,
+    object_property_add_str(obj, "mediaboard_rom",
+                            machine_get_mediaboard_rom,
                             machine_set_mediaboard_rom, NULL);
     object_property_set_description(obj, "mediaboard_rom",
                                     "Chihiro mediaboard ROM", NULL);
 
-    object_property_add_str(obj, "mediaboard_filesystem", machine_get_mediaboard_filesystem,
+    object_property_add_str(obj, "mediaboard_filesystem",
+                            machine_get_mediaboard_filesystem,
                             machine_set_mediaboard_filesystem, NULL);
     object_property_set_description(obj, "mediaboard_filesystem",
                                     "Chihiro mediaboard filesystem", NULL);

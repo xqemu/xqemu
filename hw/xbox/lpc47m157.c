@@ -72,13 +72,13 @@ typedef struct LPC47M157State {
 static void update_devices(LPC47M157State *s)
 {
     ISADevice *isadev = ISA_DEVICE(s);
-    
+
     /* init serial devices */
     int i;
-    for (i=0; i<2; i++) {
+    for (i = 0; i < 2; i++) {
         uint8_t *dev = s->device_regs[DEVICE_SERIAL_PORT_1 + i];
         if (dev[CONFIG_DEVICE_ACTIVATE] && !s->serial[i].active) {
-            
+
             uint32_t iobase = (dev[CONFIG_DEVICE_BASE_ADDRESS_HIGH] << 8)
                                 | dev[CONFIG_DEVICE_BASE_ADDRESS_LOW];
             uint32_t irq = dev[CONFIG_DEVICE_INETRRUPT];
@@ -103,7 +103,8 @@ static void lpc47m157_io_write(void *opaque, hwaddr addr, uint64_t val,
     printf("lpc47m157 io write 0x%"HWADDR_PRIx" = 0x%"PRIx64"\n", addr, val);
 #endif
 
-    if (addr == 0) { //INDEX_PORT
+    if (addr == 0) {
+        /* INDEX_PORT */
         if (val == ENTER_CONFIG_KEY) {
             assert(!s->configuration_mode);
             s->configuration_mode = true;
@@ -115,17 +116,20 @@ static void lpc47m157_io_write(void *opaque, hwaddr addr, uint64_t val,
         } else {
             s->selected_reg = val;
         }
-    } else if (addr == 1) { //DATA_PORT
+    } else if (addr == 1) {
+        /* DATA_PORT */
         if (s->selected_reg < MAX_CONFIG_REG) {
             /* global configuration register */
             s->config_regs[s->selected_reg] = val;
         } else {
             /* device register */
             assert(s->config_regs[CONFIG_DEVICE_NUMBER] < MAX_DEVICE);
-            uint8_t* dev = s->device_regs[s->config_regs[CONFIG_DEVICE_NUMBER]];
+            uint8_t *dev = s->device_regs[s->config_regs[CONFIG_DEVICE_NUMBER]];
             dev[s->selected_reg] = val;
 #ifdef DEBUG_LPC47M157
-            printf("lpc47m157 dev %x . %x = %"PRIx64"\n", s->config_regs[CONFIG_DEVICE_NUMBER], s->selected_reg, val);
+            printf("lpc47m157 dev %x . %x = %"PRIx64"\n",
+                s->config_regs[CONFIG_DEVICE_NUMBER],
+                s->selected_reg, val);
 #endif
         }
     } else {
@@ -138,14 +142,15 @@ static uint64_t lpc47m157_io_read(void *opaque, hwaddr addr, unsigned int size)
     LPC47M157State *s = opaque;
     uint32_t val = 0;
 
-    if (addr == 0) { //INDEX_PORT
-
-    } else if (addr == 1) { //DATA_PORT
+    if (addr == 0) {
+        /* INDEX_PORT */
+    } else if (addr == 1) {
+        /* DATA_PORT */
         if (s->selected_reg < MAX_CONFIG_REG) {
             val = s->config_regs[s->selected_reg];
         } else {
             assert(s->config_regs[CONFIG_DEVICE_NUMBER] < MAX_DEVICE);
-            uint8_t* dev = s->device_regs[s->config_regs[CONFIG_DEVICE_NUMBER]];
+            uint8_t *dev = s->device_regs[s->config_regs[CONFIG_DEVICE_NUMBER]];
             val = dev[s->selected_reg];
         }
     } else {
@@ -179,7 +184,7 @@ static void lpc47m157_realize(DeviceState *dev, Error **errp)
     LPC47M157State *s = LPC47M157_DEVICE(dev);
     ISADevice *isa = ISA_DEVICE(dev);
 
-    const uint32_t iobase = 0x2e; //0x4e if SYSOPT pin, make it a property 
+    const uint32_t iobase = 0x2e; //0x4e if SYSOPT pin, make it a property
     s->config_regs[CONFIG_PORT_LOW] = iobase & 0xFF;
     s->config_regs[CONFIG_PORT_HIGH] = iobase >> 8;
 
@@ -189,7 +194,7 @@ static void lpc47m157_realize(DeviceState *dev, Error **errp)
 
     /* init serial cores */
     int i;
-    for (i=0; i<2; i++) {
+    for (i = 0; i < 2; i++) {
         Chardev *chr = serial_hds[i];
         if (chr == NULL) {
             char name[5];
@@ -206,7 +211,7 @@ static void lpc47m157_realize(DeviceState *dev, Error **errp)
     }
 }
 
-static const VMStateDescription vmstate_lpc47m157= {
+static const VMStateDescription vmstate_lpc47m157 = {
     .name = "lpc47m157",
     .version_id = 1,
     .minimum_version_id = 1,

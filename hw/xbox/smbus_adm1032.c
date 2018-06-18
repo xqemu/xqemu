@@ -36,13 +36,13 @@ static uint8_t tm_read_data(SMBusDevice *dev, uint8_t cmd, int n)
         printf("tm_read_data: addr=0x%02x cmd=0x%02x n=%d\n",
                dev->i2c.address, cmd, n);
     #endif
-    
+
     switch (cmd) {
-        case 0x0:
-        case 0x1:
-            return 50;
-        default:
-            break;
+    case 0x0:
+    case 0x1:
+        return 50;
+    default:
+        break;
     }
 
     return 0;
@@ -52,7 +52,6 @@ static int tm_init(SMBusDevice *dev)
 {
     return 0;
 }
-
 
 static void smbus_adm1032_class_initfn(ObjectClass *klass, void *data)
 {
@@ -69,7 +68,6 @@ static TypeInfo smbus_adm1032_info = {
     .instance_size = sizeof(SMBusDevice),
     .class_init = smbus_adm1032_class_initfn,
 };
-
 
 static void smbus_adm1032_register_devices(void)
 {

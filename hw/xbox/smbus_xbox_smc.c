@@ -26,6 +26,8 @@
 #include "sysemu/sysemu.h"
 #include "smbus.h"
 
+//#define DEBUG
+
 /*
  * Hardware is a PIC16LC
  * http://www.xbox-linux.org/wiki/PIC
@@ -65,10 +67,7 @@
 #define SMC_REG_SCRATCH             0x1b
 #define     SMC_REG_SCRATCH_SHORT_ANIMATION 0x04
 
-static const char* smc_version_string = "P01";
-
-
-//#define DEBUG
+static const char *smc_version_string = "P01";
 
 typedef struct SMBusSMCDevice {
     SMBusDevice smbusdev;
@@ -108,17 +107,18 @@ static void smc_write_data(SMBusDevice *dev, uint8_t cmd, uint8_t *buf, int len)
            dev->i2c.address, cmd, buf[0]);
 #endif
 
-    switch(cmd) {
+    switch (cmd) {
     case SMC_REG_VER:
         /* version string reset */
         smc->version_string_index = buf[0];
         break;
 
     case SMC_REG_POWER:
-        if (buf[0] & (SMC_REG_POWER_RESET | SMC_REG_POWER_CYCLE))
+        if (buf[0] & (SMC_REG_POWER_RESET | SMC_REG_POWER_CYCLE)) {
             qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
-        else if (buf[0] & SMC_REG_POWER_SHUTDOWN)
+        } else if (buf[0] & SMC_REG_POWER_SHUTDOWN) {
             qemu_system_shutdown_request(SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
+        }
         break;
 
     case SMC_REG_SCRATCH:
@@ -145,10 +145,10 @@ static uint8_t smc_read_data(SMBusDevice *dev, uint8_t cmd, int n)
                dev->i2c.address, cmd, n);
     #endif
 
-    switch(cmd) {
+    switch (cmd) {
     case SMC_REG_VER:
         return smc_version_string[
-            smc->version_string_index++%(sizeof(smc_version_string)-1)];
+            smc->version_string_index++ % (sizeof(smc_version_string) - 1)];
 
     case SMC_REG_AVPACK:
         /* pretend to have a composite av pack plugged in */
@@ -188,7 +188,6 @@ static int smbus_smc_init(SMBusDevice *dev)
 
     return 0;
 }
-
 
 static void smbus_smc_class_initfn(ObjectClass *klass, void *data)
 {

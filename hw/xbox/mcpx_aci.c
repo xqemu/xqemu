@@ -23,13 +23,6 @@
 #include "hw/pci/pci.h"
 #include "hw/audio/ac97_int.h"
 
-#define MCPX_DEBUG
-#ifdef MCPX_DEBUG
-# define MCPX_DPRINTF(format, ...)       printf(format, ## __VA_ARGS__)
-#else
-# define MCPX_DPRINTF(format, ...)       do { } while (0)
-#endif
-
 typedef struct MCPXACIState {
     PCIDevice dev;
 
@@ -44,14 +37,12 @@ typedef struct MCPXACIState {
 #define MCPX_ACI_DEVICE(obj) \
     OBJECT_CHECK(MCPXACIState, (obj), "mcpx-aci")
 
-
 static void mcpx_aci_realize(PCIDevice *dev, Error **errp)
 {
     MCPXACIState *d = MCPX_ACI_DEVICE(dev);
 
     dev->config[PCI_INTERRUPT_PIN] = 0x01;
 
-    //mmio
     memory_region_init(&d->mmio, OBJECT(dev), "mcpx-aci-mmio", 0x1000);
 
     memory_region_init_io(&d->io_nam, OBJECT(dev), &ac97_io_nam_ops, &d->ac97,
@@ -104,4 +95,5 @@ static void mcpx_aci_register(void)
 {
     type_register_static(&mcpx_aci_info);
 }
+
 type_init(mcpx_aci_register);

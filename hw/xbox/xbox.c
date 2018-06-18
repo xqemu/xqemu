@@ -71,10 +71,6 @@ static void machine_set_short_animation(Object *obj, bool value,
                                         Error **errp);
 static bool machine_get_short_animation(Object *obj, Error **errp);
 
-// static const int ide_iobase[MAX_IDE_BUS] = { 0x1f0, 0x170 };
-// static const int ide_iobase2[MAX_IDE_BUS] = { 0x3f6, 0x376 };
-// static const int ide_irq[MAX_IDE_BUS] = { 14, 15 };
-
 // XBOX_TODO: Should be passed in through configuration
 /* bunnie's eeprom */
 const uint8_t default_eeprom[] = {
@@ -111,7 +107,6 @@ const uint8_t default_eeprom[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
-
 
 static void xbox_flash_init(MemoryRegion *rom_memory)
 {
@@ -155,7 +150,7 @@ static void xbox_flash_init(MemoryRegion *rom_memory)
 
     /* XBOX_FIXME: What follows is a big hack to overlay the MCPX ROM on the
      * top 512 bytes of the ROM region. This differs from original XQEMU
-     * sources which copied it in at lpc init; new Qemu seems to be different
+     * sources which copied it in at lpc init; new QEMU seems to be different
      * now in that the BIOS images supplied to rom_add_file_fixed will be
      * loaded *after* lpc init is called, so the MCPX ROM would get
      * overwritten. Instead, let's just map it in right here while we map in
@@ -168,7 +163,8 @@ static void xbox_flash_init(MemoryRegion *rom_memory)
      */
 
     /* Locate and overlay MCPX ROM image into new copy of BIOS if provided */
-    const char *bootrom_file = object_property_get_str(qdev_get_machine(), "bootrom", NULL);
+    const char *bootrom_file = object_property_get_str(qdev_get_machine(),
+                                                       "bootrom", NULL);
 
     if ((bootrom_file != NULL) && *bootrom_file) {
         filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, bootrom_file);
@@ -196,14 +192,17 @@ static void xbox_flash_init(MemoryRegion *rom_memory)
     assert(bios != NULL);
     memory_region_init_ram(bios, NULL, "xbox.bios", bios_size, &error_fatal);
     memory_region_set_readonly(bios, true);
-    rom_add_blob_fixed("xbox.bios", bios_data, bios_size, (uint32_t)(-2 * bios_size));
+    rom_add_blob_fixed("xbox.bios", bios_data, bios_size,
+                       (uint32_t)(-2 * bios_size));
 
     /* Assuming bios_data will be needed for duration of execution
      * so no free(bios) here.
      */
 
     /* Mirror ROM from 0xff000000 - 0xffffffff */
-    for (map_loc = (uint32_t)(-bios_size); map_loc >= 0xff000000; map_loc -= bios_size) {
+    for (map_loc = (uint32_t)(-bios_size);
+         map_loc >= 0xff000000;
+         map_loc -= bios_size) {
         map_bios = g_malloc(sizeof(*map_bios));
         memory_region_init_alias(map_bios, NULL, "pci-bios", bios, 0, bios_size);
         memory_region_add_subregion(rom_memory, map_loc, map_bios);
@@ -257,7 +256,10 @@ static void xbox_init(MachineState *machine)
     xbox_init_common(machine, default_eeprom, NULL, NULL);
 }
 
-void xbox_init_common(MachineState *machine, const char *eeprom, PCIBus **pci_bus_out, ISABus **isa_bus_out)
+void xbox_init_common(MachineState *machine,
+                      const char *eeprom,
+                      PCIBus **pci_bus_out,
+                      ISABus **isa_bus_out)
 {
     PCMachineState *pcms = PC_MACHINE(machine);
     PCMachineClass *pcmc = PC_MACHINE_GET_CLASS(pcms);
@@ -444,30 +446,33 @@ void xbox_init_common(MachineState *machine, const char *eeprom, PCIBus **pci_bu
     /* GPU! */
     nv2a_init(agp_bus, PCI_DEVFN(0, 0), ram_memory);
 
-    if (pci_bus_out) *pci_bus_out = pci_bus;
-    if (isa_bus_out) *isa_bus_out = isa_bus;
+    if (pci_bus_out) {
+        *pci_bus_out = pci_bus;
+    }
+    if (isa_bus_out) {
+        *isa_bus_out = isa_bus;
+    }
 }
 
 static void xbox_machine_options(MachineClass *m)
 {
     PCMachineClass *pcmc = PC_MACHINE_CLASS(m);
-    m->desc = "Microsoft Xbox";
-    m->max_cpus = 1;
+    m->desc              = "Microsoft Xbox";
+    m->max_cpus          = 1;
     m->option_rom_has_mr = true;
-    m->rom_file_has_mr = false;
+    m->rom_file_has_mr   = false;
+    m->no_floppy         = 1,
+    m->no_cdrom          = 1,
+    m->no_sdcard         = 1,
+    m->default_cpu_type  = X86_CPU_TYPE_NAME("486");
 
-    m->no_floppy = 1,
-    m->no_cdrom = 1,
-    m->no_sdcard = 1,
-
-    pcmc->pci_enabled = true;
-    pcmc->has_acpi_build = false;
-    pcmc->smbios_defaults = false;
-    pcmc->gigabyte_align = false;
-    pcmc->smbios_legacy_mode = true;
+    pcmc->pci_enabled         = true;
+    pcmc->has_acpi_build      = false;
+    pcmc->smbios_defaults     = false;
+    pcmc->gigabyte_align      = false;
+    pcmc->smbios_legacy_mode  = true;
     pcmc->has_reserved_memory = false;
-    pcmc->default_nic_model = "nvnet";
-    m->default_cpu_type = X86_CPU_TYPE_NAME("486");
+    pcmc->default_nic_model   = "nvnet";
 }
 
 static char *machine_get_bootrom(Object *obj, Error **errp)
