@@ -29,7 +29,7 @@
 #define MAX_IDE_BUS 2
 
 void xbox_init_common(MachineState *machine,
-                      const char *eeprom,
+                      const uint8_t *eeprom,
                       PCIBus **pci_bus_out,
                       ISABus **isa_bus_out);
 

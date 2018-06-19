@@ -257,7 +257,7 @@ static void xbox_init(MachineState *machine)
 }
 
 void xbox_init_common(MachineState *machine,
-                      const char *eeprom,
+                      const uint8_t *eeprom,
                       PCIBus **pci_bus_out,
                       ISABus **isa_bus_out)
 {
