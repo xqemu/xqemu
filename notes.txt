@@ -1,8 +1,0 @@
-Differences from 1.x mainline...
-
-can't have default-configs/xbox-softmmu anymore, the default-config needs to
-be i386-softmmu. this is because the configure script parses the selected
-target's name to determine target cpu (i386) and -softmmu to determine if its
-building for user mode or net.
-
-
