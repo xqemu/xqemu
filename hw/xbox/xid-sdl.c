@@ -47,11 +47,9 @@
 #define USB_CLASS_XID  0x58
 #define USB_DT_XID     0x42
 
-
 #define HID_GET_REPORT       0x01
 #define HID_SET_REPORT       0x09
 #define XID_GET_CAPABILITIES 0x01
-
 
 #define TYPE_USB_XID_SDL "usb-xbox-gamepad-sdl"
 #define USB_XID(obj) OBJECT_CHECK(USBXIDState, (obj), TYPE_USB_XID_SDL)
@@ -67,8 +65,6 @@ static const USBDescStrings desc_strings = {
     [STR_PRODUCT]          = "Microsoft Gamepad",
     [STR_SERIALNUMBER]     = "1",
 };
-
-
 
 typedef struct XIDDesc {
     uint8_t bLength;
@@ -99,22 +95,19 @@ typedef struct XIDGamepadOutputReport {
     uint16_t right_actuator_strength;
 } QEMU_PACKED XIDGamepadOutputReport;
 
-
 typedef struct USBXIDState {
     USBDevice dev;
     USBEndpoint *intr;
-
     const XIDDesc *xid_desc;
+    XIDGamepadReport in_state;
+    XIDGamepadOutputReport out_state;
 
-    char *device_name;
     uint8_t device_index;
-    SDL_Joystick *sdl_joystick;
+    SDL_GameController *sdl_gamepad;
 #ifdef FORCE_FEEDBACK
     SDL_Haptic *sdl_haptic;
     int sdl_haptic_effect_id;
 #endif
-    XIDGamepadReport in_state;
-    XIDGamepadOutputReport out_state;
 } USBXIDState;
 
 static const USBDescIface desc_iface_xbox_gamepad = {
@@ -179,7 +172,6 @@ static const XIDDesc desc_xid_xbox_gamepad = {
     .wAlternateProductIds = {-1, -1, -1, -1},
 };
 
-
 #define GAMEPAD_A                0
 #define GAMEPAD_B                1
 #define GAMEPAD_X                2
@@ -199,7 +191,6 @@ static const XIDDesc desc_xid_xbox_gamepad = {
 #define GAMEPAD_RIGHT_THUMB      15
 
 #define BUTTON_MASK(button) (1 << ((button) - GAMEPAD_DPAD_UP))
-
 
 static void update_output(USBXIDState *s) {
 #ifdef FORCE_FEEDBACK
@@ -235,76 +226,69 @@ static void update_output(USBXIDState *s) {
 
 static void update_input(USBXIDState *s)
 {
-
-    /* Clear input */
-    s->in_state.wButtons = 0;
+    int i, state;
 
 #ifdef UPDATE
-    SDL_JoystickUpdate();
+    SDL_GameControllerUpdate();
 #endif
 
     /* Buttons */
-    /* FIXME: Add some ramping options to emulate analog buttons? */
-    s->in_state.bAnalogButtons[GAMEPAD_A] = SDL_JoystickGetButton(
-                                                s->sdl_joystick, 0) ?
-                                                    0xFF : 0x00;
-    s->in_state.bAnalogButtons[GAMEPAD_B] = SDL_JoystickGetButton(
-                                                s->sdl_joystick, 1) ?
-                                                    0xFF : 0x00;
-    s->in_state.bAnalogButtons[GAMEPAD_X] = SDL_JoystickGetButton(
-                                                s->sdl_joystick, 2) ?
-                                                    0xFF : 0x00;
-    s->in_state.bAnalogButtons[GAMEPAD_Y] = SDL_JoystickGetButton(
-                                                s->sdl_joystick, 3) ?
-                                                    0xFF : 0x00;
-    s->in_state.bAnalogButtons[GAMEPAD_BLACK] = SDL_JoystickGetButton(
-                                                    s->sdl_joystick, 4) ?
-                                                        0xFF : 0x00;
-    s->in_state.bAnalogButtons[GAMEPAD_WHITE] = SDL_JoystickGetButton(
-                                                    s->sdl_joystick, 5) ?
-                                                        0xFF : 0x00;
+    const int button_map_analog[6][2] = {
+        { GAMEPAD_A, SDL_CONTROLLER_BUTTON_A },
+        { GAMEPAD_B, SDL_CONTROLLER_BUTTON_B },
+        { GAMEPAD_X, SDL_CONTROLLER_BUTTON_X },
+        { GAMEPAD_Y, SDL_CONTROLLER_BUTTON_Y },
+        { GAMEPAD_BLACK, SDL_CONTROLLER_BUTTON_LEFTSHOULDER },
+        { GAMEPAD_WHITE, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER },
+    };
 
-    if (SDL_JoystickGetButton(s->sdl_joystick, 6)) {
-        s->in_state.wButtons |= BUTTON_MASK(GAMEPAD_BACK);
-    }
-    if (SDL_JoystickGetButton(s->sdl_joystick, 7)) {
-        s->in_state.wButtons |= BUTTON_MASK(GAMEPAD_START);
+    const int button_map_binary[8][2] = {
+        { GAMEPAD_BACK, SDL_CONTROLLER_BUTTON_BACK },
+        { GAMEPAD_START, SDL_CONTROLLER_BUTTON_START },
+        { GAMEPAD_LEFT_THUMB, SDL_CONTROLLER_BUTTON_LEFTSTICK },
+        { GAMEPAD_RIGHT_THUMB, SDL_CONTROLLER_BUTTON_RIGHTSTICK },
+        { GAMEPAD_DPAD_UP, SDL_CONTROLLER_BUTTON_DPAD_UP },
+        { GAMEPAD_DPAD_DOWN, SDL_CONTROLLER_BUTTON_DPAD_DOWN },
+        { GAMEPAD_DPAD_LEFT, SDL_CONTROLLER_BUTTON_DPAD_LEFT },
+        { GAMEPAD_DPAD_RIGHT, SDL_CONTROLLER_BUTTON_DPAD_RIGHT },
+    };
+
+    for (i = 0; i < 6; i++) {
+        state = SDL_GameControllerGetButton(s->sdl_gamepad,
+                                            button_map_analog[i][1]);
+        s->in_state.bAnalogButtons[button_map_analog[i][0]] = state ? 0xff : 0;
     }
 
-    if (SDL_JoystickGetButton(s->sdl_joystick, 9)) {
-        s->in_state.wButtons |= BUTTON_MASK(GAMEPAD_LEFT_THUMB);
-    }
-    if (SDL_JoystickGetButton(s->sdl_joystick, 10)) {
-        s->in_state.wButtons |= BUTTON_MASK(GAMEPAD_RIGHT_THUMB);
+    s->in_state.wButtons = 0;
+    for (i = 0; i < 8; i++) {
+        state = SDL_GameControllerGetButton(s->sdl_gamepad,
+                                            button_map_binary[i][1]);
+        if (state) {
+            s->in_state.wButtons |= BUTTON_MASK(button_map_binary[i][0]);
+        }
     }
 
     /* Triggers */
-    s->in_state.bAnalogButtons[GAMEPAD_LEFT_TRIGGER] = SDL_JoystickGetAxis(
-                                             s->sdl_joystick, 2) / 0x100 + 0x80;
+    state = SDL_GameControllerGetAxis(s->sdl_gamepad,
+                                      SDL_CONTROLLER_AXIS_TRIGGERLEFT);
+    s->in_state.bAnalogButtons[GAMEPAD_LEFT_TRIGGER] = state >> 8;
 
-    s->in_state.bAnalogButtons[GAMEPAD_RIGHT_TRIGGER] = SDL_JoystickGetAxis(
-                                             s->sdl_joystick, 5) / 0x100 + 0x80;
+    state = SDL_GameControllerGetAxis(s->sdl_gamepad,
+                                      SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
+    s->in_state.bAnalogButtons[GAMEPAD_RIGHT_TRIGGER] = state >> 8;
 
     /* Analog sticks */
-    s->in_state.sThumbLX = SDL_JoystickGetAxis(s->sdl_joystick, 0);
-    s->in_state.sThumbLY = -SDL_JoystickGetAxis(s->sdl_joystick, 1) - 1;
-    s->in_state.sThumbRX = SDL_JoystickGetAxis(s->sdl_joystick, 3);
-    s->in_state.sThumbRY = -SDL_JoystickGetAxis(s->sdl_joystick, 4) - 1;
+    s->in_state.sThumbLX = SDL_GameControllerGetAxis(s->sdl_gamepad,
+                                SDL_CONTROLLER_AXIS_LEFTX);
 
-    /* Digital-Pad */
-    if (SDL_JoystickGetHat(s->sdl_joystick, 0) & SDL_HAT_UP) {
-        s->in_state.wButtons |= BUTTON_MASK(GAMEPAD_DPAD_UP);
-    }
-    if (SDL_JoystickGetHat(s->sdl_joystick, 0) & SDL_HAT_DOWN) {
-        s->in_state.wButtons |= BUTTON_MASK(GAMEPAD_DPAD_DOWN);
-    }
-    if (SDL_JoystickGetHat(s->sdl_joystick, 0) & SDL_HAT_LEFT) {
-        s->in_state.wButtons |= BUTTON_MASK(GAMEPAD_DPAD_LEFT);
-    }
-    if (SDL_JoystickGetHat(s->sdl_joystick, 0) & SDL_HAT_RIGHT) {
-        s->in_state.wButtons |= BUTTON_MASK(GAMEPAD_DPAD_RIGHT);
-    }
+    s->in_state.sThumbLY = -SDL_GameControllerGetAxis(s->sdl_gamepad,
+                                SDL_CONTROLLER_AXIS_LEFTY) - 1;
 
+    s->in_state.sThumbRX = SDL_GameControllerGetAxis(s->sdl_gamepad,
+                                SDL_CONTROLLER_AXIS_RIGHTX);
+
+    s->in_state.sThumbRY = -SDL_GameControllerGetAxis(s->sdl_gamepad,
+                                SDL_CONTROLLER_AXIS_RIGHTY) - 1;
 }
 
 static void usb_xid_handle_reset(USBDevice *dev)
@@ -369,16 +353,27 @@ static void usb_xid_handle_control(USBDevice *dev, USBPacket *p,
         break;
     case VendorInterfaceRequest | XID_GET_CAPABILITIES:
         DPRINTF("xid XID_GET_CAPABILITIES 0x%x\n", value);
-        //FIXME: !
+        /* FIXME: ! */
         p->status = USB_RET_STALL;
         //assert(false);
         break;
-    case ((USB_DIR_IN|USB_TYPE_CLASS|USB_RECIP_DEVICE)<<8) | 0x06:
-        DPRINTF("xid unknown xpad request 1: value = 0x%x\n", value);
+    case ((USB_DIR_IN|USB_TYPE_CLASS|USB_RECIP_DEVICE)<<8)
+             | USB_REQ_GET_DESCRIPTOR:
+        /* FIXME: ! */
+        DPRINTF("xid unknown xpad request 0x%x: value = 0x%x\n",
+                request, value);
         memset(data, 0x00, length);
         //FIXME: Intended for the hub: usbd_get_hub_descriptor, UT_READ_CLASS?!
         p->status = USB_RET_STALL;
         //assert(false);
+        break;
+    case ((USB_DIR_OUT|USB_TYPE_STANDARD|USB_RECIP_ENDPOINT)<<8)
+             | USB_REQ_CLEAR_FEATURE:
+        /* FIXME: ! */
+        DPRINTF("xid unknown xpad request 0x%x: value = 0x%x\n",
+                request, value);
+        memset(data, 0x00, length);
+        p->status = USB_RET_STALL;
         break;
     default:
         DPRINTF("xid USB stalled on request 0x%x value 0x%x\n", request, value);
@@ -423,7 +418,7 @@ static void usb_xid_handle_destroy(USBDevice *dev)
         SDL_HapticClose(s->sdl_haptic);
     }
 #endif
-    SDL_JoystickClose(s->sdl_joystick);
+    SDL_JoystickClose(s->sdl_gamepad);
 }
 #endif
 
@@ -445,62 +440,29 @@ static void usb_xid_class_initfn(ObjectClass *klass, void *data)
 static void usb_xbox_gamepad_realize(USBDevice *dev, Error **errp)
 {
     USBXIDState *s = USB_XID(dev);
+    usb_desc_create_serial(dev);
     usb_desc_init(dev);
     s->intr = usb_ep_get(dev, USB_TOKEN_IN, 2);
 
     s->in_state.bLength = sizeof(s->in_state);
     s->out_state.length = sizeof(s->out_state);
+    s->xid_desc = &desc_xid_xbox_gamepad;
 
     /* FIXME: Make sure SDL was init before */
-    if (SDL_InitSubSystem(SDL_INIT_JOYSTICK)) {
+    if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER)) {
         fprintf(stderr, "SDL failed to initialize joystick subsystem\n");
         exit(1);
     }
 
-    const char* search_name = s->device_name;
-    int search_index = s->device_index;
-
-    if (search_name == NULL) {
-        fprintf(stderr, "No device name specified for xid-sdl\n");
+    s->sdl_gamepad = SDL_GameControllerOpen(s->device_index);
+    if (s->sdl_gamepad == NULL) {
+        /* FIXME: More appropriate qemu error handling */
+        fprintf(stderr, "Couldn't open joystick %d\n", s->device_index);
         exit(1);
     }
 
-    int num_joysticks = SDL_NumJoysticks();
-
-    printf("Found %d joystick devices\n", num_joysticks);
-
-    int i;
-    int index = 0;
-    SDL_Joystick *sdl_joystick;
-    for(i = 0; i < num_joysticks; i++) {
-        sdl_joystick = SDL_JoystickOpen(i);
-        const char* name = SDL_JoystickName(sdl_joystick);
-        printf("Found '%s'\n", name);
-        assert(sdl_joystick != NULL);
-        printf("%s == %s ?\n", name, search_name);
-        if (!strcmp(name, search_name)) {
-            if (search_index == index) {
-                break;
-            }
-            index++;
-        }
-        if (SDL_JoystickGetAttached(sdl_joystick)) {
-            SDL_JoystickClose(sdl_joystick);
-        }
-    }
-
-    if (i == num_joysticks) {
-        /* FIXME: More appropiate qemu error handling */
-        fprintf(stderr, "Couldn't find joystick '%s' [%d]\n",
-                search_name, search_index);
-        exit(1);
-    }
-    // SDL_Joystick *sdl_joystick = SDL_JoystickOpen(i);
-    if (sdl_joystick == NULL) {
-        fprintf(stderr, "Couldn't open joystick '%s' [%d] (SDL-Index %d)\n",
-                search_name, search_index, i);
-        exit(1);
-    }
+    const char* name = SDL_GameControllerName(s->sdl_gamepad);
+    printf("Found game controller %d (%s)\n", s->device_index, name);
 
 #ifndef UPDATE
     /* We could update the joystick in the usb event handlers, but that would
@@ -509,10 +471,9 @@ static void usb_xbox_gamepad_realize(USBDevice *dev, Error **errp)
      */
     SDL_JoystickEventState(SDL_ENABLE);
 #endif
-    s->sdl_joystick = sdl_joystick;
 
 #ifdef FORCE_FEEDBACK
-    s->sdl_haptic = SDL_HapticOpenFromJoystick(sdl_joystick);
+    s->sdl_haptic = SDL_HapticOpenFromJoystick(s->sdl_gamepad);
     if (s->sdl_haptic == NULL) {
         fprintf(stderr, "Joystick doesn't support haptic\n");
     } else {
@@ -523,42 +484,9 @@ static void usb_xbox_gamepad_realize(USBDevice *dev, Error **errp)
         }
     }
 #endif
-
-
-/* Used to find mappings. Should probably end up in some sort of gui */
-#if 0
-    int hats = SDL_JoystickNumHats(sdl_joystick);
-    int axes = SDL_JoystickNumAxes(sdl_joystick);
-    int buttons = SDL_JoystickNumButtons(sdl_joystick);
-    int balls = SDL_JoystickNumBalls(sdl_joystick);
-    while(1) {
-#ifdef UPDATE
-        SDL_JoystickUpdate();
-#endif
-        for(i = 0; i < hats; i++) {
-            printf("Hat %d: %d\n", i, (Uint8)SDL_JoystickGetHat(sdl_joystick, i));
-        }
-        for(i = 0; i < axes; i++) {
-            printf("Axis %d: %d\n", i, (Sint16)SDL_JoystickGetAxis(sdl_joystick, i));
-        }
-        for(i = 0; i < buttons; i++) {
-            printf("Button %d: %d\n", i, (Uint8)SDL_JoystickGetButton(sdl_joystick, i));
-        }
-        for(i = 0; i < balls; i++) {
-            int dx, dy;
-            int ret = SDL_JoystickGetBall(sdl_joystick, i, &dx, &dy);
-            printf("Ball %d: ret=%d, dx=%d, dy=%d\n", i, ret, dx, dy);
-        }
-        usleep(100*1000);
-    }
-#endif
-
-
-    s->xid_desc = &desc_xid_xbox_gamepad;
 }
 
 static Property xid_sdl_properties[] = {
-    DEFINE_PROP_STRING("device", USBXIDState, device_name),
     DEFINE_PROP_UINT8("index", USBXIDState, device_index, 0),
     DEFINE_PROP_END_OF_LIST(),
 };
