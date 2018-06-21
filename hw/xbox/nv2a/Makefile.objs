@@ -27,3 +27,6 @@ obj-y += nv2a_psh.o
 obj-y += nv2a_vsh.o
 
 obj-y += gl/
+
+obj-y += xxhash.o
+xxhash.o-cflags := -O3 -DXXH_FORCE_MEMORY_ACCESS=2
