@@ -20,25 +20,33 @@
 
 #ifdef DEBUG_NV2A_GL
 
-#include "qemu/osdep.h"
-
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdarg.h>
 #include <assert.h>
 
 #include "nv2a_debug.h"
 #include "gl/glextensions.h"
 
+static bool has_GL_GREMEDY_frame_terminator = false;
+static bool has_GL_KHR_debug = false;
 
 void gl_debug_initialize(void)
 {
-    if (glo_check_extension("GL_KHR_debug")) {
+    has_GL_KHR_debug = glo_check_extension("GL_KHR_debug");
+    has_GL_GREMEDY_frame_terminator = glo_check_extension("GL_GREMEDY_frame_terminator");
+
+    if (has_GL_KHR_debug) {
        glEnable(GL_DEBUG_OUTPUT);
     }
 }
 
 void gl_debug_message(bool cc, const char *fmt, ...)
 {
+    if (!has_GL_KHR_debug) {
+        return;
+    }
+
     size_t n;
     char buffer[1024];
     va_list ap;
@@ -47,10 +55,8 @@ void gl_debug_message(bool cc, const char *fmt, ...)
     assert(n <= sizeof(buffer));
     va_end(ap);
 
-    if(glDebugMessageInsert) {
-        glDebugMessageInsert(GL_DEBUG_SOURCE_APPLICATION, GL_DEBUG_TYPE_MARKER,
-                             0, GL_DEBUG_SEVERITY_NOTIFICATION, n, buffer);
-    }
+    glDebugMessageInsert(GL_DEBUG_SOURCE_APPLICATION, GL_DEBUG_TYPE_MARKER,
+                         0, GL_DEBUG_SEVERITY_NOTIFICATION, n, buffer);
     if (cc) {
         fwrite(buffer, sizeof(char), n, stdout);
         fputc('\n', stdout);
@@ -59,20 +65,21 @@ void gl_debug_message(bool cc, const char *fmt, ...)
 
 void gl_debug_group_begin(const char *fmt, ...)
 {
-    size_t n;
-    char buffer[1024];
-    va_list ap;
-    va_start(ap, fmt);
-    n = vsnprintf(buffer, sizeof(buffer), fmt, ap);
-    assert(n <= sizeof(buffer));
-    va_end(ap);
+    /* Debug group begin */
+    if (has_GL_KHR_debug) {
+        size_t n;
+        char buffer[1024];
+        va_list ap;
+        va_start(ap, fmt);
+        n = vsnprintf(buffer, sizeof(buffer), fmt, ap);
+        assert(n <= sizeof(buffer));
+        va_end(ap);
 
-    /* Check for errors before entering group */
-    assert(glGetError() == GL_NO_ERROR);
-
-    if (glPushDebugGroup) {
         glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, n, buffer);
     }
+
+    /* Check for errors before starting real commands in group */
+    assert(glGetError() == GL_NO_ERROR);
 }
 
 void gl_debug_group_end(void)
@@ -80,13 +87,18 @@ void gl_debug_group_end(void)
     /* Check for errors when leaving group */
     assert(glGetError() == GL_NO_ERROR);
 
-    if (glPopDebugGroup) {
+    /* Debug group end */
+    if (has_GL_KHR_debug) {
         glPopDebugGroup();
     }
 }
 
 void gl_debug_label(GLenum target, GLuint name, const char *fmt, ...)
 {
+    if (!has_GL_KHR_debug) {
+        return;
+    }
+
     size_t n;
     char buffer[1024];
     va_list ap;
@@ -95,9 +107,16 @@ void gl_debug_label(GLenum target, GLuint name, const char *fmt, ...)
     assert(n <= sizeof(buffer));
     va_end(ap);
 
-    if (glObjectLabel) {
-        glObjectLabel(target, name, n, buffer);
+    glObjectLabel(target, name, n, buffer);
+}
+
+void gl_debug_frame_terminator(void)
+{
+    if (!has_GL_GREMEDY_frame_terminator) {
+        return;
     }
+
+    glFrameTerminatorGREMEDY();
 }
 
 #endif
