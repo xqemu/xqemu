@@ -18,15 +18,14 @@
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "nv2a_debug.h"
+
 #ifdef DEBUG_NV2A_GL
 
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdarg.h>
 #include <assert.h>
-
-#include "nv2a_debug.h"
-#include "gl/glextensions.h"
 
 static bool has_GL_GREMEDY_frame_terminator = false;
 static bool has_GL_KHR_debug = false;
@@ -37,7 +36,21 @@ void gl_debug_initialize(void)
     has_GL_GREMEDY_frame_terminator = glo_check_extension("GL_GREMEDY_frame_terminator");
 
     if (has_GL_KHR_debug) {
+#if defined(__APPLE__)
+        /* On macOS, calling glEnable(GL_DEBUG_OUTPUT) will result in error
+         * GL_INVALID_ENUM.
+         *
+         * According to GL_KHR_debug this should work, therefore probably
+         * not a bug in our code.
+         *
+         * It appears however that we can safely ignore this error, and the
+         * debug functions which we depend on will still work as expected,
+         * so skip the call for this platform.
+         */
+#else
        glEnable(GL_DEBUG_OUTPUT);
+       assert(glGetError() == GL_NO_ERROR);
+#endif
     }
 }
 
