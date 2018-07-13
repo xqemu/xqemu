@@ -33,7 +33,10 @@ def main():
 		if dll_path.lower().startswith('/c/windows') or dll_path.lower().startswith('c:/windows'):
 			print('Skipping system DLL %s' % dll_path)
 			continue
+
 		print('Copying %s...' % dll_path)
+		# Python wants Windows-style paths, not Unix-style
+		dll_path = subprocess.check_output(['cygpath', '-w', dll_path]).strip()
 		shutil.copyfile(dll_path, os.path.join(args.dest, dll_name))
 
 if __name__ == '__main__':
