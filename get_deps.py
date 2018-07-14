@@ -30,14 +30,23 @@ def main():
 		if dll_name.startswith('???'):
 			print('Unknown DLL?')
 			continue
-		if dll_path.lower().startswith('/c/windows') or dll_path.lower().startswith('c:/windows'):
+		try:
+			# ldd on msys2 gives Unix-style paths, but Python wants them Windows-style
+			# Try cygpath to convert them
+			dll_path = subprocess.check_output(['cygpath', '-w', dll_path]).strip()
+		except:
+			# cygpath doesn't exist or failed. Carry on and hope for the best
+			pass
+		if dll_path.lower().startswith('c:\\windows'):
 			print('Skipping system DLL %s' % dll_path)
 			continue
 
 		print('Copying %s...' % dll_path)
-		# Python wants Windows-style paths, not Unix-style
-		dll_path = subprocess.check_output(['cygpath', '-w', dll_path]).strip()
-		shutil.copyfile(dll_path, os.path.join(args.dest, dll_name))
+		try:
+			shutil.copyfile(dll_path, os.path.join(args.dest, dll_name))
+		except shutil.Error as err:
+			# copyfile produces an exception if the files are the same
+			print('Copying failed: %s' % err)
 
 if __name__ == '__main__':
 	main()
