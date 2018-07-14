@@ -45,7 +45,8 @@ def main():
 		try:
 			shutil.copyfile(dll_path, os.path.join(args.dest, dll_name))
 		except shutil.Error as err:
-			# copyfile produces an exception if the files are the same
+			# This exception only gets raised if both files are exactly the same, but
+			# that doesn't matter to us
 			print('Copying failed: %s' % err)
 
 if __name__ == '__main__':
