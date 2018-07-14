@@ -2962,7 +2962,7 @@ if test "$linux" = "yes" ; then
 fi
 
 ##########################################
-# Epoxy
+# epoxy probe
 
 cat > $TMPC <<EOF
 #include <epoxy/gl.h>
@@ -2970,7 +2970,8 @@ int main(void) { return 0; }
 EOF
 epoxy_libs="-lepoxy"
 if ! compile_prog "" "$epoxy_libs" ; then
-    error_exit "epoxy check failed. Please install epoxy/libepoxy with your package manager and try again."
+    error_exit "epoxy check failed" \
+        "Make sure to have the epoxy libs and headers installed."
 fi
 LIBS="$LIBS $epoxy_libs"
 
