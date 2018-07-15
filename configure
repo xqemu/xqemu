@@ -2964,16 +2964,15 @@ fi
 ##########################################
 # epoxy probe
 
-cat > $TMPC <<EOF
-#include <epoxy/gl.h>
-int main(void) { return 0; }
-EOF
-epoxy_libs="-lepoxy"
-if ! compile_prog "" "$epoxy_libs" ; then
-    error_exit "epoxy check failed" \
-        "Make sure to have the epoxy libs and headers installed."
+if $pkg_config --exists epoxy ; then
+    epoxy_libs=$($pkg_config --libs epoxy)
+    epoxy_flags=$($pkg_config --cflags epoxy)
+else
+    error_exit "epoxy not present." \
+        "Please install the epoxy devel package."
 fi
 LIBS="$LIBS $epoxy_libs"
+QEMU_CFLAGS="$QEMU_CFLAGS $epoxy_flags"
 
 ##########################################
 # RDMA needs OpenFabrics libraries
