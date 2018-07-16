@@ -23,12 +23,12 @@ def main():
 		print('File exists with destination name')
 		sys.exit(1)
 		
-	has_cygpath = True
 	try:
 		subprocess.check_output(['cygpath', '--help'])
 	except OSError as err:
-		print("Couldn't execute cygpath (Reason: '%s'). Continuing without." % err)
-		has_cygpath = False
+		print("Couldn't execute cygpath (Reason: '%s')." % err)
+		print("Make sure you're using a recent version of MSYS2 and that it works correctly.")
+		sys.exit(1)
 
 	sout = subprocess.check_output(['ldd', args.prog])
 	for line in sout.splitlines():
@@ -37,10 +37,9 @@ def main():
 		if dll_name.startswith('???'):
 			print('Unknown DLL?')
 			continue
-		if has_cygpath:
-			# ldd on msys2 gives Unix-style paths, but Python wants them Windows-style
-			# If we have cygpath, convert the paths
-			dll_path = subprocess.check_output(['cygpath', '-w', dll_path]).strip()
+		# ldd on msys gives Unix-style paths, but mingw Python wants them Windows-style
+		# Use cygpath to convert the paths, because both mingw and msys Python can handle them
+		dll_path = subprocess.check_output(['cygpath', '-w', dll_path]).strip()
 		if dll_path.lower().startswith('c:\\windows'):
 			print('Skipping system DLL %s' % dll_path)
 			continue
