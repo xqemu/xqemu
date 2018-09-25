@@ -454,6 +454,12 @@ void pgraph_method(NV2AState *d,
     /* ugly switch for now */
     switch (graphics_class) {
 
+    case NV_CONTEXT_PATTERN: { switch (method) {
+    case NV044_SET_MONOCHROME_COLOR0:
+        pg->regs[NV_PGRAPH_PATT_COLOR0] = parameter;
+        break;
+    } break; }
+
     case NV_CONTEXT_SURFACES_2D: { switch (method) {
     case NV062_SET_OBJECT:
         context_surfaces_2d->object_instance = parameter;
@@ -2561,6 +2567,9 @@ static void pgraph_method_log(unsigned int subchannel,
         //         break;
         //     case NV_CONTEXT_SURFACES_2D:
         //         nmethod = method | (0x6d << 16);
+        //         break;
+        //     case NV_CONTEXT_PATTERN:
+        //         nmethod = method | (0x68 << 16);
         //         break;
         //     default:
         //         break;
