@@ -52,7 +52,9 @@
 
 #define MAX_IDE_BUS 2
 
-// XBOX_TODO: Should be passed in through configuration
+int eeprom_fd = -1;
+const int eeprom_size = 256;
+
 /* bunnie's eeprom */
 const uint8_t default_eeprom[] = {
     0xe3, 0x1c, 0x5c, 0x23, 0x6a, 0x58, 0x68, 0x37,
@@ -227,10 +229,8 @@ static void xbox_memory_init(PCMachineState *pcms,
 uint8_t *load_eeprom(void)
 {
     char *filename;
-    int fd;
     int rc;
     int eeprom_file_size;
-    const int eeprom_size = 256;
 
     uint8_t *eeprom_data = g_malloc(eeprom_size);
 
@@ -250,29 +250,36 @@ uint8_t *load_eeprom(void)
             return NULL;
         }
 
-        fd = open(filename, O_RDONLY | O_BINARY);
-        if (fd < 0) {
+        eeprom_fd = open(filename, O_RDWR | O_BINARY);
+        if (eeprom_fd < 0) {
             fprintf(stderr, "qemu: EEPROM file '%s' could not be opened.\n", filename);
             g_free(filename);
             exit(1);
             return NULL;
         }
 
-        rc = read(fd, eeprom_data, eeprom_size);
+        rc = read(eeprom_fd, eeprom_data, eeprom_size);
         if (rc != eeprom_size) {
             fprintf(stderr, "qemu: Could not read the full EEPROM file.\n");
-            close(fd);
+            close(eeprom_fd);
             g_free(filename);
             exit(1);
             return NULL;
         }
 
-        close(fd);
         g_free(filename);
     } else {
         memcpy(eeprom_data, default_eeprom, eeprom_size);
     }
     return eeprom_data;
+}
+
+void save_eeprom(uint8_t *eepromBuffer)
+{
+    if(eeprom_fd > 0)  {
+        lseek(eeprom_fd, 0, SEEK_SET);
+        write(eeprom_fd, eepromBuffer, eeprom_size);
+    }
 }
 
 /* PC hardware initialisation */
@@ -377,8 +384,8 @@ void xbox_init_common(MachineState *machine,
     }
 
     /* smbus devices */
-    uint8_t *eeprom_buf = g_malloc0(256);
-    memcpy(eeprom_buf, eeprom, 256);
+    uint8_t *eeprom_buf = g_malloc0(eeprom_size);
+    memcpy(eeprom_buf, eeprom, eeprom_size);
     smbus_eeprom_init_one(smbus, 0x54, eeprom_buf);
 
     smbus_xbox_smc_init(smbus, 0x10);

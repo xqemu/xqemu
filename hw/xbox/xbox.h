@@ -22,10 +22,12 @@
 #define HW_XBOX_H
 
 #include "hw/boards.h"
+#include "include/hw/i386/pc.h"
 
 #define MAX_IDE_BUS 2
 
 uint8_t *load_eeprom(void);
+void save_eeprom(uint8_t *eepromBuffer);
 
 void xbox_init_common(MachineState *machine,
                       const uint8_t *eeprom,
