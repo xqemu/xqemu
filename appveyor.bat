@@ -35,4 +35,10 @@ set CHERE_INVOKING=yes
 rem Build/test scripting
 bash -xlc "set pwd"
 bash -xlc "env"
-bash -xlc "./build.sh"
+
+IF "%1%" == "Release" (
+    bash -xlc "./build.sh --release"
+) ELSE (
+    bash -xlc "./build.sh"
+)
+
