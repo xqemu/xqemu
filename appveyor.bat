@@ -17,6 +17,7 @@ bash -xlc "pacman --noconfirm -S --needed base-devel"
 
 rem Install the relevant native dependencies
 bash -xlc "pacman --noconfirm -S --needed git"
+bash -xlc "pacman --noconfirm -S --needed openssl"
 bash -xlc "pacman --noconfirm -S --needed python2"
 bash -xlc "pacman --noconfirm -S --needed make"
 bash -xlc "pacman --noconfirm -S --needed autoconf"
