@@ -17,15 +17,6 @@ bash -xlc "pacman --noconfirm -S --needed base-devel"
 
 rem Install the relevant native dependencies
 bash -xlc "pacman --noconfirm -S --needed git"
-bash -xlc "pacman --noconfirm -S --needed openssl"
-bash -xlc "pacman --noconfirm -S --needed python2"
-
-bash -xlc "env"
-bash -xlc "ldd python; python -v -c 'import ssl; print ssl.OPENSSL_VERSION; import hashlib;'"
-bash -xlc "ldd /usr/bin/python2.7.exe; /usr/bin/python2.7 -v -c 'import ssl; print ssl.OPENSSL_VERSION; import hashlib;'"
-
-exit 1
-
 bash -xlc "pacman --noconfirm -S --needed make"
 bash -xlc "pacman --noconfirm -S --needed autoconf"
 bash -xlc "pacman --noconfirm -S --needed automake-wrapper"
@@ -45,8 +36,8 @@ bash -xlc "set pwd"
 bash -xlc "env"
 
 IF "%1%" == "Release" (
-    bash -xlc "./build.sh --release --python=/usr/bin/python2.exe"
+    bash -xlc "./build.sh --release"
 ) ELSE (
-    bash -xlc "./build.sh --python=/usr/bin/python2.exe"
+    bash -xlc "./build.sh"
 )
 
