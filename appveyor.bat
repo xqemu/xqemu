@@ -20,7 +20,9 @@ bash -xlc "pacman --noconfirm -S --needed git"
 bash -xlc "pacman --noconfirm -S --needed openssl"
 bash -xlc "pacman --noconfirm -S --needed python2"
 
-bash -xlc "ldd /usr/bin/python2.7.exe; python -v -c 'import ssl; print ssl.OPENSSL_VERSION; import hashlib;'"
+bash -xlc "env"
+bash -xlc "ldd python; python -v -c 'import ssl; print ssl.OPENSSL_VERSION; import hashlib;'"
+bash -xlc "ldd /usr/bin/python2.7.exe; /usr/bin/python2.7 -v -c 'import ssl; print ssl.OPENSSL_VERSION; import hashlib;'"
 
 exit 1
 
