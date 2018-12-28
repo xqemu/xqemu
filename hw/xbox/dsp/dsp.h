@@ -53,8 +53,6 @@ uint32_t dsp_disasm_memory(DSPState* dsp, uint32_t dsp_memdump_addr, uint32_t ds
 uint32_t dsp_disasm_address(DSPState* dsp, FILE *out, uint32_t lowerAdr, uint32_t UpperAdr);
 void dsp_info(DSPState* dsp);
 void dsp_print_registers(DSPState* dsp);
-int dsp_get_register_address(DSPState* dsp, const char *arg, uint32_t **addr, uint32_t *mask);
-bool dsp_disasm_set_register(DSPState* dsp, const char *arg, uint32_t value);
 
 
 #endif /* DSP_H */
