@@ -309,8 +309,8 @@ void dsp_print_registers(DSPState* dsp)
             i, dsp->core.registers[DSP_REG_M0+i]);
     }
 
-    printf("LA: %04x   LC: %04x   PC: %04x\n", dsp->core.registers[DSP_REG_LA], dsp->core.registers[DSP_REG_LC], dsp->core.pc);
-    printf("SR: %04x  OMR: %02x\n", dsp->core.registers[DSP_REG_SR], dsp->core.registers[DSP_REG_OMR]);
-    printf("SP: %02x    SSH: %04x  SSL: %04x\n", 
+    printf("LA: %04x    LC: %04x   PC: %04x\n", dsp->core.registers[DSP_REG_LA], dsp->core.registers[DSP_REG_LC], dsp->core.pc);
+    printf("SR: %06x  OMR: %02x\n", dsp->core.registers[DSP_REG_SR], dsp->core.registers[DSP_REG_OMR]);
+    printf("SP: %02x      SSH: %04x  SSL: %04x\n", 
         dsp->core.registers[DSP_REG_SP], dsp->core.registers[DSP_REG_SSH], dsp->core.registers[DSP_REG_SSL]);
 }

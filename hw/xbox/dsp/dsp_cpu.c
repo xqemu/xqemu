@@ -131,7 +131,7 @@ static const int registers_mask[64] = {
 
     0, 0, 0, 0,
     0, 0, 0, 0,
-    0, 16, 8, 6,
+    0, 24, 8, 6,
     16, 16, 16, 16
 };
 
@@ -501,6 +501,7 @@ static void disasm_reg_compare(dsp_core_t* dsp)
             case DSP_REG_X1:
             case DSP_REG_Y0:
             case DSP_REG_Y1:
+            case DSP_REG_SR:
                 printf("\tReg: %s  $%06x -> $%06x\n",
                     registers_name[i], dsp->disasm_registers_save[i], dsp->registers[i]);
                 break;
@@ -528,7 +529,6 @@ static void disasm_reg_compare(dsp_core_t* dsp)
             case DSP_REG_N5:
             case DSP_REG_N6:
             case DSP_REG_N7:
-            case DSP_REG_SR:
             case DSP_REG_LA:
             case DSP_REG_LC:
                 printf("\tReg: %s  $%04x -> $%04x\n",
@@ -1079,7 +1079,7 @@ static void dsp_write_reg(dsp_core_t* dsp, uint32_t numreg, uint32_t value)
             dsp->registers[DSP_REG_OMR] = value & 0xc7;
             break;
         case DSP_REG_SR:
-            dsp->registers[DSP_REG_SR] = value & 0xaf7f;
+            dsp->registers[DSP_REG_SR] = value & 0xfbaf7f;
             break;
         case DSP_REG_SP:
             stack_error = dsp->registers[DSP_REG_SP] & (3<<DSP_SP_SE);
