@@ -817,7 +817,7 @@ static void dsp_postexecute_interrupts(dsp_core_t* dsp)
                 if ( ((instr & 0xfff000) == 0x0d0000) || ((instr & 0xffc0ff) == 0x0bc080) ) {
                     dsp->interrupt_state = DSP_INTERRUPT_LONG;
                     dsp_stack_push(dsp, dsp->interrupt_save_pc, dsp->registers[DSP_REG_SR], 0); 
-                    dsp->registers[DSP_REG_SR] &= BITMASK(16)-((1<<DSP_SR_LF)|(1<<DSP_SR_T)  |
+                    emu_clear_sr_flags(dsp, (1<<DSP_SR_LF)|(1<<DSP_SR_T)  |
                                             (1<<DSP_SR_S1)|(1<<DSP_SR_S0) |
                                             (1<<DSP_SR_I0)|(1<<DSP_SR_I1));
                     dsp->registers[DSP_REG_SR] |= dsp->interrupt_ipl_to_raise<<DSP_SR_I0;
@@ -831,7 +831,7 @@ static void dsp_postexecute_interrupts(dsp_core_t* dsp)
                     if ( ((instr & 0xfff000) == 0x0d0000) || ((instr & 0xffc0ff) == 0x0bc080) ) {
                         dsp->interrupt_state = DSP_INTERRUPT_LONG;
                         dsp_stack_push(dsp, dsp->interrupt_save_pc, dsp->registers[DSP_REG_SR], 0); 
-                        dsp->registers[DSP_REG_SR] &= BITMASK(16)-((1<<DSP_SR_LF)|(1<<DSP_SR_T)  |
+                        emu_clear_sr_flags(dsp, (1<<DSP_SR_LF)|(1<<DSP_SR_T)  |
                                                 (1<<DSP_SR_S1)|(1<<DSP_SR_S0) |
                                                 (1<<DSP_SR_I0)|(1<<DSP_SR_I1));
                         dsp->registers[DSP_REG_SR] |= dsp->interrupt_ipl_to_raise<<DSP_SR_I0;
