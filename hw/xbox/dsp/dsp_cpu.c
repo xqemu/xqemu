@@ -391,6 +391,7 @@ void dsp56k_reset_cpu(dsp_core_t* dsp)
     for (i=0;i<8;i++) {
         dsp->registers[DSP_REG_M0+i]=0x00ffff;
     }
+    dsp->registers[DSP_REG_SR]=0xC00300;
 
     /* Interruptions */
     memset(dsp->interrupt_is_pending, 0, sizeof(dsp->interrupt_is_pending));
