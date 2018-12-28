@@ -1080,7 +1080,14 @@ static void dsp_write_reg(dsp_core_t* dsp, uint32_t numreg, uint32_t value)
             dsp->registers[DSP_REG_OMR] = value & 0xc7;
             break;
         case DSP_REG_SR:
-            dsp->registers[DSP_REG_SR] = value & 0xfbaf7f;
+
+            /* Check for unhandled bits */
+            assert((value & (1 << 7)) == 0); /* Scaling */
+            assert((value & (1 << 12)) == 0); /* Reserved */
+            assert((value & (1 << 14)) == 0); /* Double-Precision */
+            assert((value & 0xFF0000) == 0xC00000); /* EMR */
+
+            dsp->registers[DSP_REG_SR] = value & BITMASK(registers_mask[DSP_REG_SR]);
             break;
         case DSP_REG_SP:
             stack_error = dsp->registers[DSP_REG_SP] & (3<<DSP_SP_SE);
