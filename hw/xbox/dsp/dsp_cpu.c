@@ -159,6 +159,11 @@ static bool match_MMMRRR(uint32_t op)
     return true;
 }
 
+static OpcodeEntry* search_opcode(uint32_t op);
+
+/*nonparallel opcodes only occupy the lower 20bits*/
+OpcodeEntry *OpcodeEntryArray[0xFFFFF+1];
+
 static const OpcodeEntry nonparallel_opcodes[] = {
     { "0000000101iiiiii1000d000", "add #xx, D", dis_add_imm, emu_add_imm },
     { "00000001010000001100d000", "add #xxxx, D", dis_add_long, emu_add_long },
@@ -378,6 +383,10 @@ void dsp56k_reset_cpu(dsp_core_t* dsp)
             nonparallel_matches[i][0] = mask;
             nonparallel_matches[i][1] = match;
         }
+
+        for(i=0; i < ARRAYSIZE(OpcodeEntryArray); i++) {
+            OpcodeEntryArray[i] = search_opcode(i);
+        }
     }
 
     /* Memory */
@@ -420,21 +429,28 @@ void dsp56k_reset_cpu(dsp_core_t* dsp)
     dsp->disasm_prev_inst_pc = 0xFFFFFFFF;
 }
 
-static OpcodeEntry lookup_opcode(uint32_t op) {
-    OpcodeEntry r = {0};
+static OpcodeEntry* search_opcode(uint32_t op)
+{
+    OpcodeEntry* r;
     int i;
     for (i=0; i<ARRAYSIZE(nonparallel_opcodes); i++) {
         if ((op & nonparallel_matches[i][0]) == nonparallel_matches[i][1]) {
             if (nonparallel_opcodes[i].match_func 
                 && !nonparallel_opcodes[i].match_func(op)) continue;
-            if (r.template != NULL) {
-                printf("qqq %x %s\n", op, r.template);
+            if (r->template != NULL) {
+                //printf("qqq %x %s\n", op, r.template);
             }
-            assert(r.template == NULL);
-            r = nonparallel_opcodes[i];
+            //assert(r.template == NULL);
+            r = &nonparallel_opcodes[i];
         }
     }
     return r;
+}
+
+static inline OpcodeEntry* lookup_opcode(uint32_t op)
+{
+    assert(op < ARRAYSIZE(OpcodeEntryArray));
+    return OpcodeEntryArray[op];
 }
 
 static uint16_t disasm_instruction(dsp_core_t* dsp, dsp_trace_disasm_t mode)
@@ -459,12 +475,12 @@ static uint16_t disasm_instruction(dsp_core_t* dsp, dsp_trace_disasm_t mode)
     dsp->disasm_parallelmove_name[0] = 0;
 
     if (dsp->disasm_cur_inst < 0x100000) {
-        const OpcodeEntry op = lookup_opcode(dsp->disasm_cur_inst);
-        if (op.template) {
-            if (op.dis_func) {
-                op.dis_func(dsp);
+        OpcodeEntry* op = lookup_opcode(dsp->disasm_cur_inst);
+        if (op->template) {
+            if (op->dis_func) {
+                op->dis_func(dsp);
             } else {
-                sprintf(dsp->disasm_str_instr, "%s", op.name);
+                sprintf(dsp->disasm_str_instr, "%s", op->name);
             }
         } else {
             dis_undefined(dsp);
@@ -659,11 +675,11 @@ void dsp56k_execute_instruction(dsp_core_t* dsp)
     }
             
     if (dsp->cur_inst < 0x100000) {
-        const OpcodeEntry op = lookup_opcode(dsp->cur_inst);
-        if (op.emu_func) {
-            op.emu_func(dsp);
+        OpcodeEntry* op = lookup_opcode(dsp->cur_inst);
+        if (op->emu_func) {
+            op->emu_func(dsp);
         } else {
-            printf("%x - %s\n", dsp->cur_inst, op.name);
+            printf("%x - %s\n", dsp->cur_inst, op->name);
             emu_undefined(dsp);
         }
     } else {
