@@ -1022,12 +1022,34 @@
 # GTK display options.
 #
 # @grab-on-hover: Grab keyboard input on mouse hover.
+# @zoom-to-fit: Zoom guest display to fit into the host window.  When
+#               turned off the host window will be resized instead.
+#               In case the display device can notify the guest on
+#               window resizes (virtio-gpu) this will default to "on",
+#               assuming the guest will resize the display to match
+#               the window size then.  Otherwise it defaults to "off".
+#               Since 3.1
 #
 # Since: 2.12
 #
 ##
 { 'struct'  : 'DisplayGTK',
-  'data'    : { '*grab-on-hover' : 'bool' } }
+  'data'    : { '*grab-on-hover' : 'bool',
+                '*zoom-to-fit'   : 'bool'  } }
+
+##
+# @DisplayEGLHeadless:
+#
+# EGL headless display options.
+#
+# @rendernode: Which DRM render node should be used. Default is the first
+#              available node on the host.
+#
+# Since: 3.1
+#
+##
+{ 'struct'  : 'DisplayEGLHeadless',
+  'data'    : { '*rendernode' : 'str' } }
 
  ##
  # @DisplayGLMode:
@@ -1078,4 +1100,18 @@
                 '*window-close'  : 'bool',
                 '*gl'            : 'DisplayGLMode' },
   'discriminator' : 'type',
-  'data'    : { 'gtk'            : 'DisplayGTK' } }
+  'data'    : { 'gtk'            : 'DisplayGTK',
+                'egl-headless'   : 'DisplayEGLHeadless'} }
+
+##
+# @query-display-options:
+#
+# Returns information about display configuration
+#
+# Returns: @DisplayOptions
+#
+# Since: 3.1
+#
+##
+{ 'command': 'query-display-options',
+  'returns': 'DisplayOptions' }

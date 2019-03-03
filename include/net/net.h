@@ -169,12 +169,6 @@ void qemu_check_nic_model(NICInfo *nd, const char *model);
 int qemu_find_nic_model(NICInfo *nd, const char * const *models,
                         const char *default_model);
 
-ssize_t qemu_deliver_packet_iov(NetClientState *sender,
-                            unsigned flags,
-                            const struct iovec *iov,
-                            int iovcnt,
-                            void *opaque);
-
 void print_net_client(Monitor *mon, NetClientState *nc);
 void hmp_info_network(Monitor *mon, const QDict *qdict);
 void net_socket_rs_init(SocketReadState *rs,
@@ -201,9 +195,6 @@ extern NICInfo nd_table[MAX_NICS];
 extern const char *host_net_devices[];
 
 /* from net.c */
-extern const char *legacy_tftp_prefix;
-extern const char *legacy_bootp_filename;
-
 int net_client_parse(QemuOptsList *opts_list, const char *str);
 int net_init_clients(Error **errp);
 void net_check_clients(void);

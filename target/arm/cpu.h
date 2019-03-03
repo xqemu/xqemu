@@ -56,6 +56,7 @@
 #define EXCP_SEMIHOST       16   /* semihosting call */
 #define EXCP_NOCP           17   /* v7M NOCP UsageFault */
 #define EXCP_INVSTATE       18   /* v7M INVSTATE UsageFault */
+#define EXCP_STKOF          19   /* v8M STKOF UsageFault */
 /* NB: add new EXCP_ defines to the array in arm_log_exception() too */
 
 #define ARMV7M_EXCP_RESET   1
@@ -530,6 +531,16 @@ typedef struct CPUARMState {
          */
     } exception;
 
+    /* Information associated with an SError */
+    struct {
+        uint8_t pending;
+        uint8_t has_esr;
+        uint64_t esr;
+    } serror;
+
+    /* State of our input IRQ/FIQ/VIRQ/VFIQ lines */
+    uint32_t irq_line_state;
+
     /* Thumb-2 EE state.  */
     uint32_t teecr;
     uint32_t teehbr;
@@ -668,6 +679,8 @@ typedef enum ARMPSCIState {
     PSCI_ON_PENDING = 2
 } ARMPSCIState;
 
+typedef struct ARMISARegisters ARMISARegisters;
+
 /**
  * ARMCPU:
  * @env: #CPUARMState
@@ -787,13 +800,28 @@ struct ARMCPU {
      * ARMv7AR ARM Architecture Reference Manual. A reset_ prefix
      * is used for reset values of non-constant registers; no reset_
      * prefix means a constant register.
+     * Some of these registers are split out into a substructure that
+     * is shared with the translators to control the ISA.
      */
+    struct ARMISARegisters {
+        uint32_t id_isar0;
+        uint32_t id_isar1;
+        uint32_t id_isar2;
+        uint32_t id_isar3;
+        uint32_t id_isar4;
+        uint32_t id_isar5;
+        uint32_t id_isar6;
+        uint32_t mvfr0;
+        uint32_t mvfr1;
+        uint32_t mvfr2;
+        uint64_t id_aa64isar0;
+        uint64_t id_aa64isar1;
+        uint64_t id_aa64pfr0;
+        uint64_t id_aa64pfr1;
+    } isar;
     uint32_t midr;
     uint32_t revidr;
     uint32_t reset_fpsid;
-    uint32_t mvfr0;
-    uint32_t mvfr1;
-    uint32_t mvfr2;
     uint32_t ctr;
     uint32_t reset_sctlr;
     uint32_t id_pfr0;
@@ -807,21 +835,10 @@ struct ARMCPU {
     uint32_t id_mmfr2;
     uint32_t id_mmfr3;
     uint32_t id_mmfr4;
-    uint32_t id_isar0;
-    uint32_t id_isar1;
-    uint32_t id_isar2;
-    uint32_t id_isar3;
-    uint32_t id_isar4;
-    uint32_t id_isar5;
-    uint32_t id_isar6;
-    uint64_t id_aa64pfr0;
-    uint64_t id_aa64pfr1;
     uint64_t id_aa64dfr0;
     uint64_t id_aa64dfr1;
     uint64_t id_aa64afr0;
     uint64_t id_aa64afr1;
-    uint64_t id_aa64isar0;
-    uint64_t id_aa64isar1;
     uint64_t id_aa64mmfr0;
     uint64_t id_aa64mmfr1;
     uint32_t dbgdidr;
@@ -857,6 +874,9 @@ struct ARMCPU {
 
     /* Used to synchronize KVM and QEMU in-kernel device levels */
     uint8_t device_irq_level;
+
+    /* Used to set the maximum vector length the cpu will support.  */
+    uint32_t sve_max_vq;
 };
 
 static inline ARMCPU *arm_env_get_cpu(CPUARMState *env)
@@ -907,11 +927,22 @@ int arm_cpu_write_elf32_note(WriteCoreDumpFunction f, CPUState *cs,
 int aarch64_cpu_gdb_read_register(CPUState *cpu, uint8_t *buf, int reg);
 int aarch64_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);
 void aarch64_sve_narrow_vq(CPUARMState *env, unsigned vq);
+void aarch64_sve_change_el(CPUARMState *env, int old_el,
+                           int new_el, bool el0_a64);
+#else
+static inline void aarch64_sve_narrow_vq(CPUARMState *env, unsigned vq) { }
+static inline void aarch64_sve_change_el(CPUARMState *env, int o,
+                                         int n, bool a)
+{ }
 #endif
 
 target_ulong do_arm_semihosting(CPUARMState *env);
 void aarch64_sync_32_to_64(CPUARMState *env);
 void aarch64_sync_64_to_32(CPUARMState *env);
+
+int fp_exception_el(CPUARMState *env, int cur_el);
+int sve_exception_el(CPUARMState *env, int cur_el);
+uint32_t sve_zcr_len_for_el(CPUARMState *env, int el);
 
 static inline bool is_a64(CPUARMState *env)
 {
@@ -1229,6 +1260,12 @@ static inline void xpsr_write(CPUARMState *env, uint32_t val, uint32_t mask)
 #define HCR_RW        (1ULL << 31)
 #define HCR_CD        (1ULL << 32)
 #define HCR_ID        (1ULL << 33)
+#define HCR_E2H       (1ULL << 34)
+/*
+ * When we actually implement ARMv8.1-VHE we should add HCR_E2H to
+ * HCR_MASK and then clear it again if the feature bit is not set in
+ * hcr_write().
+ */
 #define HCR_MASK      ((1ULL << 34) - 1)
 
 #define SCR_NS                (1U << 0)
@@ -1260,7 +1297,7 @@ void vfp_set_fpscr(CPUARMState *env, uint32_t val);
  * we store the underlying state in fpscr and just mask on read/write.
  */
 #define FPSR_MASK 0xf800009f
-#define FPCR_MASK 0x07f79f00
+#define FPCR_MASK 0x07ff9f00
 
 #define FPCR_FZ16   (1 << 19)   /* ARMv8.2+, FP16 flush-to-zero */
 #define FPCR_FZ     (1 << 24)   /* Flush-to-zero enable bit */
@@ -1311,14 +1348,14 @@ enum arm_cpu_mode {
 #define ARM_VFP_FPINST2 10
 
 /* iwMMXt coprocessor control registers.  */
-#define ARM_IWMMXT_wCID		0
-#define ARM_IWMMXT_wCon		1
-#define ARM_IWMMXT_wCSSF	2
-#define ARM_IWMMXT_wCASF	3
-#define ARM_IWMMXT_wCGR0	8
-#define ARM_IWMMXT_wCGR1	9
-#define ARM_IWMMXT_wCGR2	10
-#define ARM_IWMMXT_wCGR3	11
+#define ARM_IWMMXT_wCID  0
+#define ARM_IWMMXT_wCon  1
+#define ARM_IWMMXT_wCSSF 2
+#define ARM_IWMMXT_wCASF 3
+#define ARM_IWMMXT_wCGR0 8
+#define ARM_IWMMXT_wCGR1 9
+#define ARM_IWMMXT_wCGR2 10
+#define ARM_IWMMXT_wCGR3 11
 
 /* V7M CCR bits */
 FIELD(V7M_CCR, NONBASETHRDENA, 0, 1)
@@ -1327,8 +1364,10 @@ FIELD(V7M_CCR, UNALIGN_TRP, 3, 1)
 FIELD(V7M_CCR, DIV_0_TRP, 4, 1)
 FIELD(V7M_CCR, BFHFNMIGN, 8, 1)
 FIELD(V7M_CCR, STKALIGN, 9, 1)
+FIELD(V7M_CCR, STKOFHFNMIGN, 10, 1)
 FIELD(V7M_CCR, DC, 16, 1)
 FIELD(V7M_CCR, IC, 17, 1)
+FIELD(V7M_CCR, BP, 18, 1)
 
 /* V7M SCR bits */
 FIELD(V7M_SCR, SLEEPONEXIT, 1, 1)
@@ -1369,6 +1408,7 @@ FIELD(V7M_CFSR, UNDEFINSTR, 16 + 0, 1)
 FIELD(V7M_CFSR, INVSTATE, 16 + 1, 1)
 FIELD(V7M_CFSR, INVPC, 16 + 2, 1)
 FIELD(V7M_CFSR, NOCP, 16 + 3, 1)
+FIELD(V7M_CFSR, STKOF, 16 + 4, 1)
 FIELD(V7M_CFSR, UNALIGNED, 16 + 8, 1)
 FIELD(V7M_CFSR, DIVBYZERO, 16 + 9, 1)
 
@@ -1419,6 +1459,104 @@ FIELD(V7M_CSSELR, LEVEL, 1, 3)
  */
 FIELD(V7M_CSSELR, INDEX, 0, 4)
 
+/*
+ * System register ID fields.
+ */
+FIELD(ID_ISAR0, SWAP, 0, 4)
+FIELD(ID_ISAR0, BITCOUNT, 4, 4)
+FIELD(ID_ISAR0, BITFIELD, 8, 4)
+FIELD(ID_ISAR0, CMPBRANCH, 12, 4)
+FIELD(ID_ISAR0, COPROC, 16, 4)
+FIELD(ID_ISAR0, DEBUG, 20, 4)
+FIELD(ID_ISAR0, DIVIDE, 24, 4)
+
+FIELD(ID_ISAR1, ENDIAN, 0, 4)
+FIELD(ID_ISAR1, EXCEPT, 4, 4)
+FIELD(ID_ISAR1, EXCEPT_AR, 8, 4)
+FIELD(ID_ISAR1, EXTEND, 12, 4)
+FIELD(ID_ISAR1, IFTHEN, 16, 4)
+FIELD(ID_ISAR1, IMMEDIATE, 20, 4)
+FIELD(ID_ISAR1, INTERWORK, 24, 4)
+FIELD(ID_ISAR1, JAZELLE, 28, 4)
+
+FIELD(ID_ISAR2, LOADSTORE, 0, 4)
+FIELD(ID_ISAR2, MEMHINT, 4, 4)
+FIELD(ID_ISAR2, MULTIACCESSINT, 8, 4)
+FIELD(ID_ISAR2, MULT, 12, 4)
+FIELD(ID_ISAR2, MULTS, 16, 4)
+FIELD(ID_ISAR2, MULTU, 20, 4)
+FIELD(ID_ISAR2, PSR_AR, 24, 4)
+FIELD(ID_ISAR2, REVERSAL, 28, 4)
+
+FIELD(ID_ISAR3, SATURATE, 0, 4)
+FIELD(ID_ISAR3, SIMD, 4, 4)
+FIELD(ID_ISAR3, SVC, 8, 4)
+FIELD(ID_ISAR3, SYNCHPRIM, 12, 4)
+FIELD(ID_ISAR3, TABBRANCH, 16, 4)
+FIELD(ID_ISAR3, T32COPY, 20, 4)
+FIELD(ID_ISAR3, TRUENOP, 24, 4)
+FIELD(ID_ISAR3, T32EE, 28, 4)
+
+FIELD(ID_ISAR4, UNPRIV, 0, 4)
+FIELD(ID_ISAR4, WITHSHIFTS, 4, 4)
+FIELD(ID_ISAR4, WRITEBACK, 8, 4)
+FIELD(ID_ISAR4, SMC, 12, 4)
+FIELD(ID_ISAR4, BARRIER, 16, 4)
+FIELD(ID_ISAR4, SYNCHPRIM_FRAC, 20, 4)
+FIELD(ID_ISAR4, PSR_M, 24, 4)
+FIELD(ID_ISAR4, SWP_FRAC, 28, 4)
+
+FIELD(ID_ISAR5, SEVL, 0, 4)
+FIELD(ID_ISAR5, AES, 4, 4)
+FIELD(ID_ISAR5, SHA1, 8, 4)
+FIELD(ID_ISAR5, SHA2, 12, 4)
+FIELD(ID_ISAR5, CRC32, 16, 4)
+FIELD(ID_ISAR5, RDM, 24, 4)
+FIELD(ID_ISAR5, VCMA, 28, 4)
+
+FIELD(ID_ISAR6, JSCVT, 0, 4)
+FIELD(ID_ISAR6, DP, 4, 4)
+FIELD(ID_ISAR6, FHM, 8, 4)
+FIELD(ID_ISAR6, SB, 12, 4)
+FIELD(ID_ISAR6, SPECRES, 16, 4)
+
+FIELD(ID_AA64ISAR0, AES, 4, 4)
+FIELD(ID_AA64ISAR0, SHA1, 8, 4)
+FIELD(ID_AA64ISAR0, SHA2, 12, 4)
+FIELD(ID_AA64ISAR0, CRC32, 16, 4)
+FIELD(ID_AA64ISAR0, ATOMIC, 20, 4)
+FIELD(ID_AA64ISAR0, RDM, 28, 4)
+FIELD(ID_AA64ISAR0, SHA3, 32, 4)
+FIELD(ID_AA64ISAR0, SM3, 36, 4)
+FIELD(ID_AA64ISAR0, SM4, 40, 4)
+FIELD(ID_AA64ISAR0, DP, 44, 4)
+FIELD(ID_AA64ISAR0, FHM, 48, 4)
+FIELD(ID_AA64ISAR0, TS, 52, 4)
+FIELD(ID_AA64ISAR0, TLB, 56, 4)
+FIELD(ID_AA64ISAR0, RNDR, 60, 4)
+
+FIELD(ID_AA64ISAR1, DPB, 0, 4)
+FIELD(ID_AA64ISAR1, APA, 4, 4)
+FIELD(ID_AA64ISAR1, API, 8, 4)
+FIELD(ID_AA64ISAR1, JSCVT, 12, 4)
+FIELD(ID_AA64ISAR1, FCMA, 16, 4)
+FIELD(ID_AA64ISAR1, LRCPC, 20, 4)
+FIELD(ID_AA64ISAR1, GPA, 24, 4)
+FIELD(ID_AA64ISAR1, GPI, 28, 4)
+FIELD(ID_AA64ISAR1, FRINTTS, 32, 4)
+FIELD(ID_AA64ISAR1, SB, 36, 4)
+FIELD(ID_AA64ISAR1, SPECRES, 40, 4)
+
+FIELD(ID_AA64PFR0, EL0, 0, 4)
+FIELD(ID_AA64PFR0, EL1, 4, 4)
+FIELD(ID_AA64PFR0, EL2, 8, 4)
+FIELD(ID_AA64PFR0, EL3, 12, 4)
+FIELD(ID_AA64PFR0, FP, 16, 4)
+FIELD(ID_AA64PFR0, ADVSIMD, 20, 4)
+FIELD(ID_AA64PFR0, GIC, 24, 4)
+FIELD(ID_AA64PFR0, RAS, 28, 4)
+FIELD(ID_AA64PFR0, SVE, 32, 4)
+
 QEMU_BUILD_BUG_ON(ARRAY_SIZE(((ARMCPU *)0)->ccsidr) <= R_V7M_CSSELR_INDEX_MASK);
 
 /* If adding a feature bit which corresponds to a Linux ELF
@@ -1438,7 +1576,6 @@ enum arm_features {
     ARM_FEATURE_VFP3,
     ARM_FEATURE_VFP_FP16,
     ARM_FEATURE_NEON,
-    ARM_FEATURE_THUMB_DIV, /* divide supported in Thumb encoding */
     ARM_FEATURE_M, /* Microcontroller profile.  */
     ARM_FEATURE_OMAPCP, /* OMAP specific CP15 ops handling.  */
     ARM_FEATURE_THUMB2EE,
@@ -1448,7 +1585,6 @@ enum arm_features {
     ARM_FEATURE_V5,
     ARM_FEATURE_STRONGARM,
     ARM_FEATURE_VAPA, /* cp15 VA to PA lookups */
-    ARM_FEATURE_ARM_DIV, /* divide supported in ARM encoding */
     ARM_FEATURE_VFP4, /* VFPv4 (implies that NEON is v2) */
     ARM_FEATURE_GENERIC_TIMER,
     ARM_FEATURE_MVFR, /* Media and VFP Feature Registers 0 and 1 */
@@ -1461,30 +1597,15 @@ enum arm_features {
     ARM_FEATURE_LPAE, /* has Large Physical Address Extension */
     ARM_FEATURE_V8,
     ARM_FEATURE_AARCH64, /* supports 64 bit mode */
-    ARM_FEATURE_V8_AES, /* implements AES part of v8 Crypto Extensions */
     ARM_FEATURE_CBAR, /* has cp15 CBAR */
     ARM_FEATURE_CRC, /* ARMv8 CRC instructions */
     ARM_FEATURE_CBAR_RO, /* has cp15 CBAR and it is read-only */
     ARM_FEATURE_EL2, /* has EL2 Virtualization support */
     ARM_FEATURE_EL3, /* has EL3 Secure monitor support */
-    ARM_FEATURE_V8_SHA1, /* implements SHA1 part of v8 Crypto Extensions */
-    ARM_FEATURE_V8_SHA256, /* implements SHA256 part of v8 Crypto Extensions */
-    ARM_FEATURE_V8_PMULL, /* implements PMULL part of v8 Crypto Extensions */
     ARM_FEATURE_THUMB_DSP, /* DSP insns supported in the Thumb encodings */
     ARM_FEATURE_PMU, /* has PMU support */
     ARM_FEATURE_VBAR, /* has cp15 VBAR */
     ARM_FEATURE_M_SECURITY, /* M profile Security Extension */
-    ARM_FEATURE_JAZELLE, /* has (trivial) Jazelle implementation */
-    ARM_FEATURE_SVE, /* has Scalable Vector Extension */
-    ARM_FEATURE_V8_SHA512, /* implements SHA512 part of v8 Crypto Extensions */
-    ARM_FEATURE_V8_SHA3, /* implements SHA3 part of v8 Crypto Extensions */
-    ARM_FEATURE_V8_SM3, /* implements SM3 part of v8 Crypto Extensions */
-    ARM_FEATURE_V8_SM4, /* implements SM4 part of v8 Crypto Extensions */
-    ARM_FEATURE_V8_ATOMICS, /* ARMv8.1-Atomics feature */
-    ARM_FEATURE_V8_RDM, /* implements v8.1 simd round multiply */
-    ARM_FEATURE_V8_DOTPROD, /* implements v8.2 simd dot product */
-    ARM_FEATURE_V8_FP16, /* implements v8.2 half-precision float */
-    ARM_FEATURE_V8_FCMA, /* has complex number part of v8.3 extensions.  */
     ARM_FEATURE_M_MAIN, /* M profile Main Extension */
 };
 
@@ -2234,6 +2355,54 @@ bool write_cpustate_to_list(ARMCPU *cpu);
 #  define TARGET_VIRT_ADDR_SPACE_BITS 32
 #endif
 
+/**
+ * arm_hcr_el2_imo(): Return the effective value of HCR_EL2.IMO.
+ * Depending on the values of HCR_EL2.E2H and TGE, this may be
+ * "behaves as 1 for all purposes other than direct read/write" or
+ * "behaves as 0 for all purposes other than direct read/write"
+ */
+static inline bool arm_hcr_el2_imo(CPUARMState *env)
+{
+    switch (env->cp15.hcr_el2 & (HCR_TGE | HCR_E2H)) {
+    case HCR_TGE:
+        return true;
+    case HCR_TGE | HCR_E2H:
+        return false;
+    default:
+        return env->cp15.hcr_el2 & HCR_IMO;
+    }
+}
+
+/**
+ * arm_hcr_el2_fmo(): Return the effective value of HCR_EL2.FMO.
+ */
+static inline bool arm_hcr_el2_fmo(CPUARMState *env)
+{
+    switch (env->cp15.hcr_el2 & (HCR_TGE | HCR_E2H)) {
+    case HCR_TGE:
+        return true;
+    case HCR_TGE | HCR_E2H:
+        return false;
+    default:
+        return env->cp15.hcr_el2 & HCR_FMO;
+    }
+}
+
+/**
+ * arm_hcr_el2_amo(): Return the effective value of HCR_EL2.AMO.
+ */
+static inline bool arm_hcr_el2_amo(CPUARMState *env)
+{
+    switch (env->cp15.hcr_el2 & (HCR_TGE | HCR_E2H)) {
+    case HCR_TGE:
+        return true;
+    case HCR_TGE | HCR_E2H:
+        return false;
+    default:
+        return env->cp15.hcr_el2 & HCR_AMO;
+    }
+}
+
 static inline bool arm_excp_unmasked(CPUState *cs, unsigned int excp_idx,
                                      unsigned int target_el)
 {
@@ -2261,13 +2430,13 @@ static inline bool arm_excp_unmasked(CPUState *cs, unsigned int excp_idx,
         break;
 
     case EXCP_VFIQ:
-        if (secure || !(env->cp15.hcr_el2 & HCR_FMO)) {
+        if (secure || !arm_hcr_el2_fmo(env) || (env->cp15.hcr_el2 & HCR_TGE)) {
             /* VFIQs are only taken when hypervized and non-secure.  */
             return false;
         }
         return !(env->daif & PSTATE_F);
     case EXCP_VIRQ:
-        if (secure || !(env->cp15.hcr_el2 & HCR_IMO)) {
+        if (secure || !arm_hcr_el2_imo(env) || (env->cp15.hcr_el2 & HCR_TGE)) {
             /* VIRQs are only taken when hypervized and non-secure.  */
             return false;
         }
@@ -2306,7 +2475,7 @@ static inline bool arm_excp_unmasked(CPUState *cs, unsigned int excp_idx,
                  * to the CPSR.F setting otherwise we further assess the state
                  * below.
                  */
-                hcr = (env->cp15.hcr_el2 & HCR_FMO);
+                hcr = arm_hcr_el2_fmo(env);
                 scr = (env->cp15.scr_el3 & SCR_FIQ);
 
                 /* When EL3 is 32-bit, the SCR.FW bit controls whether the
@@ -2323,7 +2492,7 @@ static inline bool arm_excp_unmasked(CPUState *cs, unsigned int excp_idx,
                  * when setting the target EL, so it does not have a further
                  * affect here.
                  */
-                hcr = (env->cp15.hcr_el2 & HCR_IMO);
+                hcr = arm_hcr_el2_imo(env);
                 scr = false;
                 break;
             default:
@@ -2577,7 +2746,7 @@ static inline int arm_debug_target_el(CPUARMState *env)
 
     if (arm_feature(env, ARM_FEATURE_EL2) && !secure) {
         route_to_el2 = env->cp15.hcr_el2 & HCR_TGE ||
-                       env->cp15.mdcr_el2 & (1 << 8);
+                       env->cp15.mdcr_el2 & MDCR_TDE;
     }
 
     if (route_to_el2) {
@@ -2598,23 +2767,35 @@ static inline bool arm_v7m_csselr_razwi(ARMCPU *cpu)
     return (cpu->clidr & R_V7M_CLIDR_CTYPE_ALL_MASK) != 0;
 }
 
+/* See AArch64.GenerateDebugExceptionsFrom() in ARM ARM pseudocode */
 static inline bool aa64_generate_debug_exceptions(CPUARMState *env)
 {
-    if (arm_is_secure(env)) {
-        /* MDCR_EL3.SDD disables debug events from Secure state */
-        if (extract32(env->cp15.mdcr_el3, 16, 1) != 0
-            || arm_current_el(env) == 3) {
-            return false;
-        }
+    int cur_el = arm_current_el(env);
+    int debug_el;
+
+    if (cur_el == 3) {
+        return false;
     }
 
-    if (arm_current_el(env) == arm_debug_target_el(env)) {
-        if ((extract32(env->cp15.mdscr_el1, 13, 1) == 0)
-            || (env->daif & PSTATE_D)) {
-            return false;
-        }
+    /* MDCR_EL3.SDD disables debug events from Secure state */
+    if (arm_is_secure_below_el3(env)
+        && extract32(env->cp15.mdcr_el3, 16, 1)) {
+        return false;
     }
-    return true;
+
+    /*
+     * Same EL to same EL debug exceptions need MDSCR_KDE enabled
+     * while not masking the (D)ebug bit in DAIF.
+     */
+    debug_el = arm_debug_target_el(env);
+
+    if (cur_el == debug_el) {
+        return extract32(env->cp15.mdscr_el1, 13, 1)
+            && !(env->daif & PSTATE_D);
+    }
+
+    /* Otherwise the debug target needs to be a higher EL */
+    return debug_el > cur_el;
 }
 
 static inline bool aa32_generate_debug_exceptions(CPUARMState *env)
@@ -2667,9 +2848,6 @@ static inline bool aa32_generate_debug_exceptions(CPUARMState *env)
  * since the pseudocode has it at all callsites except for the one in
  * CheckSoftwareStep(), where it is elided because both branches would
  * always return the same value.
- *
- * Parts of the pseudocode relating to EL2 and EL3 are omitted because we
- * don't yet implement those exception levels or their associated trap bits.
  */
 static inline bool arm_generate_debug_exceptions(CPUARMState *env)
 {
@@ -2785,6 +2963,9 @@ static inline bool arm_cpu_data_is_big_endian(CPUARMState *env)
 /* For M profile only, Handler (ie not Thread) mode */
 #define ARM_TBFLAG_HANDLER_SHIFT    21
 #define ARM_TBFLAG_HANDLER_MASK     (1 << ARM_TBFLAG_HANDLER_SHIFT)
+/* For M profile only, whether we should generate stack-limit checks */
+#define ARM_TBFLAG_STACKCHECK_SHIFT 22
+#define ARM_TBFLAG_STACKCHECK_MASK  (1 << ARM_TBFLAG_STACKCHECK_SHIFT)
 
 /* Bit usage when in AArch64 state */
 #define ARM_TBFLAG_TBI0_SHIFT 0        /* TBI0 for EL0/1 or TBI for EL2/3 */
@@ -2827,6 +3008,8 @@ static inline bool arm_cpu_data_is_big_endian(CPUARMState *env)
     (((F) & ARM_TBFLAG_BE_DATA_MASK) >> ARM_TBFLAG_BE_DATA_SHIFT)
 #define ARM_TBFLAG_HANDLER(F) \
     (((F) & ARM_TBFLAG_HANDLER_MASK) >> ARM_TBFLAG_HANDLER_SHIFT)
+#define ARM_TBFLAG_STACKCHECK(F) \
+    (((F) & ARM_TBFLAG_STACKCHECK_MASK) >> ARM_TBFLAG_STACKCHECK_SHIFT)
 #define ARM_TBFLAG_TBI0(F) \
     (((F) & ARM_TBFLAG_TBI0_MASK) >> ARM_TBFLAG_TBI0_SHIFT)
 #define ARM_TBFLAG_TBI1(F) \
@@ -2982,5 +3165,163 @@ static inline uint64_t *aa64_vfp_qreg(CPUARMState *env, unsigned regno)
 
 /* Shared between translate-sve.c and sve_helper.c.  */
 extern const uint64_t pred_esz_masks[4];
+
+/*
+ * 32-bit feature tests via id registers.
+ */
+static inline bool isar_feature_thumb_div(const ARMISARegisters *id)
+{
+    return FIELD_EX32(id->id_isar0, ID_ISAR0, DIVIDE) != 0;
+}
+
+static inline bool isar_feature_arm_div(const ARMISARegisters *id)
+{
+    return FIELD_EX32(id->id_isar0, ID_ISAR0, DIVIDE) > 1;
+}
+
+static inline bool isar_feature_jazelle(const ARMISARegisters *id)
+{
+    return FIELD_EX32(id->id_isar1, ID_ISAR1, JAZELLE) != 0;
+}
+
+static inline bool isar_feature_aa32_aes(const ARMISARegisters *id)
+{
+    return FIELD_EX32(id->id_isar5, ID_ISAR5, AES) != 0;
+}
+
+static inline bool isar_feature_aa32_pmull(const ARMISARegisters *id)
+{
+    return FIELD_EX32(id->id_isar5, ID_ISAR5, AES) > 1;
+}
+
+static inline bool isar_feature_aa32_sha1(const ARMISARegisters *id)
+{
+    return FIELD_EX32(id->id_isar5, ID_ISAR5, SHA1) != 0;
+}
+
+static inline bool isar_feature_aa32_sha2(const ARMISARegisters *id)
+{
+    return FIELD_EX32(id->id_isar5, ID_ISAR5, SHA2) != 0;
+}
+
+static inline bool isar_feature_aa32_crc32(const ARMISARegisters *id)
+{
+    return FIELD_EX32(id->id_isar5, ID_ISAR5, CRC32) != 0;
+}
+
+static inline bool isar_feature_aa32_rdm(const ARMISARegisters *id)
+{
+    return FIELD_EX32(id->id_isar5, ID_ISAR5, RDM) != 0;
+}
+
+static inline bool isar_feature_aa32_vcma(const ARMISARegisters *id)
+{
+    return FIELD_EX32(id->id_isar5, ID_ISAR5, VCMA) != 0;
+}
+
+static inline bool isar_feature_aa32_dp(const ARMISARegisters *id)
+{
+    return FIELD_EX32(id->id_isar6, ID_ISAR6, DP) != 0;
+}
+
+static inline bool isar_feature_aa32_fp16_arith(const ARMISARegisters *id)
+{
+    /*
+     * This is a placeholder for use by VCMA until the rest of
+     * the ARMv8.2-FP16 extension is implemented for aa32 mode.
+     * At which point we can properly set and check MVFR1.FPHP.
+     */
+    return FIELD_EX64(id->id_aa64pfr0, ID_AA64PFR0, FP) == 1;
+}
+
+/*
+ * 64-bit feature tests via id registers.
+ */
+static inline bool isar_feature_aa64_aes(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64isar0, ID_AA64ISAR0, AES) != 0;
+}
+
+static inline bool isar_feature_aa64_pmull(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64isar0, ID_AA64ISAR0, AES) > 1;
+}
+
+static inline bool isar_feature_aa64_sha1(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64isar0, ID_AA64ISAR0, SHA1) != 0;
+}
+
+static inline bool isar_feature_aa64_sha256(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64isar0, ID_AA64ISAR0, SHA2) != 0;
+}
+
+static inline bool isar_feature_aa64_sha512(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64isar0, ID_AA64ISAR0, SHA2) > 1;
+}
+
+static inline bool isar_feature_aa64_crc32(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64isar0, ID_AA64ISAR0, CRC32) != 0;
+}
+
+static inline bool isar_feature_aa64_atomics(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64isar0, ID_AA64ISAR0, ATOMIC) != 0;
+}
+
+static inline bool isar_feature_aa64_rdm(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64isar0, ID_AA64ISAR0, RDM) != 0;
+}
+
+static inline bool isar_feature_aa64_sha3(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64isar0, ID_AA64ISAR0, SHA3) != 0;
+}
+
+static inline bool isar_feature_aa64_sm3(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64isar0, ID_AA64ISAR0, SM3) != 0;
+}
+
+static inline bool isar_feature_aa64_sm4(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64isar0, ID_AA64ISAR0, SM4) != 0;
+}
+
+static inline bool isar_feature_aa64_dp(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64isar0, ID_AA64ISAR0, DP) != 0;
+}
+
+static inline bool isar_feature_aa64_fcma(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64isar1, ID_AA64ISAR1, FCMA) != 0;
+}
+
+static inline bool isar_feature_aa64_fp16(const ARMISARegisters *id)
+{
+    /* We always set the AdvSIMD and FP fields identically wrt FP16.  */
+    return FIELD_EX64(id->id_aa64pfr0, ID_AA64PFR0, FP) == 1;
+}
+
+static inline bool isar_feature_aa64_aa32(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64pfr0, ID_AA64PFR0, EL0) >= 2;
+}
+
+static inline bool isar_feature_aa64_sve(const ARMISARegisters *id)
+{
+    return FIELD_EX64(id->id_aa64pfr0, ID_AA64PFR0, SVE) != 0;
+}
+
+/*
+ * Forward to the above feature tests given an ARMCPU pointer.
+ */
+#define cpu_isar_feature(name, cpu) \
+    ({ ARMCPU *cpu_ = (cpu); isar_feature_##name(&cpu_->isar); })
 
 #endif

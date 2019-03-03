@@ -31,10 +31,6 @@
 
 #include "chardev/char-io.h"
 
-#if defined(__linux__) || defined(__sun__) || defined(__FreeBSD__)      \
-    || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__) \
-    || defined(__GLIBC__)
-
 typedef struct {
     Chardev parent;
     QIOChannel *ioc;
@@ -263,7 +259,7 @@ static void char_pty_open(Chardev *chr,
     qemu_set_nonblock(master_fd);
 
     chr->filename = g_strdup_printf("pty:%s", pty_name);
-    error_report("char device redirected to %s (label %s)",
+    error_printf("char device redirected to %s (label %s)\n",
                  pty_name, chr->label);
 
     s = PTY_CHARDEV(chr);
@@ -299,5 +295,3 @@ static void register_types(void)
 }
 
 type_init(register_types);
-
-#endif

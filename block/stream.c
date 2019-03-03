@@ -54,20 +54,16 @@ static int coroutine_fn stream_populate(BlockBackend *blk,
     return blk_co_preadv(blk, offset, qiov.size, &qiov, BDRV_REQ_COPY_ON_READ);
 }
 
-typedef struct {
-    int ret;
-} StreamCompleteData;
-
-static void stream_complete(Job *job, void *opaque)
+static int stream_prepare(Job *job)
 {
     StreamBlockJob *s = container_of(job, StreamBlockJob, common.job);
     BlockJob *bjob = &s->common;
-    StreamCompleteData *data = opaque;
     BlockDriverState *bs = blk_bs(bjob->blk);
     BlockDriverState *base = s->base;
     Error *local_err = NULL;
+    int ret = 0;
 
-    if (!job_is_cancelled(job) && bs->backing && data->ret == 0) {
+    if (bs->backing) {
         const char *base_id = NULL, *base_fmt = NULL;
         if (base) {
             base_id = s->backing_file_str;
@@ -75,16 +71,23 @@ static void stream_complete(Job *job, void *opaque)
                 base_fmt = base->drv->format_name;
             }
         }
-        data->ret = bdrv_change_backing_file(bs, base_id, base_fmt);
+        ret = bdrv_change_backing_file(bs, base_id, base_fmt);
         bdrv_set_backing_hd(bs, base, &local_err);
         if (local_err) {
             error_report_err(local_err);
-            data->ret = -EPERM;
-            goto out;
+            return -EPERM;
         }
     }
 
-out:
+    return ret;
+}
+
+static void stream_clean(Job *job)
+{
+    StreamBlockJob *s = container_of(job, StreamBlockJob, common.job);
+    BlockJob *bjob = &s->common;
+    BlockDriverState *bs = blk_bs(bjob->blk);
+
     /* Reopen the image back in read-only mode if necessary */
     if (s->bs_flags != bdrv_get_flags(bs)) {
         /* Give up write permissions before making it read-only */
@@ -93,14 +96,11 @@ out:
     }
 
     g_free(s->backing_file_str);
-    job_completed(job, data->ret, NULL);
-    g_free(data);
 }
 
-static void coroutine_fn stream_run(void *opaque)
+static int coroutine_fn stream_run(Job *job, Error **errp)
 {
-    StreamBlockJob *s = opaque;
-    StreamCompleteData *data;
+    StreamBlockJob *s = container_of(job, StreamBlockJob, common.job);
     BlockBackend *blk = s->common.blk;
     BlockDriverState *bs = blk_bs(blk);
     BlockDriverState *base = s->base;
@@ -203,9 +203,7 @@ static void coroutine_fn stream_run(void *opaque)
 
 out:
     /* Modify backing chain and close BDSes in main loop */
-    data = g_malloc(sizeof(*data));
-    data->ret = ret;
-    job_defer_to_main_loop(&s->common.job, stream_complete, data);
+    return ret;
 }
 
 static const BlockJobDriver stream_job_driver = {
@@ -213,7 +211,9 @@ static const BlockJobDriver stream_job_driver = {
         .instance_size = sizeof(StreamBlockJob),
         .job_type      = JOB_TYPE_STREAM,
         .free          = block_job_free,
-        .start         = stream_run,
+        .run           = stream_run,
+        .prepare       = stream_prepare,
+        .clean         = stream_clean,
         .user_resume   = block_job_user_resume,
         .drain         = block_job_drain,
     },
@@ -221,7 +221,8 @@ static const BlockJobDriver stream_job_driver = {
 
 void stream_start(const char *job_id, BlockDriverState *bs,
                   BlockDriverState *base, const char *backing_file_str,
-                  int64_t speed, BlockdevOnError on_error, Error **errp)
+                  int creation_flags, int64_t speed,
+                  BlockdevOnError on_error, Error **errp)
 {
     StreamBlockJob *s;
     BlockDriverState *iter;
@@ -243,7 +244,7 @@ void stream_start(const char *job_id, BlockDriverState *bs,
                          BLK_PERM_GRAPH_MOD,
                          BLK_PERM_CONSISTENT_READ | BLK_PERM_WRITE_UNCHANGED |
                          BLK_PERM_WRITE,
-                         speed, JOB_DEFAULT, NULL, NULL, errp);
+                         speed, creation_flags, NULL, NULL, errp);
     if (!s) {
         goto fail;
     }

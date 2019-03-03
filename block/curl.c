@@ -483,6 +483,8 @@ static int curl_init_state(BDRVCURLState *s, CURLState *state)
         curl_easy_setopt(state->curl, CURLOPT_URL, s->url);
         curl_easy_setopt(state->curl, CURLOPT_SSL_VERIFYPEER,
                          (long) s->sslverify);
+        curl_easy_setopt(state->curl, CURLOPT_SSL_VERIFYHOST,
+                         s->sslverify ? 2L : 0L);
         if (s->cookie) {
             curl_easy_setopt(state->curl, CURLOPT_COOKIE, s->cookie);
         }
@@ -682,10 +684,10 @@ static int curl_open(BlockDriverState *bs, QDict *options, int flags,
     const char *protocol_delimiter;
     int ret;
 
-
-    if (flags & BDRV_O_RDWR) {
-        error_setg(errp, "curl block device does not support writes");
-        return -EROFS;
+    ret = bdrv_apply_auto_read_only(bs, "curl driver does not support writes",
+                                    errp);
+    if (ret < 0) {
+        return ret;
     }
 
     if (!libcurl_initialized) {

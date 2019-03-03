@@ -42,7 +42,7 @@ typedef struct {
 } test_data;
 
 static char disk[] = "tests/acpi-test-disk-XXXXXX";
-static const char *data_dir = "tests/acpi-test-data";
+static const char *data_dir = "tests/data/acpi";
 #ifdef CONFIG_IASL
 static const char *iasl = stringify(CONFIG_IASL);
 #else
@@ -319,7 +319,7 @@ static bool load_asl(GArray *sdts, AcpiSdtTable *sdt)
     ret = g_spawn_command_line_sync(command_line->str, &out, &out_err, NULL, &error);
     g_assert_no_error(error);
     if (ret) {
-        ret = g_file_get_contents(sdt->asl_file, (gchar **)&sdt->asl,
+        ret = g_file_get_contents(sdt->asl_file, &sdt->asl,
                                   &sdt->asl_len, &error);
         g_assert(ret);
         g_assert_no_error(error);
@@ -390,7 +390,7 @@ try_again:
         if (g_file_test(aml_file, G_FILE_TEST_EXISTS)) {
             exp_sdt.aml_file = aml_file;
         } else if (*ext != '\0') {
-            /* try fallback to generic (extention less) expected file */
+            /* try fallback to generic (extension less) expected file */
             ext = "";
             g_free(aml_file);
             goto try_again;
@@ -708,6 +708,21 @@ static void test_acpi_q35_tcg_bridge(void)
     free_test_data(&data);
 }
 
+static void test_acpi_q35_tcg_mmio64(void)
+{
+    test_data data = {
+        .machine = MACHINE_Q35,
+        .variant = ".mmio64",
+        .required_struct_types = base_required_struct_types,
+        .required_struct_types_len = ARRAY_SIZE(base_required_struct_types)
+    };
+
+    test_acpi_one("-m 128M,slots=1,maxmem=2G "
+                  "-device pci-testdev,membar=2G",
+                  &data);
+    free_test_data(&data);
+}
+
 static void test_acpi_piix4_tcg_cphp(void)
 {
     test_data data;
@@ -875,6 +890,7 @@ int main(int argc, char *argv[])
         qtest_add_func("acpi/piix4/bridge", test_acpi_piix4_tcg_bridge);
         qtest_add_func("acpi/q35", test_acpi_q35_tcg);
         qtest_add_func("acpi/q35/bridge", test_acpi_q35_tcg_bridge);
+        qtest_add_func("acpi/q35/mmio64", test_acpi_q35_tcg_mmio64);
         qtest_add_func("acpi/piix4/ipmi", test_acpi_piix4_tcg_ipmi);
         qtest_add_func("acpi/q35/ipmi", test_acpi_q35_tcg_ipmi);
         qtest_add_func("acpi/piix4/cpuhp", test_acpi_piix4_tcg_cphp);

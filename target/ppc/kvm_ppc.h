@@ -62,6 +62,8 @@ bool kvmppc_has_cap_mmu_hash_v3(void);
 int kvmppc_get_cap_safe_cache(void);
 int kvmppc_get_cap_safe_bounds_check(void);
 int kvmppc_get_cap_safe_indirect_branch(void);
+bool kvmppc_has_cap_nested_kvm_hv(void);
+int kvmppc_set_cap_nested_kvm_hv(int enable);
 int kvmppc_enable_hwrng(void);
 int kvmppc_put_books_sregs(PowerPCCPU *cpu);
 PowerPCCPUClass *kvm_ppc_get_host_cpu_class(void);
@@ -72,6 +74,7 @@ bool kvmppc_pvr_workaround_required(PowerPCCPU *cpu);
 
 bool kvmppc_hpt_needs_host_contiguous_pages(void);
 void kvm_check_mmu(PowerPCCPU *cpu, Error **errp);
+void kvmppc_set_reg_ppc_online(PowerPCCPU *cpu, unsigned int online);
 
 #else
 
@@ -185,6 +188,12 @@ static inline target_ulong kvmppc_configure_v3_mmu(PowerPCCPU *cpu,
                                      uint64_t proc_tbl)
 {
     return 0;
+}
+
+static inline void kvmppc_set_reg_ppc_online(PowerPCCPU *cpu,
+                                             unsigned int online)
+{
+    return;
 }
 
 #ifndef CONFIG_USER_ONLY
@@ -311,6 +320,16 @@ static inline int kvmppc_get_cap_safe_bounds_check(void)
 static inline int kvmppc_get_cap_safe_indirect_branch(void)
 {
     return 0;
+}
+
+static inline bool kvmppc_has_cap_nested_kvm_hv(void)
+{
+    return false;
+}
+
+static inline int kvmppc_set_cap_nested_kvm_hv(int enable)
+{
+    return -1;
 }
 
 static inline int kvmppc_enable_hwrng(void)

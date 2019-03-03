@@ -115,6 +115,7 @@ typedef struct HDGeometry {
                                       select an appropriate protocol driver,
                                       ignoring the format layer */
 #define BDRV_O_NO_IO       0x10000 /* don't initialize for I/O */
+#define BDRV_O_AUTO_RDONLY 0x20000 /* degrade to read-only if opening read-write fails */
 
 #define BDRV_O_CACHE_MASK  (BDRV_O_NOCACHE | BDRV_O_NO_FLUSH)
 
@@ -125,6 +126,7 @@ typedef struct HDGeometry {
 #define BDRV_OPT_CACHE_DIRECT   "cache.direct"
 #define BDRV_OPT_CACHE_NO_FLUSH "cache.no-flush"
 #define BDRV_OPT_READ_ONLY      "read-only"
+#define BDRV_OPT_AUTO_READ_ONLY "auto-read-only"
 #define BDRV_OPT_DISCARD        "discard"
 #define BDRV_OPT_FORCE_SHARE    "force-share"
 
@@ -184,6 +186,7 @@ typedef QSIMPLEQ_HEAD(BlockReopenQueue, BlockReopenQueueEntry) BlockReopenQueue;
 typedef struct BDRVReopenState {
     BlockDriverState *bs;
     int flags;
+    BlockdevDetectZeroesOptions detect_zeroes;
     uint64_t perm, shared_perm;
     QDict *options;
     QDict *explicit_options;
@@ -410,13 +413,9 @@ void bdrv_drain_all_begin(void);
 void bdrv_drain_all_end(void);
 void bdrv_drain_all(void);
 
-/* Returns NULL when bs == NULL */
-AioWait *bdrv_get_aio_wait(BlockDriverState *bs);
-
 #define BDRV_POLL_WHILE(bs, cond) ({                       \
     BlockDriverState *bs_ = (bs);                          \
-    AIO_WAIT_WHILE(bdrv_get_aio_wait(bs_),                 \
-                   bdrv_get_aio_context(bs_),              \
+    AIO_WAIT_WHILE(bdrv_get_aio_context(bs_),              \
                    cond); })
 
 int bdrv_pdiscard(BdrvChild *child, int64_t offset, int bytes);
@@ -439,7 +438,8 @@ int bdrv_is_allocated_above(BlockDriverState *top, BlockDriverState *base,
 bool bdrv_is_read_only(BlockDriverState *bs);
 int bdrv_can_set_read_only(BlockDriverState *bs, bool read_only,
                            bool ignore_allow_rdw, Error **errp);
-int bdrv_set_read_only(BlockDriverState *bs, bool read_only, Error **errp);
+int bdrv_apply_auto_read_only(BlockDriverState *bs, const char *errmsg,
+                              Error **errp);
 bool bdrv_is_writable(BlockDriverState *bs);
 bool bdrv_is_sg(BlockDriverState *bs);
 bool bdrv_is_inserted(BlockDriverState *bs);

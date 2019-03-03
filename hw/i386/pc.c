@@ -843,7 +843,8 @@ static void load_linux(PCMachineState *pcms,
                        FWCfgState *fw_cfg)
 {
     uint16_t protocol;
-    int setup_size, kernel_size, initrd_size = 0, cmdline_size;
+    int setup_size, kernel_size, cmdline_size;
+    int64_t initrd_size = 0;
     int dtb_size, setup_data_offset;
     uint32_t initrd_max;
     uint8_t header[8192], *setup, *kernel, *initrd_data;
@@ -978,6 +979,10 @@ static void load_linux(PCMachineState *pcms,
         if (initrd_size < 0) {
             fprintf(stderr, "qemu: error reading initrd %s: %s\n",
                     initrd_filename, strerror(errno));
+            exit(1);
+        } else if (initrd_size >= initrd_max) {
+            fprintf(stderr, "qemu: initrd is too large, cannot support."
+                    "(max: %"PRIu32", need %"PRId64")\n", initrd_max, initrd_size);
             exit(1);
         }
 
@@ -1684,7 +1689,9 @@ static void pc_memory_pre_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
                                Error **errp)
 {
     const PCMachineState *pcms = PC_MACHINE(hotplug_dev);
+    const PCMachineClass *pcmc = PC_MACHINE_GET_CLASS(pcms);
     const bool is_nvdimm = object_dynamic_cast(OBJECT(dev), TYPE_NVDIMM);
+    const uint64_t legacy_align = TARGET_PAGE_SIZE;
 
     /*
      * When -no-acpi is used with Q35 machine type, no ACPI is built,
@@ -1701,6 +1708,9 @@ static void pc_memory_pre_plug(HotplugHandler *hotplug_dev, DeviceState *dev,
         error_setg(errp, "nvdimm is not enabled: missing 'nvdimm' in '-M'");
         return;
     }
+
+    pc_dimm_pre_plug(PC_DIMM(dev), MACHINE(hotplug_dev),
+                     pcmc->enforce_aligned_dimm ? NULL : &legacy_align, errp);
 }
 
 static void pc_memory_plug(HotplugHandler *hotplug_dev,
@@ -1709,18 +1719,9 @@ static void pc_memory_plug(HotplugHandler *hotplug_dev,
     HotplugHandlerClass *hhc;
     Error *local_err = NULL;
     PCMachineState *pcms = PC_MACHINE(hotplug_dev);
-    PCMachineClass *pcmc = PC_MACHINE_GET_CLASS(pcms);
-    PCDIMMDevice *dimm = PC_DIMM(dev);
-    PCDIMMDeviceClass *ddc = PC_DIMM_GET_CLASS(dimm);
-    MemoryRegion *mr = ddc->get_memory_region(dimm, &error_abort);
-    uint64_t align = TARGET_PAGE_SIZE;
     bool is_nvdimm = object_dynamic_cast(OBJECT(dev), TYPE_NVDIMM);
 
-    if (memory_region_get_alignment(mr) && pcmc->enforce_aligned_dimm) {
-        align = memory_region_get_alignment(mr);
-    }
-
-    pc_dimm_plug(dev, MACHINE(pcms), align, &local_err);
+    pc_dimm_plug(PC_DIMM(dev), MACHINE(pcms), &local_err);
     if (local_err) {
         goto out;
     }
@@ -1780,7 +1781,7 @@ static void pc_memory_unplug(HotplugHandler *hotplug_dev,
         goto out;
     }
 
-    pc_dimm_unplug(dev, MACHINE(pcms));
+    pc_dimm_unplug(PC_DIMM(dev), MACHINE(pcms));
     object_unparent(OBJECT(dev));
 
  out:
@@ -2213,8 +2214,9 @@ static void pc_machine_set_nvdimm_persistence(Object *obj, const char *value,
     else if (strcmp(value, "mem-ctrl") == 0)
         nvdimm_state->persistence = 2;
     else {
-        error_report("-machine nvdimm-persistence=%s: unsupported option", value);
-        exit(EXIT_FAILURE);
+        error_setg(errp, "-machine nvdimm-persistence=%s: unsupported option",
+                   value);
+        return;
     }
 
     g_free(nvdimm_state->persistence_string);

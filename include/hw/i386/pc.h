@@ -294,6 +294,22 @@ int e820_add_entry(uint64_t, uint64_t, uint32_t);
 int e820_get_num_entries(void);
 bool e820_get_entry(int, uint32_t, uint64_t *, uint64_t *);
 
+#define PC_COMPAT_3_0 \
+    HW_COMPAT_3_0 \
+    {\
+        .driver   = TYPE_X86_CPU,\
+        .property = "x-hv-synic-kvm-only",\
+        .value    = "on",\
+    },{\
+        .driver   = "Skylake-Server" "-" TYPE_X86_CPU,\
+        .property = "pku",\
+        .value    = "off",\
+    },{\
+        .driver   = "Skylake-Server-IBRS" "-" TYPE_X86_CPU,\
+        .property = "pku",\
+        .value    = "off",\
+    },
+
 #define PC_COMPAT_2_12 \
     HW_COMPAT_2_12 \
     {\

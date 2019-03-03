@@ -329,7 +329,7 @@ static void rxfilter_notify(NetClientState *nc)
     if (nc->rxfilter_notify_enabled) {
         gchar *path = object_get_canonical_path(OBJECT(n->qdev));
         qapi_event_send_nic_rx_filter_changed(!!n->netclient_name,
-                                              n->netclient_name, path, &error_abort);
+                                              n->netclient_name, path);
         g_free(path);
 
         /* disable event notification to avoid events flooding */
@@ -2020,10 +2020,10 @@ static void virtio_net_device_realize(DeviceState *dev, Error **errp)
 
     if (n->net_conf.tx && strcmp(n->net_conf.tx, "timer")
                        && strcmp(n->net_conf.tx, "bh")) {
-        error_report("virtio-net: "
-                     "Unknown option tx=%s, valid options: \"timer\" \"bh\"",
-                     n->net_conf.tx);
-        error_report("Defaulting to \"bh\"");
+        warn_report("virtio-net: "
+                    "Unknown option tx=%s, valid options: \"timer\" \"bh\"",
+                    n->net_conf.tx);
+        error_printf("Defaulting to \"bh\"");
     }
 
     n->net_conf.tx_queue_size = MIN(virtio_net_max_tx_queue_size(n),

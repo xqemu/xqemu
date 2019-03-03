@@ -199,7 +199,7 @@ static void quorum_report_bad(QuorumOpType type, uint64_t offset,
     }
 
     qapi_event_send_quorum_report_bad(type, !!msg, msg, node_name, start_sector,
-                                      end_sector - start_sector, &error_abort);
+                                      end_sector - start_sector);
 }
 
 static void quorum_report_failure(QuorumAIOCB *acb)
@@ -210,7 +210,7 @@ static void quorum_report_failure(QuorumAIOCB *acb)
                                       BDRV_SECTOR_SIZE);
 
     qapi_event_send_quorum_failure(reference, start_sector,
-                                   end_sector - start_sector, &error_abort);
+                                   end_sector - start_sector);
 }
 
 static int quorum_vote_error(QuorumAIOCB *acb);
@@ -437,23 +437,7 @@ static bool quorum_iovec_compare(QEMUIOVector *a, QEMUIOVector *b)
     return true;
 }
 
-static void GCC_FMT_ATTR(2, 3) quorum_err(QuorumAIOCB *acb,
-                                          const char *fmt, ...)
-{
-    va_list ap;
-
-    va_start(ap, fmt);
-    fprintf(stderr, "quorum: offset=%" PRIu64 " bytes=%" PRIu64 " ",
-            acb->offset, acb->bytes);
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
-    va_end(ap);
-    exit(1);
-}
-
-static bool quorum_compare(QuorumAIOCB *acb,
-                           QEMUIOVector *a,
-                           QEMUIOVector *b)
+static bool quorum_compare(QuorumAIOCB *acb, QEMUIOVector *a, QEMUIOVector *b)
 {
     BDRVQuorumState *s = acb->bs->opaque;
     ssize_t offset;
@@ -462,8 +446,10 @@ static bool quorum_compare(QuorumAIOCB *acb,
     if (s->is_blkverify) {
         offset = qemu_iovec_compare(a, b);
         if (offset != -1) {
-            quorum_err(acb, "contents mismatch at offset %" PRIu64,
-                       acb->offset + offset);
+            fprintf(stderr, "quorum: offset=%" PRIu64 " bytes=%" PRIu64
+                    " contents mismatch at offset %" PRIu64 "\n",
+                    acb->offset, acb->bytes, acb->offset + offset);
+            exit(1);
         }
         return true;
     }
@@ -926,13 +912,12 @@ static int quorum_open(BlockDriverState *bs, QDict *options, int flags,
     s->read_pattern = ret;
 
     if (s->read_pattern == QUORUM_READ_PATTERN_QUORUM) {
-        /* is the driver in blkverify mode */
-        if (qemu_opt_get_bool(opts, QUORUM_OPT_BLKVERIFY, false) &&
-            s->num_children == 2 && s->threshold == 2) {
-            s->is_blkverify = true;
-        } else if (qemu_opt_get_bool(opts, QUORUM_OPT_BLKVERIFY, false)) {
-            fprintf(stderr, "blkverify mode is set by setting blkverify=on "
-                    "and using two files with vote_threshold=2\n");
+        s->is_blkverify = qemu_opt_get_bool(opts, QUORUM_OPT_BLKVERIFY, false);
+        if (s->is_blkverify && (s->num_children != 2 || s->threshold != 2)) {
+            error_setg(&local_err, "blkverify=on can only be set if there are "
+                       "exactly two files and vote-threshold is 2");
+            ret = -EINVAL;
+            goto exit;
         }
 
         s->rewrite_corrupted = qemu_opt_get_bool(opts, QUORUM_OPT_REWRITE,
@@ -1007,6 +992,11 @@ static void quorum_add_child(BlockDriverState *bs, BlockDriverState *child_bs,
     char indexstr[32];
     int ret;
 
+    if (s->is_blkverify) {
+        error_setg(errp, "Cannot add a child to a quorum in blkverify mode");
+        return;
+    }
+
     assert(s->num_children <= INT_MAX / sizeof(BdrvChild *));
     if (s->num_children == INT_MAX / sizeof(BdrvChild *) ||
         s->next_child_index == UINT_MAX) {
@@ -1060,6 +1050,9 @@ static void quorum_del_child(BlockDriverState *bs, BdrvChild *child,
             s->threshold);
         return;
     }
+
+    /* We know now that num_children > threshold, so blkverify must be false */
+    assert(!s->is_blkverify);
 
     bdrv_drained_begin(bs);
 

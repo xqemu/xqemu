@@ -50,9 +50,9 @@ void kvm_arm_register_device(MemoryRegion *mr, uint64_t devid, uint64_t group,
 
 /**
  * kvm_arm_init_cpreg_list:
- * @cs: CPUState
+ * @cpu: ARMCPU
  *
- * Initialize the CPUState's cpreg list according to the kernel's
+ * Initialize the ARMCPU cpreg list according to the kernel's
  * definition of what CPU registers it knows about (and throw away
  * the previous TCG-created cpreg list).
  *
@@ -121,6 +121,30 @@ bool write_kvmstate_to_list(ARMCPU *cpu);
  */
 void kvm_arm_reset_vcpu(ARMCPU *cpu);
 
+/**
+ * kvm_arm_init_serror_injection:
+ * @cs: CPUState
+ *
+ * Check whether KVM can set guest SError syndrome.
+ */
+void kvm_arm_init_serror_injection(CPUState *cs);
+
+/**
+ * kvm_get_vcpu_events:
+ * @cpu: ARMCPU
+ *
+ * Get VCPU related state from kvm.
+ */
+int kvm_get_vcpu_events(ARMCPU *cpu);
+
+/**
+ * kvm_put_vcpu_events:
+ * @cpu: ARMCPU
+ *
+ * Put VCPU related state to kvm.
+ */
+int kvm_put_vcpu_events(ARMCPU *cpu);
+
 #ifdef CONFIG_KVM
 /**
  * kvm_arm_create_scratch_host_vcpu:
@@ -159,6 +183,7 @@ void kvm_arm_destroy_scratch_host_vcpu(int *fdarray);
  * by asking the host kernel)
  */
 typedef struct ARMHostCPUFeatures {
+    ARMISARegisters isar;
     uint64_t features;
     uint32_t target;
     const char *dtb_compatible;

@@ -18,13 +18,15 @@ import basevm
 
 class FreeBSDVM(basevm.BaseVM):
     name = "freebsd"
+    arch = "x86_64"
     BUILD_SCRIPT = """
         set -e;
+        rm -rf /var/tmp/qemu-test.*
         cd $(mktemp -d /var/tmp/qemu-test.XXXXXX);
         tar -xf /dev/vtbd1;
         ./configure {configure_opts};
-        gmake -j{jobs};
-        gmake check;
+        gmake --output-sync -j{jobs} {verbose};
+        gmake --output-sync -j{jobs} check {verbose};
     """
 
     def build_image(self, img):

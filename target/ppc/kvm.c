@@ -91,6 +91,7 @@ static int cap_ppc_pvr_compat;
 static int cap_ppc_safe_cache;
 static int cap_ppc_safe_bounds_check;
 static int cap_ppc_safe_indirect_branch;
+static int cap_ppc_nested_kvm_hv;
 
 static uint32_t debug_inst_opcode;
 
@@ -150,6 +151,7 @@ int kvm_arch_init(MachineState *ms, KVMState *s)
     cap_mmu_hash_v3 = kvm_vm_check_extension(s, KVM_CAP_PPC_MMU_HASH_V3);
     cap_resize_hpt = kvm_vm_check_extension(s, KVM_CAP_SPAPR_RESIZE_HPT);
     kvmppc_get_cpu_characteristics(s);
+    cap_ppc_nested_kvm_hv = kvm_vm_check_extension(s, KVM_CAP_PPC_NESTED_HV);
     /*
      * Note: setting it to false because there is not such capability
      * in KVM at this moment.
@@ -1315,9 +1317,7 @@ int kvmppc_set_interrupt(PowerPCCPU *cpu, int irq, int level)
     return 0;
 }
 
-#if defined(TARGET_PPCEMB)
-#define PPC_INPUT_INT PPC40x_INPUT_INT
-#elif defined(TARGET_PPC64)
+#if defined(TARGET_PPC64)
 #define PPC_INPUT_INT PPC970_INPUT_INT
 #else
 #define PPC_INPUT_INT PPC6xx_INPUT_INT
@@ -2424,6 +2424,16 @@ int kvmppc_get_cap_safe_indirect_branch(void)
     return cap_ppc_safe_indirect_branch;
 }
 
+bool kvmppc_has_cap_nested_kvm_hv(void)
+{
+    return !!cap_ppc_nested_kvm_hv;
+}
+
+int kvmppc_set_cap_nested_kvm_hv(int enable)
+{
+    return kvm_vm_enable_cap(kvm_state, KVM_CAP_PPC_NESTED_HV, 0, enable);
+}
+
 bool kvmppc_has_cap_spapr_vfio(void)
 {
     return cap_spapr_vfio;
@@ -2784,4 +2794,13 @@ bool kvmppc_pvr_workaround_required(PowerPCCPU *cpu)
     }
 
     return !kvmppc_is_pr(cs->kvm_state);
+}
+
+void kvmppc_set_reg_ppc_online(PowerPCCPU *cpu, unsigned int online)
+{
+    CPUState *cs = CPU(cpu);
+
+    if (kvm_enabled()) {
+        kvm_set_one_reg(cs, KVM_REG_PPC_ONLINE, &online);
+    }
 }

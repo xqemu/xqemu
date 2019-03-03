@@ -146,12 +146,12 @@ static void test_qga_sync_delimited(gconstpointer fix)
     guint32 v, r = g_random_int();
     unsigned char c;
     QDict *ret;
-    gchar *cmd;
 
-    cmd = g_strdup_printf("\xff{'execute': 'guest-sync-delimited',"
-                          " 'arguments': {'id': %u } }", r);
-    qmp_fd_send(fixture->fd, cmd);
-    g_free(cmd);
+    qmp_fd_send_raw(fixture->fd, "\xff");
+    qmp_fd_send(fixture->fd,
+                "{'execute': 'guest-sync-delimited',"
+                " 'arguments': {'id': %u } }",
+                r);
 
     /*
      * Read and ignore garbage until resynchronized.
@@ -188,7 +188,6 @@ static void test_qga_sync(gconstpointer fix)
     const TestFixture *fixture = fix;
     guint32 v, r = g_random_int();
     QDict *ret;
-    gchar *cmd;
 
     /*
      * TODO guest-sync is inherently limited: we cannot distinguish
@@ -201,10 +200,9 @@ static void test_qga_sync(gconstpointer fix)
      * invalid JSON. Testing of '\xff' handling is done in
      * guest-sync-delimited instead.
      */
-    cmd = g_strdup_printf("{'execute': 'guest-sync',"
-                          " 'arguments': {'id': %u } }", r);
-    ret = qmp_fd(fixture->fd, cmd);
-    g_free(cmd);
+    ret = qmp_fd(fixture->fd,
+                 "{'execute': 'guest-sync', 'arguments': {'id': %u } }",
+                 r);
 
     g_assert_nonnull(ret);
     qmp_assert_no_error(ret);
@@ -246,17 +244,12 @@ static void test_qga_invalid_id(gconstpointer fix)
 static void test_qga_invalid_oob(gconstpointer fix)
 {
     const TestFixture *fixture = fix;
-    QDict *ret, *error;
-    const char *class;
+    QDict *ret;
 
     ret = qmp_fd(fixture->fd, "{'exec-oob': 'guest-ping'}");
     g_assert_nonnull(ret);
 
-    error = qdict_get_qdict(ret, "error");
-    class = qdict_get_try_str(error, "class");
-    g_assert_cmpstr(class, ==, "GenericError");
-
-    qobject_unref(ret);
+    qmp_assert_error_class(ret, "GenericError");
 }
 
 static void test_qga_invalid_args(gconstpointer fix)
@@ -428,7 +421,7 @@ static void test_qga_file_ops(gconstpointer fix)
     const TestFixture *fixture = fix;
     const unsigned char helloworld[] = "Hello World!\n";
     const char *b64;
-    gchar *cmd, *path, *enc;
+    gchar *path, *enc;
     unsigned char *dec;
     QDict *ret, *val;
     int64_t id, eof;
@@ -446,10 +439,10 @@ static void test_qga_file_ops(gconstpointer fix)
 
     enc = g_base64_encode(helloworld, sizeof(helloworld));
     /* write */
-    cmd = g_strdup_printf("{'execute': 'guest-file-write',"
-                          " 'arguments': { 'handle': %" PRId64 ","
-                          " 'buf-b64': '%s' } }", id, enc);
-    ret = qmp_fd(fixture->fd, cmd);
+    ret = qmp_fd(fixture->fd,
+                 "{'execute': 'guest-file-write',"
+                 " 'arguments': { 'handle': %" PRId64 ", 'buf-b64': %s } }",
+                 id, enc);
     g_assert_nonnull(ret);
     qmp_assert_no_error(ret);
 
@@ -459,23 +452,20 @@ static void test_qga_file_ops(gconstpointer fix)
     g_assert_cmpint(count, ==, sizeof(helloworld));
     g_assert_cmpint(eof, ==, 0);
     qobject_unref(ret);
-    g_free(cmd);
 
     /* flush */
-    cmd = g_strdup_printf("{'execute': 'guest-file-flush',"
-                          " 'arguments': {'handle': %" PRId64 "} }",
-                          id);
-    ret = qmp_fd(fixture->fd, cmd);
+    ret = qmp_fd(fixture->fd,
+                 "{'execute': 'guest-file-flush',"
+                 " 'arguments': {'handle': %" PRId64 "} }",
+                 id);
     qobject_unref(ret);
-    g_free(cmd);
 
     /* close */
-    cmd = g_strdup_printf("{'execute': 'guest-file-close',"
-                          " 'arguments': {'handle': %" PRId64 "} }",
-                          id);
-    ret = qmp_fd(fixture->fd, cmd);
+    ret = qmp_fd(fixture->fd,
+                 "{'execute': 'guest-file-close',"
+                 " 'arguments': {'handle': %" PRId64 "} }",
+                 id);
     qobject_unref(ret);
-    g_free(cmd);
 
     /* check content */
     path = g_build_filename(fixture->test_dir, "foo", NULL);
@@ -497,10 +487,10 @@ static void test_qga_file_ops(gconstpointer fix)
     qobject_unref(ret);
 
     /* read */
-    cmd = g_strdup_printf("{'execute': 'guest-file-read',"
-                          " 'arguments': { 'handle': %" PRId64 "} }",
-                          id);
-    ret = qmp_fd(fixture->fd, cmd);
+    ret = qmp_fd(fixture->fd,
+                 "{'execute': 'guest-file-read',"
+                 " 'arguments': { 'handle': %" PRId64 "} }",
+                 id);
     val = qdict_get_qdict(ret, "return");
     count = qdict_get_int(val, "count");
     eof = qdict_get_bool(val, "eof");
@@ -510,14 +500,13 @@ static void test_qga_file_ops(gconstpointer fix)
     g_assert_cmpstr(b64, ==, enc);
 
     qobject_unref(ret);
-    g_free(cmd);
     g_free(enc);
 
     /* read eof */
-    cmd = g_strdup_printf("{'execute': 'guest-file-read',"
-                          " 'arguments': { 'handle': %" PRId64 "} }",
-                          id);
-    ret = qmp_fd(fixture->fd, cmd);
+    ret = qmp_fd(fixture->fd,
+                 "{'execute': 'guest-file-read',"
+                 " 'arguments': { 'handle': %" PRId64 "} }",
+                 id);
     val = qdict_get_qdict(ret, "return");
     count = qdict_get_int(val, "count");
     eof = qdict_get_bool(val, "eof");
@@ -526,14 +515,13 @@ static void test_qga_file_ops(gconstpointer fix)
     g_assert(eof);
     g_assert_cmpstr(b64, ==, "");
     qobject_unref(ret);
-    g_free(cmd);
 
     /* seek */
-    cmd = g_strdup_printf("{'execute': 'guest-file-seek',"
-                          " 'arguments': { 'handle': %" PRId64 ", "
-                          " 'offset': %d, 'whence': '%s' } }",
-                          id, 6, "set");
-    ret = qmp_fd(fixture->fd, cmd);
+    ret = qmp_fd(fixture->fd,
+                 "{'execute': 'guest-file-seek',"
+                 " 'arguments': { 'handle': %" PRId64 ", "
+                 " 'offset': %d, 'whence': %s } }",
+                 id, 6, "set");
     qmp_assert_no_error(ret);
     val = qdict_get_qdict(ret, "return");
     count = qdict_get_int(val, "position");
@@ -541,13 +529,12 @@ static void test_qga_file_ops(gconstpointer fix)
     g_assert_cmpint(count, ==, 6);
     g_assert(!eof);
     qobject_unref(ret);
-    g_free(cmd);
 
     /* partial read */
-    cmd = g_strdup_printf("{'execute': 'guest-file-read',"
-                          " 'arguments': { 'handle': %" PRId64 "} }",
-                          id);
-    ret = qmp_fd(fixture->fd, cmd);
+    ret = qmp_fd(fixture->fd,
+                 "{'execute': 'guest-file-read',"
+                 " 'arguments': { 'handle': %" PRId64 "} }",
+                 id);
     val = qdict_get_qdict(ret, "return");
     count = qdict_get_int(val, "count");
     eof = qdict_get_bool(val, "eof");
@@ -560,15 +547,13 @@ static void test_qga_file_ops(gconstpointer fix)
     g_free(dec);
 
     qobject_unref(ret);
-    g_free(cmd);
 
     /* close */
-    cmd = g_strdup_printf("{'execute': 'guest-file-close',"
-                          " 'arguments': {'handle': %" PRId64 "} }",
-                          id);
-    ret = qmp_fd(fixture->fd, cmd);
+    ret = qmp_fd(fixture->fd,
+                 "{'execute': 'guest-file-close',"
+                 " 'arguments': {'handle': %" PRId64 "} }",
+                 id);
     qobject_unref(ret);
-    g_free(cmd);
 }
 
 static void test_qga_file_write_read(gconstpointer fix)
@@ -576,7 +561,7 @@ static void test_qga_file_write_read(gconstpointer fix)
     const TestFixture *fixture = fix;
     const unsigned char helloworld[] = "Hello World!\n";
     const char *b64;
-    gchar *cmd, *enc;
+    gchar *enc;
     QDict *ret, *val;
     int64_t id, eof;
     gsize count;
@@ -591,10 +576,10 @@ static void test_qga_file_write_read(gconstpointer fix)
 
     enc = g_base64_encode(helloworld, sizeof(helloworld));
     /* write */
-    cmd = g_strdup_printf("{'execute': 'guest-file-write',"
-                          " 'arguments': { 'handle': %" PRId64 ","
-                          " 'buf-b64': '%s' } }", id, enc);
-    ret = qmp_fd(fixture->fd, cmd);
+    ret = qmp_fd(fixture->fd,
+                 "{'execute': 'guest-file-write',"
+                 " 'arguments': { 'handle': %" PRId64 ","
+                 " 'buf-b64': %s } }", id, enc);
     g_assert_nonnull(ret);
     qmp_assert_no_error(ret);
 
@@ -604,13 +589,12 @@ static void test_qga_file_write_read(gconstpointer fix)
     g_assert_cmpint(count, ==, sizeof(helloworld));
     g_assert_cmpint(eof, ==, 0);
     qobject_unref(ret);
-    g_free(cmd);
 
     /* read (check implicit flush) */
-    cmd = g_strdup_printf("{'execute': 'guest-file-read',"
-                          " 'arguments': { 'handle': %" PRId64 "} }",
-                          id);
-    ret = qmp_fd(fixture->fd, cmd);
+    ret = qmp_fd(fixture->fd,
+                 "{'execute': 'guest-file-read',"
+                 " 'arguments': { 'handle': %" PRId64 "} }",
+                 id);
     val = qdict_get_qdict(ret, "return");
     count = qdict_get_int(val, "count");
     eof = qdict_get_bool(val, "eof");
@@ -619,14 +603,13 @@ static void test_qga_file_write_read(gconstpointer fix)
     g_assert(eof);
     g_assert_cmpstr(b64, ==, "");
     qobject_unref(ret);
-    g_free(cmd);
 
     /* seek to 0 */
-    cmd = g_strdup_printf("{'execute': 'guest-file-seek',"
-                          " 'arguments': { 'handle': %" PRId64 ", "
-                          " 'offset': %d, 'whence': '%s' } }",
-                          id, 0, "set");
-    ret = qmp_fd(fixture->fd, cmd);
+    ret = qmp_fd(fixture->fd,
+                 "{'execute': 'guest-file-seek',"
+                 " 'arguments': { 'handle': %" PRId64 ", "
+                 " 'offset': %d, 'whence': %s } }",
+                 id, 0, "set");
     qmp_assert_no_error(ret);
     val = qdict_get_qdict(ret, "return");
     count = qdict_get_int(val, "position");
@@ -634,13 +617,12 @@ static void test_qga_file_write_read(gconstpointer fix)
     g_assert_cmpint(count, ==, 0);
     g_assert(!eof);
     qobject_unref(ret);
-    g_free(cmd);
 
     /* read */
-    cmd = g_strdup_printf("{'execute': 'guest-file-read',"
-                          " 'arguments': { 'handle': %" PRId64 "} }",
-                          id);
-    ret = qmp_fd(fixture->fd, cmd);
+    ret = qmp_fd(fixture->fd,
+                 "{'execute': 'guest-file-read',"
+                 " 'arguments': { 'handle': %" PRId64 "} }",
+                 id);
     val = qdict_get_qdict(ret, "return");
     count = qdict_get_int(val, "count");
     eof = qdict_get_bool(val, "eof");
@@ -649,16 +631,14 @@ static void test_qga_file_write_read(gconstpointer fix)
     g_assert(eof);
     g_assert_cmpstr(b64, ==, enc);
     qobject_unref(ret);
-    g_free(cmd);
     g_free(enc);
 
     /* close */
-    cmd = g_strdup_printf("{'execute': 'guest-file-close',"
-                          " 'arguments': {'handle': %" PRId64 "} }",
-                          id);
-    ret = qmp_fd(fixture->fd, cmd);
+    ret = qmp_fd(fixture->fd,
+                 "{'execute': 'guest-file-close',"
+                 " 'arguments': {'handle': %" PRId64 "} }",
+                 id);
     qobject_unref(ret);
-    g_free(cmd);
 }
 
 static void test_qga_get_time(gconstpointer fix)
@@ -814,7 +794,6 @@ static void test_qga_guest_exec(gconstpointer fix)
     int64_t pid, now, exitcode;
     gsize len;
     bool exited;
-    char *cmd;
 
     /* exec 'echo foo bar' */
     ret = qmp_fd(fixture->fd, "{'execute': 'guest-exec', 'arguments': {"
@@ -829,10 +808,10 @@ static void test_qga_guest_exec(gconstpointer fix)
 
     /* wait for completion */
     now = g_get_monotonic_time();
-    cmd = g_strdup_printf("{'execute': 'guest-exec-status',"
-                          " 'arguments': { 'pid': %" PRId64 " } }", pid);
     do {
-        ret = qmp_fd(fixture->fd, cmd);
+        ret = qmp_fd(fixture->fd,
+                     "{'execute': 'guest-exec-status',"
+                     " 'arguments': { 'pid': %" PRId64 " } }", pid);
         g_assert_nonnull(ret);
         val = qdict_get_qdict(ret, "return");
         exited = qdict_get_bool(val, "exited");
@@ -842,7 +821,6 @@ static void test_qga_guest_exec(gconstpointer fix)
     } while (!exited &&
              g_get_monotonic_time() < now + 5 * G_TIME_SPAN_SECOND);
     g_assert(exited);
-    g_free(cmd);
 
     /* check stdout */
     exitcode = qdict_get_int(val, "exitcode");

@@ -510,6 +510,20 @@ int postcopy_ram_incoming_init(MigrationIncomingState *mis)
 }
 
 /*
+ * Manage a single vote to the QEMU balloon inhibitor for all postcopy usage,
+ * last caller wins.
+ */
+static void postcopy_balloon_inhibit(bool state)
+{
+    static bool cur_state = false;
+
+    if (state != cur_state) {
+        qemu_balloon_inhibit(state);
+        cur_state = state;
+    }
+}
+
+/*
  * At the end of a migration where postcopy_ram_incoming_init was called.
  */
 int postcopy_ram_incoming_cleanup(MigrationIncomingState *mis)
@@ -519,6 +533,12 @@ int postcopy_ram_incoming_cleanup(MigrationIncomingState *mis)
     if (mis->have_fault_thread) {
         Error *local_err = NULL;
 
+        /* Let the fault thread quit */
+        atomic_set(&mis->fault_thread_quit, 1);
+        postcopy_fault_thread_notify(mis);
+        trace_postcopy_ram_incoming_cleanup_join();
+        qemu_thread_join(&mis->fault_thread);
+
         if (postcopy_notify(POSTCOPY_NOTIFY_INBOUND_END, &local_err)) {
             error_report_err(local_err);
             return -1;
@@ -527,11 +547,6 @@ int postcopy_ram_incoming_cleanup(MigrationIncomingState *mis)
         if (qemu_ram_foreach_migratable_block(cleanup_range, mis)) {
             return -1;
         }
-        /* Let the fault thread quit */
-        atomic_set(&mis->fault_thread_quit, 1);
-        postcopy_fault_thread_notify(mis);
-        trace_postcopy_ram_incoming_cleanup_join();
-        qemu_thread_join(&mis->fault_thread);
 
         trace_postcopy_ram_incoming_cleanup_closeuf();
         close(mis->userfault_fd);
@@ -539,7 +554,7 @@ int postcopy_ram_incoming_cleanup(MigrationIncomingState *mis)
         mis->have_fault_thread = false;
     }
 
-    qemu_balloon_inhibit(false);
+    postcopy_balloon_inhibit(false);
 
     if (enable_mlock) {
         if (os_mlock() < 0) {
@@ -853,6 +868,7 @@ static void *postcopy_ram_fault_thread(void *opaque)
     RAMBlock *rb = NULL;
 
     trace_postcopy_ram_fault_thread_entry();
+    rcu_register_thread();
     mis->last_rb = NULL; /* last RAMBlock we sent part of */
     qemu_sem_post(&mis->fault_thread_sem);
 
@@ -1059,6 +1075,7 @@ retry:
             }
         }
     }
+    rcu_unregister_thread();
     trace_postcopy_ram_fault_thread_exit();
     g_free(pfd);
     return NULL;
@@ -1107,7 +1124,7 @@ int postcopy_ram_enable_notify(MigrationIncomingState *mis)
      * Ballooning can mark pages as absent while we're postcopying
      * that would cause false userfaults.
      */
-    qemu_balloon_inhibit(true);
+    postcopy_balloon_inhibit(true);
 
     trace_postcopy_ram_enable_notify();
 

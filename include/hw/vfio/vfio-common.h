@@ -26,17 +26,18 @@
 #include "qemu/queue.h"
 #include "qemu/notify.h"
 #include "ui/console.h"
+#include "hw/display/ramfb.h"
 #ifdef CONFIG_LINUX
 #include <linux/vfio.h>
 #endif
 
-#define ERR_PREFIX "vfio error: %s: "
-#define WARN_PREFIX "vfio warning: %s: "
+#define VFIO_MSG_PREFIX "vfio %s: "
 
 enum {
     VFIO_DEVICE_TYPE_PCI = 0,
     VFIO_DEVICE_TYPE_PLATFORM = 1,
     VFIO_DEVICE_TYPE_CCW = 2,
+    VFIO_DEVICE_TYPE_AP = 3,
 };
 
 typedef struct VFIOMmap {
@@ -73,6 +74,7 @@ typedef struct VFIOContainer {
     unsigned iommu_type;
     int error;
     bool initialized;
+    unsigned long pgsizes;
     /*
      * This assumes the host IOMMU can support only a single
      * contiguous IOVA window.  We may need to generalize that in
@@ -112,6 +114,7 @@ typedef struct VFIODevice {
     bool reset_works;
     bool needs_reset;
     bool no_mmap;
+    bool balloon_allowed;
     VFIODeviceOps *ops;
     unsigned int num_irqs;
     unsigned int num_regions;
@@ -131,6 +134,7 @@ typedef struct VFIOGroup {
     QLIST_HEAD(, VFIODevice) device_list;
     QLIST_ENTRY(VFIOGroup) next;
     QLIST_ENTRY(VFIOGroup) container_next;
+    bool balloon_allowed;
 } VFIOGroup;
 
 typedef struct VFIODMABuf {
@@ -143,6 +147,7 @@ typedef struct VFIODMABuf {
 
 typedef struct VFIODisplay {
     QemuConsole *con;
+    RAMFBState *ramfb;
     struct {
         VFIORegion buffer;
         DisplaySurface *surface;

@@ -234,7 +234,7 @@ static int sam460ex_load_uboot(void)
     if (!pflash_cfi01_register(base, NULL, "sam460ex.flash", bios_size,
                                blk, 64 * KiB, fl_sectors,
                                1, 0x89, 0x18, 0x0000, 0x0, 1)) {
-        error_report("qemu: Error registering flash memory.");
+        error_report("Error registering flash memory");
         /* XXX: return an error instead? */
         exit(1);
     }
@@ -419,13 +419,6 @@ static void sam460ex_init(MachineState *machine)
         exit(1);
     }
 
-#ifdef TARGET_PPCEMB
-    if (!qtest_enabled()) {
-        warn_report("qemu-system-ppcemb is deprecated, "
-                    "please use qemu-system-ppc instead.");
-    }
-#endif
-
     qemu_register_reset(main_cpu_reset, cpu);
     boot_info = g_malloc0(sizeof(*boot_info));
     env->load_info = boot_info;
@@ -552,7 +545,7 @@ static void sam460ex_init(MachineState *machine)
     if (!machine->kernel_filename) {
         success = sam460ex_load_uboot();
         if (success < 0) {
-            error_report("qemu: could not load firmware");
+            error_report("could not load firmware");
             exit(1);
         }
     }
@@ -571,7 +564,7 @@ static void sam460ex_init(MachineState *machine)
         }
         /* XXX try again as binary */
         if (success < 0) {
-            error_report("qemu: could not load kernel '%s'",
+            error_report("could not load kernel '%s'",
                     machine->kernel_filename);
             exit(1);
         }
@@ -583,7 +576,7 @@ static void sam460ex_init(MachineState *machine)
                                           RAMDISK_ADDR,
                                           machine->ram_size - RAMDISK_ADDR);
         if (initrd_size < 0) {
-            error_report("qemu: could not load ram disk '%s' at %x",
+            error_report("could not load ram disk '%s' at %x",
                     machine->initrd_filename, RAMDISK_ADDR);
             exit(1);
         }

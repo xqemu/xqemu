@@ -272,7 +272,9 @@ static void nvme_post_cqes(void *opaque)
             sizeof(req->cqe));
         QTAILQ_INSERT_TAIL(&sq->req_list, req, entry);
     }
-    nvme_irq_assert(n, cq);
+    if (cq->tail != cq->head) {
+        nvme_irq_assert(n, cq);
+    }
 }
 
 static void nvme_enqueue_req_completion(NvmeCQueue *cq, NvmeRequest *req)
@@ -554,6 +556,7 @@ static uint16_t nvme_del_cq(NvmeCtrl *n, NvmeCmd *cmd)
         trace_nvme_err_invalid_del_cq_notempty(qid);
         return NVME_INVALID_QUEUE_DEL;
     }
+    nvme_irq_deassert(n, cq);
     trace_nvme_del_cq(qid);
     nvme_free_cq(cq, n);
     return NVME_SUCCESS;
@@ -796,6 +799,8 @@ static void nvme_process_sq(void *opaque)
 static void nvme_clear_ctrl(NvmeCtrl *n)
 {
     int i;
+
+    blk_drain(n->conf.blk);
 
     for (i = 0; i < n->num_queues; i++) {
         if (n->sq[i] != NULL) {
@@ -1175,16 +1180,13 @@ static void nvme_cmb_write(void *opaque, hwaddr addr, uint64_t data,
     unsigned size)
 {
     NvmeCtrl *n = (NvmeCtrl *)opaque;
-    memcpy(&n->cmbuf[addr], &data, size);
+    stn_le_p(&n->cmbuf[addr], size, data);
 }
 
 static uint64_t nvme_cmb_read(void *opaque, hwaddr addr, unsigned size)
 {
-    uint64_t val;
     NvmeCtrl *n = (NvmeCtrl *)opaque;
-
-    memcpy(&val, &n->cmbuf[addr], size);
-    return val;
+    return ldn_le_p(&n->cmbuf[addr], size);
 }
 
 static const MemoryRegionOps nvme_cmb_ops = {
@@ -1192,7 +1194,7 @@ static const MemoryRegionOps nvme_cmb_ops = {
     .write = nvme_cmb_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
     .impl = {
-        .min_access_size = 2,
+        .min_access_size = 1,
         .max_access_size = 8,
     },
 };
@@ -1217,7 +1219,6 @@ static void nvme_realize(PCIDevice *pci_dev, Error **errp)
         return;
     }
 
-    blkconf_serial(&n->conf, &n->serial);
     if (!n->serial) {
         error_setg(errp, "serial property not set");
         return;
@@ -1332,10 +1333,10 @@ static void nvme_exit(PCIDevice *pci_dev)
     g_free(n->namespaces);
     g_free(n->cq);
     g_free(n->sq);
-    if (n->cmbsz) {
-        memory_region_unref(&n->ctrl_mem);
-    }
 
+    if (n->cmb_size_mb) {
+        g_free(n->cmbuf);
+    }
     msix_uninit_exclusive_bar(pci_dev);
 }
 

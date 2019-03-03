@@ -249,6 +249,100 @@ target_ulong helper_bitswap(target_ulong rt)
     return (int32_t)bitswap(rt);
 }
 
+target_ulong helper_rotx(target_ulong rs, uint32_t shift, uint32_t shiftx,
+                        uint32_t stripe)
+{
+    int i;
+    uint64_t tmp0 = ((uint64_t)rs) << 32 | ((uint64_t)rs & 0xffffffff);
+    uint64_t tmp1 = tmp0;
+    for (i = 0; i <= 46; i++) {
+        int s;
+        if (i & 0x8) {
+            s = shift;
+        } else {
+            s = shiftx;
+        }
+
+        if (stripe != 0 && !(i & 0x4)) {
+            s = ~s;
+        }
+        if (s & 0x10) {
+            if (tmp0 & (1LL << (i + 16))) {
+                tmp1 |= 1LL << i;
+            } else {
+                tmp1 &= ~(1LL << i);
+            }
+        }
+    }
+
+    uint64_t tmp2 = tmp1;
+    for (i = 0; i <= 38; i++) {
+        int s;
+        if (i & 0x4) {
+            s = shift;
+        } else {
+            s = shiftx;
+        }
+
+        if (s & 0x8) {
+            if (tmp1 & (1LL << (i + 8))) {
+                tmp2 |= 1LL << i;
+            } else {
+                tmp2 &= ~(1LL << i);
+            }
+        }
+    }
+
+    uint64_t tmp3 = tmp2;
+    for (i = 0; i <= 34; i++) {
+        int s;
+        if (i & 0x2) {
+            s = shift;
+        } else {
+            s = shiftx;
+        }
+        if (s & 0x4) {
+            if (tmp2 & (1LL << (i + 4))) {
+                tmp3 |= 1LL << i;
+            } else {
+                tmp3 &= ~(1LL << i);
+            }
+        }
+    }
+
+    uint64_t tmp4 = tmp3;
+    for (i = 0; i <= 32; i++) {
+        int s;
+        if (i & 0x1) {
+            s = shift;
+        } else {
+            s = shiftx;
+        }
+        if (s & 0x2) {
+            if (tmp3 & (1LL << (i + 2))) {
+                tmp4 |= 1LL << i;
+            } else {
+                tmp4 &= ~(1LL << i);
+            }
+        }
+    }
+
+    uint64_t tmp5 = tmp4;
+    for (i = 0; i <= 31; i++) {
+        int s;
+        s = shift;
+        if (s & 0x1) {
+            if (tmp4 & (1LL << (i + 1))) {
+                tmp5 |= 1LL << i;
+            } else {
+                tmp5 &= ~(1LL << i);
+            }
+        }
+    }
+
+    return (int64_t)(int32_t)(uint32_t)tmp5;
+}
+
 #ifndef CONFIG_USER_ONLY
 
 static inline hwaddr do_translate_address(CPUMIPSState *env,
@@ -271,7 +365,9 @@ static inline hwaddr do_translate_address(CPUMIPSState *env,
 target_ulong helper_##name(CPUMIPSState *env, target_ulong arg, int mem_idx)  \
 {                                                                             \
     if (arg & almask) {                                                       \
-        env->CP0_BadVAddr = arg;                                              \
+        if (!(env->hflags & MIPS_HFLAG_DM)) {                                 \
+            env->CP0_BadVAddr = arg;                                          \
+        }                                                                     \
         do_raise_exception(env, EXCP_AdEL, GETPC());                          \
     }                                                                         \
     env->lladdr = do_translate_address(env, arg, 0, GETPC());                 \
@@ -291,7 +387,9 @@ target_ulong helper_##name(CPUMIPSState *env, target_ulong arg1,              \
     target_long tmp;                                                          \
                                                                               \
     if (arg2 & almask) {                                                      \
-        env->CP0_BadVAddr = arg2;                                             \
+        if (!(env->hflags & MIPS_HFLAG_DM)) {                                 \
+            env->CP0_BadVAddr = arg2;                                         \
+        }                                                                     \
         do_raise_exception(env, EXCP_AdES, GETPC());                          \
     }                                                                         \
     if (do_translate_address(env, arg2, 1, GETPC()) == env->lladdr) {         \
@@ -1302,7 +1400,7 @@ void helper_mtc0_context(CPUMIPSState *env, target_ulong arg1)
     env->CP0_Context = (env->CP0_Context & 0x007FFFFF) | (arg1 & ~0x007FFFFF);
 }
 
-void helper_mtc0_pagemask(CPUMIPSState *env, target_ulong arg1)
+void update_pagemask(CPUMIPSState *env, target_ulong arg1, int32_t *pagemask)
 {
     uint64_t mask = arg1 >> (TARGET_PAGE_BITS + 1);
     if (!(env->insn_flags & ISA_MIPS32R6) || (arg1 == ~0) ||
@@ -1311,6 +1409,11 @@ void helper_mtc0_pagemask(CPUMIPSState *env, target_ulong arg1)
          mask == 0x0FFF || mask == 0x3FFF || mask == 0xFFFF)) {
         env->CP0_PageMask = arg1 & (0x1FFFFFFF & (TARGET_PAGE_MASK << 1));
     }
+}
+
+void helper_mtc0_pagemask(CPUMIPSState *env, target_ulong arg1)
+{
+    update_pagemask(env, arg1, &env->CP0_PageMask);
 }
 
 void helper_mtc0_pagegrain(CPUMIPSState *env, target_ulong arg1)
@@ -1347,6 +1450,77 @@ void helper_mtc0_segctl2(CPUMIPSState *env, target_ulong arg1)
     tlb_flush(cs);
 }
 
+void helper_mtc0_pwfield(CPUMIPSState *env, target_ulong arg1)
+{
+#if defined(TARGET_MIPS64)
+    uint64_t mask = 0x3F3FFFFFFFULL;
+    uint32_t old_ptei = (env->CP0_PWField >> CP0PF_PTEI) & 0x3FULL;
+    uint32_t new_ptei = (arg1 >> CP0PF_PTEI) & 0x3FULL;
+
+    if ((env->insn_flags & ISA_MIPS32R6)) {
+        if (((arg1 >> CP0PF_BDI) & 0x3FULL) < 12) {
+            mask &= ~(0x3FULL << CP0PF_BDI);
+        }
+        if (((arg1 >> CP0PF_GDI) & 0x3FULL) < 12) {
+            mask &= ~(0x3FULL << CP0PF_GDI);
+        }
+        if (((arg1 >> CP0PF_UDI) & 0x3FULL) < 12) {
+            mask &= ~(0x3FULL << CP0PF_UDI);
+        }
+        if (((arg1 >> CP0PF_MDI) & 0x3FULL) < 12) {
+            mask &= ~(0x3FULL << CP0PF_MDI);
+        }
+        if (((arg1 >> CP0PF_PTI) & 0x3FULL) < 12) {
+            mask &= ~(0x3FULL << CP0PF_PTI);
+        }
+    }
+    env->CP0_PWField = arg1 & mask;
+
+    if ((new_ptei >= 32) ||
+            ((env->insn_flags & ISA_MIPS32R6) &&
+                    (new_ptei == 0 || new_ptei == 1))) {
+        env->CP0_PWField = (env->CP0_PWField & ~0x3FULL) |
+                (old_ptei << CP0PF_PTEI);
+    }
+#else
+    uint32_t mask = 0x3FFFFFFF;
+    uint32_t old_ptew = (env->CP0_PWField >> CP0PF_PTEW) & 0x3F;
+    uint32_t new_ptew = (arg1 >> CP0PF_PTEW) & 0x3F;
+
+    if ((env->insn_flags & ISA_MIPS32R6)) {
+        if (((arg1 >> CP0PF_GDW) & 0x3F) < 12) {
+            mask &= ~(0x3F << CP0PF_GDW);
+        }
+        if (((arg1 >> CP0PF_UDW) & 0x3F) < 12) {
+            mask &= ~(0x3F << CP0PF_UDW);
+        }
+        if (((arg1 >> CP0PF_MDW) & 0x3F) < 12) {
+            mask &= ~(0x3F << CP0PF_MDW);
+        }
+        if (((arg1 >> CP0PF_PTW) & 0x3F) < 12) {
+            mask &= ~(0x3F << CP0PF_PTW);
+        }
+    }
+    env->CP0_PWField = arg1 & mask;
+
+    if ((new_ptew >= 32) ||
+            ((env->insn_flags & ISA_MIPS32R6) &&
+                    (new_ptew == 0 || new_ptew == 1))) {
+        env->CP0_PWField = (env->CP0_PWField & ~0x3F) |
+                (old_ptew << CP0PF_PTEW);
+    }
+#endif
+}
+
+void helper_mtc0_pwsize(CPUMIPSState *env, target_ulong arg1)
+{
+#if defined(TARGET_MIPS64)
+    env->CP0_PWSize = arg1 & 0x3F7FFFFFFFULL;
+#else
+    env->CP0_PWSize = arg1 & 0x3FFFFFFF;
+#endif
+}
+
 void helper_mtc0_wired(CPUMIPSState *env, target_ulong arg1)
 {
     if (env->insn_flags & ISA_MIPS32R6) {
@@ -1356,6 +1530,16 @@ void helper_mtc0_wired(CPUMIPSState *env, target_ulong arg1)
     } else {
         env->CP0_Wired = arg1 % env->tlb->nb_tlb;
     }
+}
+
+void helper_mtc0_pwctl(CPUMIPSState *env, target_ulong arg1)
+{
+#if defined(TARGET_MIPS64)
+    /* PWEn = 0. Hardware page table walking is not implemented. */
+    env->CP0_PWCtl = (env->CP0_PWCtl & 0x000000C0) | (arg1 & 0x5C00003F);
+#else
+    env->CP0_PWCtl = (arg1 & 0x800000FF);
+#endif
 }
 
 void helper_mtc0_srsconf0(CPUMIPSState *env, target_ulong arg1)
@@ -2329,10 +2513,12 @@ void helper_eretnc(CPUMIPSState *env)
 void helper_deret(CPUMIPSState *env)
 {
     debug_pre_eret(env);
-    set_pc(env, env->CP0_DEPC);
 
     env->hflags &= ~MIPS_HFLAG_DM;
     compute_hflags(env);
+
+    set_pc(env, env->CP0_DEPC);
+
     debug_post_eret(env);
 }
 #endif /* !CONFIG_USER_ONLY */
@@ -2437,7 +2623,9 @@ void mips_cpu_do_unaligned_access(CPUState *cs, vaddr addr,
     int error_code = 0;
     int excp;
 
-    env->CP0_BadVAddr = addr;
+    if (!(env->hflags & MIPS_HFLAG_DM)) {
+        env->CP0_BadVAddr = addr;
+    }
 
     if (access_type == MMU_DATA_STORE) {
         excp = EXCP_AdES;

@@ -14,7 +14,6 @@
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "qapi/qmp/dispatch.h"
-#include "qapi/qmp/json-parser.h"
 #include "qapi/qmp/qdict.h"
 #include "qapi/qmp/qjson.h"
 #include "qapi/qmp/qbool.h"
@@ -156,7 +155,7 @@ QDict *qmp_error_response(Error *err)
 /*
  * Does @qdict look like a command to be run out-of-band?
  */
-bool qmp_is_oob(QDict *dict)
+bool qmp_is_oob(const QDict *dict)
 {
     return qdict_haskey(dict, "exec-oob")
         && !qdict_haskey(dict, "execute");

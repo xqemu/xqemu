@@ -46,17 +46,15 @@ struct socket *solookup(struct socket **last, struct socket *head,
 struct socket *
 socreate(Slirp *slirp)
 {
-  struct socket *so;
+    struct socket *so = g_new(struct socket, 1);
 
-  so = (struct socket *)malloc(sizeof(struct socket));
-  if(so) {
     memset(so, 0, sizeof(struct socket));
     so->so_state = SS_NOFDREF;
     so->s = -1;
     so->slirp = slirp;
     so->pollfds_idx = -1;
-  }
-  return(so);
+
+    return so;
 }
 
 /*
@@ -110,7 +108,7 @@ sofree(struct socket *so)
   if (so->so_tcpcb) {
       free(so->so_tcpcb);
   }
-  free(so);
+  g_free(so);
 }
 
 size_t sopreprbuf(struct socket *so, struct iovec *iov, int *np)
@@ -204,12 +202,19 @@ soread(struct socket *so)
 			return 0;
 		else {
 			int err;
-			socklen_t slen = sizeof err;
+			socklen_t elen = sizeof err;
+			struct sockaddr_storage addr;
+			struct sockaddr *paddr = (struct sockaddr *) &addr;
+			socklen_t alen = sizeof addr;
 
 			err = errno;
 			if (nn == 0) {
-				getsockopt(so->s, SOL_SOCKET, SO_ERROR,
-					   &err, &slen);
+				if (getpeername(so->s, paddr, &alen) < 0) {
+					err = errno;
+				} else {
+					getsockopt(so->s, SOL_SOCKET, SO_ERROR,
+						&err, &elen);
+				}
 			}
 
 			DEBUG_MISC((dfd, " --- soread() disconnected, nn = %d, errno = %d-%s\n", nn, errno,strerror(errno)));
@@ -708,14 +713,11 @@ tcp_listen(Slirp *slirp, uint32_t haddr, u_int hport, uint32_t laddr,
 	DEBUG_ARG("flags = %x", flags);
 
 	so = socreate(slirp);
-	if (!so) {
-	  return NULL;
-	}
 
 	/* Don't tcp_attach... we don't need so_snd nor so_rcv */
 	if ((so->so_tcpcb = tcp_newtcpcb(so)) == NULL) {
-		free(so);
-		return NULL;
+            g_free(so);
+            return NULL;
 	}
 	insque(so, &slirp->tcb);
 

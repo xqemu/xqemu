@@ -57,7 +57,7 @@ typedef struct {
     qemu_irq irq;
     MemoryRegion mem;
     AddressSpace *as;
-    int num_ports;
+    uint32_t num_ports;
     const char *name;
 
     QEMUTimer *eof_timer;
@@ -1158,6 +1158,9 @@ static int ohci_service_td(OHCIState *ohci, struct ohci_ed *ed)
                 OHCI_SET_BM(td.flags, TD_EC, 3);
                 break;
             }
+            /* An error occured so we have to clear the interrupt counter. See
+             * spec at 6.4.4 on page 104 */
+            ohci->done_count = 0;
         }
         ed->head |= OHCI_ED_H;
     }
@@ -1254,12 +1257,12 @@ static int ohci_service_ed_list(OHCIState *ohci, uint32_t head, int completion)
 /* set a timer for EOF */
 static void ohci_eof_timer(OHCIState *ohci)
 {
-    ohci->sof_time = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
     timer_mod(ohci->eof_timer, ohci->sof_time + usb_frame_time);
 }
 /* Set a timer for EOF and generate a SOF event */
 static void ohci_sof(OHCIState *ohci)
 {
+    ohci->sof_time += usb_frame_time;
     ohci_eof_timer(ohci);
     ohci_set_interrupt(ohci, OHCI_INTR_SF);
 }
@@ -1363,6 +1366,7 @@ static int ohci_bus_start(OHCIState *ohci)
      * can meet some race conditions
      */
 
+    ohci->sof_time = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
     ohci_eof_timer(ohci);
 
     return 1;
@@ -1477,6 +1481,9 @@ static uint32_t ohci_get_frame_remaining(OHCIState *ohci)
      * set already.
      */
     tks = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) - ohci->sof_time;
+    if (tks < 0) {
+        tks = 0;
+    }
 
     /* avoid muldiv if possible */
     if (tks >= usb_frame_time)
@@ -1847,7 +1854,7 @@ static USBBusOps ohci_bus_ops = {
 };
 
 static void usb_ohci_init(OHCIState *ohci, DeviceState *dev,
-                          int num_ports, dma_addr_t localmem_base,
+                          uint32_t num_ports, dma_addr_t localmem_base,
                           char *masterbus, uint32_t firstport,
                           AddressSpace *as, Error **errp)
 {
@@ -1857,7 +1864,7 @@ static void usb_ohci_init(OHCIState *ohci, DeviceState *dev,
     ohci->as = as;
 
     if (num_ports > OHCI_MAX_PORTS) {
-        error_setg(errp, "OHCI num-ports=%d is too big (limit is %d ports)",
+        error_setg(errp, "OHCI num-ports=%u is too big (limit is %u ports)",
                    num_ports, OHCI_MAX_PORTS);
         return;
     }

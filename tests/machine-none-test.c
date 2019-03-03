@@ -44,7 +44,6 @@ static struct arch2cpu cpus_map[] = {
     { "or1k", "or1200" },
     { "ppc", "604" },
     { "ppc64", "power8e_v2.1" },
-    { "ppcemb", "440epb" },
     { "s390x", "qemu" },
     { "sh4", "sh7750r" },
     { "sh4eb", "sh7751r" },
@@ -84,7 +83,7 @@ static void test_machine_cpu_cli(void)
         }
         return; /* TODO: die here to force all targets have a test */
     }
-    global_qtest = qtest_startf("-machine none -cpu '%s'", cpu_model);
+    global_qtest = qtest_initf("-machine none -cpu '%s'", cpu_model);
 
     response = qmp("{ 'execute': 'quit' }");
     g_assert(qdict_haskey(response, "return"));

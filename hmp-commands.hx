@@ -644,6 +644,21 @@ sendkey ctrl-alt-f1
 This command is useful to send keys that your graphical user interface
 intercepts at low level, such as @code{ctrl-alt-f1} in X Window.
 ETEXI
+    {
+        .name       = "sync-profile",
+        .args_type  = "op:s?",
+        .params     = "[on|off|reset]",
+        .help       = "enable, disable or reset synchronization profiling. "
+                      "With no arguments, prints whether profiling is on or off.",
+        .cmd        = hmp_sync_profile,
+    },
+
+STEXI
+@item sync-profile [on|off|reset]
+@findex sync-profile
+Enable, disable or reset synchronization profiling. With no arguments, prints
+whether profiling is on or off.
+ETEXI
 
     {
         .name       = "system_reset",
@@ -1306,7 +1321,6 @@ ETEXI
         .params     = "[-n] [[<domain>:]<bus>:]<slot>\n"
                       "[file=file][,if=type][,bus=n]\n"
                       "[,unit=m][,media=d][,index=i]\n"
-                      "[,cyls=c,heads=h,secs=s[,trans=t]]\n"
                       "[,snapshot=on|off][,cache=on|off]\n"
                       "[,readonly=on|off][,copy-on-read=on|off]",
         .help       = "add drive to PCI storage controller",

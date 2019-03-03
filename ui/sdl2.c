@@ -768,7 +768,6 @@ static void sdl2_display_early_init(DisplayOptions *o)
 
 static void sdl2_display_init(DisplayState *ds, DisplayOptions *o)
 {
-    int flags;
     uint8_t data = 0;
     char *filename;
     int i;
@@ -789,15 +788,19 @@ static void sdl2_display_init(DisplayState *ds, DisplayOptions *o)
     setenv("SDL_VIDEODRIVER", "x11", 0);
 #endif
 
-    flags = SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE;
-    if (SDL_Init(flags)) {
+    if (SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "Could not initialize SDL(%s) - exiting\n",
                 SDL_GetError());
         exit(1);
     }
+#ifdef SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR /* only available since SDL 2.0.8 */
+    SDL_SetHint(SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0");
+#endif
     SDL_SetHint(SDL_HINT_GRAB_KEYBOARD, "1");
     memset(&info, 0, sizeof(info));
     SDL_VERSION(&info.version);
+
+    gui_fullscreen = o->has_full_screen && o->full_screen;
 
     for (i = 0;; i++) {
         QemuConsole *con = qemu_console_lookup_by_index(i);
@@ -813,7 +816,8 @@ static void sdl2_display_init(DisplayState *ds, DisplayOptions *o)
     for (i = 0; i < sdl2_num_outputs; i++) {
         QemuConsole *con = qemu_console_lookup_by_index(i);
         assert(con != NULL);
-        if (!qemu_console_is_graphic(con)) {
+        if (!qemu_console_is_graphic(con) &&
+            qemu_console_get_index(con) != 0) {
             sdl2_console[i].hidden = true;
         }
         sdl2_console[i].idx = i;
@@ -851,16 +855,13 @@ static void sdl2_display_init(DisplayState *ds, DisplayOptions *o)
         g_free(filename);
     }
 
-    if (sdl2_console->opts->has_full_screen &&
-        sdl2_console->opts->full_screen) {
-        gui_fullscreen = 1;
+    gui_grab = 0;
+    if (gui_fullscreen) {
         sdl_grab_start(0);
     }
 
     mouse_mode_notifier.notify = sdl_mouse_mode_change;
     qemu_add_mouse_mode_change_notifier(&mouse_mode_notifier);
-
-    gui_grab = 0;
 
     sdl_cursor_hidden = SDL_CreateCursor(&data, &data, 8, 1, 0, 0);
     sdl_cursor_normal = SDL_GetCursor();

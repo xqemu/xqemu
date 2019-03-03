@@ -52,23 +52,7 @@
 #else /* defined (TARGET_PPC64) */
 /* PowerPC 32 definitions */
 #define TARGET_LONG_BITS 32
-
-#if defined(TARGET_PPCEMB)
-/* Specific definitions for PowerPC embedded */
-/* BookE have 36 bits physical address space */
-#if defined(CONFIG_USER_ONLY)
-/* It looks like a lot of Linux programs assume page size
- * is 4kB long. This is evil, but we have to deal with it...
- */
 #define TARGET_PAGE_BITS 12
-#else /* defined(CONFIG_USER_ONLY) */
-/* Pages can be 1 kB small */
-#define TARGET_PAGE_BITS 10
-#endif /* defined(CONFIG_USER_ONLY) */
-#else /* defined(TARGET_PPCEMB) */
-/* "standard" PowerPC 32 definitions */
-#define TARGET_PAGE_BITS 12
-#endif /* defined(TARGET_PPCEMB) */
 
 #define TARGET_PHYS_ADDR_SPACE_BITS 36
 #define TARGET_VIRT_ADDR_SPACE_BITS 32
@@ -480,6 +464,11 @@ struct ppc_slb_t {
 #define msr_le   ((env->msr >> MSR_LE)   & 1)
 #define msr_ts   ((env->msr >> MSR_TS1)  & 3)
 #define msr_tm   ((env->msr >> MSR_TM)   & 1)
+
+#define DBCR0_ICMP (1 << 27)
+#define DBCR0_BRT (1 << 26)
+#define DBSR_ICMP (1 << 27)
+#define DBSR_BRT (1 << 26)
 
 /* Hypervisor bit is more specific */
 #if defined(TARGET_PPC64)
@@ -929,6 +918,19 @@ enum {
 /* number of possible TLBs */
 #define BOOKE206_MAX_TLBN      4
 
+#define EPID_EPID_SHIFT 0x0
+#define EPID_EPID 0xFF
+#define EPID_ELPID_SHIFT 0x10
+#define EPID_ELPID 0x3F0000
+#define EPID_EGS 0x20000000
+#define EPID_EGS_SHIFT 29
+#define EPID_EAS 0x40000000
+#define EPID_EAS_SHIFT 30
+#define EPID_EPR 0x80000000
+#define EPID_EPR_SHIFT 31
+/* We don't support EGS and ELPID */
+#define EPID_MASK (EPID_EPID | EPID_EAS | EPID_EPR)
+
 /*****************************************************************************/
 /* Server and Embedded Processor Control */
 
@@ -958,7 +960,16 @@ struct ppc_radix_page_info {
 
 /*****************************************************************************/
 /* The whole PowerPC CPU context */
-#define NB_MMU_MODES    8
+
+/* PowerPC needs eight modes for different hypervisor/supervisor/guest +
+ * real/paged mode combinations. The other two modes are for external PID
+ * load/store.
+ */
+#define NB_MMU_MODES    10
+#define MMU_MODE8_SUFFIX _epl
+#define MMU_MODE9_SUFFIX _eps
+#define PPC_TLB_EPID_LOAD 8
+#define PPC_TLB_EPID_STORE 9
 
 #define PPC_CPU_OPCODES_LEN          0x40
 #define PPC_CPU_INDIRECT_OPCODES_LEN 0x20

@@ -217,6 +217,7 @@ enum {
 #define MEMCTL_IL0EN 0x1
 
 #define MAX_INSN_LENGTH 64
+#define MAX_INSN_SLOTS 32
 #define MAX_OPCODE_ARGS 16
 #define MAX_NAREG 64
 #define MAX_NINTERRUPT 32
@@ -347,11 +348,40 @@ typedef struct XtensaMemory {
 typedef struct DisasContext DisasContext;
 typedef void (*XtensaOpcodeOp)(DisasContext *dc, const uint32_t arg[],
                                const uint32_t par[]);
+typedef bool (*XtensaOpcodeBoolTest)(DisasContext *dc,
+                                     const uint32_t arg[],
+                                     const uint32_t par[]);
+typedef uint32_t (*XtensaOpcodeUintTest)(DisasContext *dc,
+                                         const uint32_t arg[],
+                                         const uint32_t par[]);
+
+enum {
+    XTENSA_OP_ILL = 0x1,
+    XTENSA_OP_PRIVILEGED = 0x2,
+    XTENSA_OP_SYSCALL = 0x4,
+    XTENSA_OP_DEBUG_BREAK = 0x8,
+
+    XTENSA_OP_OVERFLOW = 0x10,
+    XTENSA_OP_UNDERFLOW = 0x20,
+    XTENSA_OP_ALLOCA = 0x40,
+    XTENSA_OP_COPROCESSOR = 0x80,
+
+    XTENSA_OP_DIVIDE_BY_ZERO = 0x100,
+
+    XTENSA_OP_CHECK_INTERRUPTS = 0x200,
+    XTENSA_OP_EXIT_TB_M1 = 0x400,
+    XTENSA_OP_EXIT_TB_0 = 0x800,
+};
 
 typedef struct XtensaOpcodeOps {
     const char *name;
     XtensaOpcodeOp translate;
+    XtensaOpcodeBoolTest test_ill;
+    XtensaOpcodeUintTest test_overflow;
     const uint32_t *par;
+    uint32_t op_flags;
+    uint32_t windowed_register_op;
+    uint32_t coprocessor;
 } XtensaOpcodeOps;
 
 typedef struct XtensaOpcodeTranslators {
@@ -497,12 +527,15 @@ int xtensa_cpu_handle_mmu_fault(CPUState *cs, vaddr address, int rw, int size,
                                 int mmu_idx);
 void xtensa_cpu_do_interrupt(CPUState *cpu);
 bool xtensa_cpu_exec_interrupt(CPUState *cpu, int interrupt_request);
-void xtensa_cpu_do_unassigned_access(CPUState *cpu, hwaddr addr,
-                                     bool is_write, bool is_exec, int opaque,
-                                     unsigned size);
+void xtensa_cpu_do_transaction_failed(CPUState *cs, hwaddr physaddr, vaddr addr,
+                                      unsigned size, MMUAccessType access_type,
+                                      int mmu_idx, MemTxAttrs attrs,
+                                      MemTxResult response, uintptr_t retaddr);
 void xtensa_cpu_dump_state(CPUState *cpu, FILE *f,
                            fprintf_function cpu_fprintf, int flags);
 hwaddr xtensa_cpu_get_phys_page_debug(CPUState *cpu, vaddr addr);
+void xtensa_count_regs(const XtensaConfig *config,
+                       unsigned *n_regs, unsigned *n_core_regs);
 int xtensa_cpu_gdb_read_register(CPUState *cpu, uint8_t *buf, int reg);
 int xtensa_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);
 void xtensa_cpu_do_unaligned_access(CPUState *cpu, vaddr addr,
@@ -658,6 +691,9 @@ static inline int cpu_mmu_index(CPUXtensaState *env, bool ifetch)
 #define XTENSA_TBFLAG_WINDOW_MASK 0x18000
 #define XTENSA_TBFLAG_WINDOW_SHIFT 15
 #define XTENSA_TBFLAG_YIELD 0x20000
+#define XTENSA_TBFLAG_CWOE 0x40000
+#define XTENSA_TBFLAG_CALLINC_MASK 0x180000
+#define XTENSA_TBFLAG_CALLINC_SHIFT 19
 
 static inline void cpu_get_tb_cpu_state(CPUXtensaState *env, target_ulong *pc,
         target_ulong *cs_base, uint32_t *flags)
@@ -695,7 +731,9 @@ static inline void cpu_get_tb_cpu_state(CPUXtensaState *env, target_ulong *pc,
             (env->sregs[WINDOW_BASE] + 1);
         uint32_t w = ctz32(windowstart | 0x8);
 
-        *flags |= w << XTENSA_TBFLAG_WINDOW_SHIFT;
+        *flags |= (w << XTENSA_TBFLAG_WINDOW_SHIFT) | XTENSA_TBFLAG_CWOE;
+        *flags |= extract32(env->sregs[PS], PS_CALLINC_SHIFT,
+                            PS_CALLINC_LEN) << XTENSA_TBFLAG_CALLINC_SHIFT;
     } else {
         *flags |= 3 << XTENSA_TBFLAG_WINDOW_SHIFT;
     }

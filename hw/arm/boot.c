@@ -24,6 +24,7 @@
 #include "qemu/config-file.h"
 #include "qemu/option.h"
 #include "exec/address-spaces.h"
+#include "qemu/units.h"
 
 /* Kernel boot protocol is specified in the kernel docs
  * Documentation/arm/Booting and Documentation/arm64/booting.txt
@@ -35,6 +36,8 @@
 
 #define ARM64_TEXT_OFFSET_OFFSET    8
 #define ARM64_MAGIC_OFFSET          56
+
+#define BOOTLOADER_MAX_SIZE         (4 * KiB)
 
 AddressSpace *arm_boot_address_space(ARMCPU *cpu,
                                      const struct arm_boot_info *info)
@@ -183,6 +186,8 @@ static void write_bootloader(const char *name, hwaddr addr,
         }
         code[i] = tswap32(insn);
     }
+
+    assert((len * sizeof(uint32_t)) < BOOTLOADER_MAX_SIZE);
 
     rom_add_blob_fixed_as(name, code, len * sizeof(uint32_t), addr, as);
 
@@ -736,6 +741,17 @@ static void do_cpu_reset(void *opaque)
                 }
             }
 
+            if (!env->aarch64 && !info->secure_boot &&
+                arm_feature(env, ARM_FEATURE_EL2)) {
+                /*
+                 * This is an AArch32 boot not to Secure state, and
+                 * we have Hyp mode available, so boot the kernel into
+                 * Hyp mode. This is not how the CPU comes out of reset,
+                 * so we need to manually put it there.
+                 */
+                cpsr_write(env, ARM_CPU_MODE_HYP, CPSR_M, CPSRWriteRaw);
+            }
+
             if (cs == first_cpu) {
                 AddressSpace *as = arm_boot_address_space(cpu, info);
 
@@ -818,9 +834,9 @@ static int do_arm_linux_init(Object *obj, void *opaque)
     return 0;
 }
 
-static uint64_t arm_load_elf(struct arm_boot_info *info, uint64_t *pentry,
-                             uint64_t *lowaddr, uint64_t *highaddr,
-                             int elf_machine, AddressSpace *as)
+static int64_t arm_load_elf(struct arm_boot_info *info, uint64_t *pentry,
+                            uint64_t *lowaddr, uint64_t *highaddr,
+                            int elf_machine, AddressSpace *as)
 {
     bool elf_is64;
     union {
@@ -829,7 +845,7 @@ static uint64_t arm_load_elf(struct arm_boot_info *info, uint64_t *pentry,
     } elf_header;
     int data_swab = 0;
     bool big_endian;
-    uint64_t ret = -1;
+    int64_t ret = -1;
     Error *err = NULL;
 
 
@@ -908,6 +924,19 @@ static uint64_t load_aarch64_image(const char *filename, hwaddr mem_base,
         memcpy(&hdrvals, buffer + ARM64_TEXT_OFFSET_OFFSET, sizeof(hdrvals));
         if (hdrvals[1] != 0) {
             kernel_load_offset = le64_to_cpu(hdrvals[0]);
+
+            /*
+             * We write our startup "bootloader" at the very bottom of RAM,
+             * so that bit can't be used for the image. Luckily the Image
+             * format specification is that the image requests only an offset
+             * from a 2MB boundary, not an absolute load address. So if the
+             * image requests an offset that might mean it overlaps with the
+             * bootloader, we can just load it starting at 2MB+offset rather
+             * than 0MB + offset.
+             */
+            if (kernel_load_offset < BOOTLOADER_MAX_SIZE) {
+                kernel_load_offset += 2 * MiB;
+            }
         }
     }
 

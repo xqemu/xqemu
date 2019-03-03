@@ -24,12 +24,12 @@
 #define TARGET_PAGE_BITS 12 /* 4 KiB Pages */
 #if defined(TARGET_RISCV64)
 #define TARGET_LONG_BITS 64
-#define TARGET_PHYS_ADDR_SPACE_BITS 50
-#define TARGET_VIRT_ADDR_SPACE_BITS 39
+#define TARGET_PHYS_ADDR_SPACE_BITS 56 /* 44-bit PPN */
+#define TARGET_VIRT_ADDR_SPACE_BITS 48 /* sv48 */
 #elif defined(TARGET_RISCV32)
 #define TARGET_LONG_BITS 32
-#define TARGET_PHYS_ADDR_SPACE_BITS 34
-#define TARGET_VIRT_ADDR_SPACE_BITS 32
+#define TARGET_PHYS_ADDR_SPACE_BITS 34 /* 22-bit PPN */
+#define TARGET_VIRT_ADDR_SPACE_BITS 32 /* sv32 */
 #endif
 
 #define TCG_GUEST_DEFAULT_MO 0
@@ -126,13 +126,18 @@ struct CPURISCVState {
 
     target_ulong mhartid;
     target_ulong mstatus;
+
     /*
      * CAUTION! Unlike the rest of this struct, mip is accessed asynchonously
-     * by I/O threads and other vCPUs, so hold the iothread mutex before
-     * operating on it.  CPU_INTERRUPT_HARD should be in effect iff this is
-     * non-zero.  Use riscv_cpu_set_local_interrupt.
+     * by I/O threads. It should be read with atomic_read. It should be updated
+     * using riscv_cpu_update_mip with the iothread mutex held. The iothread
+     * mutex must be held because mip must be consistent with the CPU inturrept
+     * state. riscv_cpu_update_mip calls cpu_interrupt or cpu_reset_interrupt
+     * wuth the invariant that CPU_INTERRUPT_HARD is set iff mip is non-zero.
+     * mip is 32-bits to allow atomic_read on 32-bit hosts.
      */
-    uint32_t mip;        /* allow atomic_read for >= 32-bit hosts */
+    uint32_t mip;
+
     target_ulong mie;
     target_ulong mideleg;
 
@@ -247,15 +252,17 @@ void  riscv_cpu_do_unaligned_access(CPUState *cs, vaddr addr,
                                     uintptr_t retaddr);
 int riscv_cpu_handle_mmu_fault(CPUState *cpu, vaddr address, int size,
                               int rw, int mmu_idx);
-
 char *riscv_isa_string(RISCVCPU *cpu);
 void riscv_cpu_list(FILE *f, fprintf_function cpu_fprintf);
 
-#define cpu_init(cpu_model) cpu_generic_init(TYPE_RISCV_CPU, cpu_model)
 #define cpu_signal_handler cpu_riscv_signal_handler
 #define cpu_list riscv_cpu_list
 #define cpu_mmu_index riscv_cpu_mmu_index
 
+#ifndef CONFIG_USER_ONLY
+uint32_t riscv_cpu_update_mip(RISCVCPU *cpu, uint32_t mask, uint32_t value);
+#define BOOL_TO_MASK(x) (-!!(x)) /* helper for riscv_cpu_update_mip value */
+#endif
 void riscv_set_mode(CPURISCVState *env, target_ulong newpriv);
 
 void riscv_translate_init(void);
@@ -285,10 +292,6 @@ static inline void cpu_get_tb_cpu_state(CPURISCVState *env, target_ulong *pc,
 void csr_write_helper(CPURISCVState *env, target_ulong val_to_write,
         target_ulong csrno);
 target_ulong csr_read_helper(CPURISCVState *env, target_ulong csrno);
-
-#ifndef CONFIG_USER_ONLY
-void riscv_set_local_interrupt(RISCVCPU *cpu, target_ulong mask, int value);
-#endif
 
 #include "exec/cpu-all.h"
 

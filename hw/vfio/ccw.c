@@ -37,24 +37,12 @@ typedef struct VFIOCCWDevice {
     bool warned_orb_pfch;
 } VFIOCCWDevice;
 
-static inline void warn_once(bool *warned, const char *fmt, ...)
-{
-    va_list ap;
-
-    if (!warned || *warned) {
-        return;
-    }
-    *warned = true;
-    va_start(ap, fmt);
-    warn_vreport(fmt, ap);
-    va_end(ap);
-}
-
 static inline void warn_once_pfch(VFIOCCWDevice *vcdev, SubchDev *sch,
                                   const char *msg)
 {
-    warn_once(&vcdev->warned_orb_pfch, "vfio-ccw (devno %x.%x.%04x): %s",
-              sch->cssid, sch->ssid, sch->devno, msg);
+    warn_report_once_cond(&vcdev->warned_orb_pfch,
+                          "vfio-ccw (devno %x.%x.%04x): %s",
+                          sch->cssid, sch->ssid, sch->devno, msg);
 }
 
 static void vfio_ccw_compute_needs_reset(VFIODevice *vdev)
@@ -348,6 +336,15 @@ static void vfio_ccw_get_device(VFIOGroup *group, VFIOCCWDevice *vcdev,
             goto out_err;
         }
     }
+
+    /*
+     * All vfio-ccw devices are believed to operate in a way compatible with
+     * memory ballooning, ie. pages pinned in the host are in the current
+     * working set of the guest driver and therefore never overlap with pages
+     * available to the guest balloon driver.  This needs to be set before
+     * vfio_get_device() for vfio common to handle the balloon inhibitor.
+     */
+    vcdev->vdev.balloon_allowed = true;
 
     if (vfio_get_device(group, vcdev->cdev.mdevid, &vcdev->vdev, errp)) {
         goto out_err;

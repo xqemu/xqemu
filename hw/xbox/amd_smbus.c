@@ -117,9 +117,11 @@ static void amd756_smb_transaction(AMD756SMBus *s)
         break;
     case AMD756_BLOCK_DATA:
         if (read) {
-            s->smb_data0 = smbus_read_block(bus, addr, cmd, s->smb_data);
+            s->smb_data0 = smbus_read_block(bus, addr, cmd, s->smb_data,
+                                            sizeof(s->smb_data), true, true);
         } else {
-            smbus_write_block(bus, addr, cmd, s->smb_data, s->smb_data0);
+            smbus_write_block(bus, addr, cmd, s->smb_data, s->smb_data0,
+                              true);
         }
         break;
     default:

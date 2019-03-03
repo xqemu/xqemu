@@ -145,6 +145,11 @@ static void s390_cpu_full_reset(CPUState *s)
     env->cregs[0] = CR0_RESET;
     env->cregs[14] = CR14_RESET;
 
+#if defined(CONFIG_USER_ONLY)
+    /* user mode should always be allowed to use the full FPU */
+    env->cregs[0] |= CR0_AFP;
+#endif
+
     /* architectured initial value for Breaking-Event-Address register */
     env->gbea = 1;
 
@@ -419,16 +424,6 @@ void s390_crypto_reset(void)
     if (kvm_enabled()) {
         kvm_s390_crypto_reset();
     }
-}
-
-bool s390_get_squash_mcss(void)
-{
-    if (object_property_get_bool(OBJECT(qdev_get_machine()), "s390-squash-mcss",
-                                 NULL)) {
-        return true;
-    }
-
-    return false;
 }
 
 void s390_enable_css_support(S390CPU *cpu)

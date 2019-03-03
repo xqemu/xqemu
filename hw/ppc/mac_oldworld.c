@@ -42,6 +42,7 @@
 #include "hw/misc/macio/macio.h"
 #include "hw/ide.h"
 #include "hw/loader.h"
+#include "hw/fw-path-provider.h"
 #include "elf.h"
 #include "qemu/error-report.h"
 #include "sysemu/kvm.h"
@@ -254,6 +255,7 @@ static void ppc_heathrow_init(MachineState *machine)
 
     /* Grackle PCI host bridge */
     dev = qdev_create(NULL, TYPE_GRACKLE_PCI_HOST_BRIDGE);
+    qdev_prop_set_uint32(dev, "ofw-addr", 0x80000000);
     object_property_set_link(OBJECT(dev), OBJECT(pic_dev), "pic",
                              &error_abort);
     qdev_init_nofail(dev);
@@ -309,7 +311,17 @@ static void ppc_heathrow_init(MachineState *machine)
 
     /* No PCI init: the BIOS will do it */
 
-    fw_cfg = fw_cfg_init_mem(CFG_ADDR, CFG_ADDR + 2);
+    dev = qdev_create(NULL, TYPE_FW_CFG_MEM);
+    fw_cfg = FW_CFG(dev);
+    qdev_prop_set_uint32(dev, "data_width", 1);
+    qdev_prop_set_bit(dev, "dma_enabled", false);
+    object_property_add_child(OBJECT(qdev_get_machine()), TYPE_FW_CFG,
+                              OBJECT(fw_cfg), NULL);
+    qdev_init_nofail(dev);
+    s = SYS_BUS_DEVICE(dev);
+    sysbus_mmio_map(s, 0, CFG_ADDR);
+    sysbus_mmio_map(s, 1, CFG_ADDR + 2);
+
     fw_cfg_add_i16(fw_cfg, FW_CFG_NB_CPUS, (uint16_t)smp_cpus);
     fw_cfg_add_i16(fw_cfg, FW_CFG_MAX_CPUS, (uint16_t)max_cpus);
     fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, (uint64_t)ram_size);
@@ -362,6 +374,54 @@ static void ppc_heathrow_init(MachineState *machine)
     qemu_register_boot_set(fw_cfg_boot_set, fw_cfg);
 }
 
+/*
+ * Implementation of an interface to adjust firmware path
+ * for the bootindex property handling.
+ */
+static char *heathrow_fw_dev_path(FWPathProvider *p, BusState *bus,
+                                  DeviceState *dev)
+{
+    PCIDevice *pci;
+    IDEBus *ide_bus;
+    IDEState *ide_s;
+    MACIOIDEState *macio_ide;
+
+    if (!strcmp(object_get_typename(OBJECT(dev)), "macio-oldworld")) {
+        pci = PCI_DEVICE(dev);
+        return g_strdup_printf("mac-io@%x", PCI_SLOT(pci->devfn));
+    }
+
+    if (!strcmp(object_get_typename(OBJECT(dev)), "macio-ide")) {
+        macio_ide = MACIO_IDE(dev);
+        return g_strdup_printf("ata-3@%x", macio_ide->addr);
+    }
+
+    if (!strcmp(object_get_typename(OBJECT(dev)), "ide-drive")) {
+        ide_bus = IDE_BUS(qdev_get_parent_bus(dev));
+        ide_s = idebus_active_if(ide_bus);
+
+        if (ide_s->drive_kind == IDE_CD) {
+            return g_strdup("cdrom");
+        }
+
+        return g_strdup("hd");
+    }
+
+    if (!strcmp(object_get_typename(OBJECT(dev)), "ide-hd")) {
+        return g_strdup("hd");
+    }
+
+    if (!strcmp(object_get_typename(OBJECT(dev)), "ide-cd")) {
+        return g_strdup("cdrom");
+    }
+
+    if (!strcmp(object_get_typename(OBJECT(dev)), "virtio-blk-device")) {
+        return g_strdup("disk");
+    }
+
+    return NULL;
+}
+
 static int heathrow_kvm_type(const char *arg)
 {
     /* Always force PR KVM */
@@ -371,6 +431,7 @@ static int heathrow_kvm_type(const char *arg)
 static void heathrow_class_init(ObjectClass *oc, void *data)
 {
     MachineClass *mc = MACHINE_CLASS(oc);
+    FWPathProviderClass *fwc = FW_PATH_PROVIDER_CLASS(oc);
 
     mc->desc = "Heathrow based PowerMAC";
     mc->init = ppc_heathrow_init;
@@ -384,12 +445,18 @@ static void heathrow_class_init(ObjectClass *oc, void *data)
     mc->kvm_type = heathrow_kvm_type;
     mc->default_cpu_type = POWERPC_CPU_TYPE_NAME("750_v3.1");
     mc->default_display = "std";
+    mc->ignore_boot_device_suffixes = true;
+    fwc->get_dev_path = heathrow_fw_dev_path;
 }
 
 static const TypeInfo ppc_heathrow_machine_info = {
     .name          = MACHINE_TYPE_NAME("g3beige"),
     .parent        = TYPE_MACHINE,
-    .class_init    = heathrow_class_init
+    .class_init    = heathrow_class_init,
+    .interfaces = (InterfaceInfo[]) {
+        { TYPE_FW_PATH_PROVIDER },
+        { }
+    },
 };
 
 static void ppc_heathrow_register_types(void)

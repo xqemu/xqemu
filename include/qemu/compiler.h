@@ -122,6 +122,41 @@
 #ifndef __has_feature
 #define __has_feature(x) 0 /* compatibility with non-clang compilers */
 #endif
+
+#ifndef __has_builtin
+#define __has_builtin(x) 0 /* compatibility with non-clang compilers */
+#endif
+
+#if __has_builtin(__builtin_assume_aligned) || QEMU_GNUC_PREREQ(4, 7)
+#define HAS_ASSUME_ALIGNED
+#endif
+
+#ifndef __has_attribute
+#define __has_attribute(x) 0 /* compatibility with older GCC */
+#endif
+
+/*
+ * GCC doesn't provide __has_attribute() until GCC 5, but we know all the GCC
+ * versions we support have the "flatten" attribute. Clang may not have the
+ * "flatten" attribute but always has __has_attribute() to check for it.
+ */
+#if __has_attribute(flatten) || !defined(__clang__)
+# define QEMU_FLATTEN __attribute__((flatten))
+#else
+# define QEMU_FLATTEN
+#endif
+
+/*
+ * If __attribute__((error)) is present, use it to produce an error at
+ * compile time.  Otherwise, one must wait for the linker to diagnose
+ * the missing symbol.
+ */
+#if __has_attribute(error)
+# define QEMU_ERROR(X) __attribute__((error(X)))
+#else
+# define QEMU_ERROR(X)
+#endif
+
 /* Implement C11 _Generic via GCC builtins.  Example:
  *
  *    QEMU_GENERIC(x, (float, sinf), (long double, sinl), sin) (x)

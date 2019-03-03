@@ -125,6 +125,10 @@ enum {
 
 #define MUTE_SHIFT 15
 
+#define TYPE_AC97 "AC97"
+#define AC97(obj) \
+    OBJECT_CHECK(AC97DeviceState, (obj), TYPE_AC97)
+
 #define REC_MASK 7
 enum {
     REC_MIC = 0,
@@ -1294,9 +1298,6 @@ void ac97_common_init (AC97LinkState *s,
     ac97_on_reset (s);
 }
 
-
-
-
 typedef struct AC97DeviceState {
     PCIDevice dev;
     AC97LinkState state;
@@ -1306,10 +1307,6 @@ typedef struct AC97DeviceState {
     MemoryRegion io_nam;
     MemoryRegion io_nabm;
 } AC97DeviceState;
-
-#define AC97_DEVICE(obj) \
-    OBJECT_CHECK(AC97DeviceState, (obj), "AC97")
-
 
 static const VMStateDescription vmstate_ac97_bm_regs = {
     .name = "ac97_bm_regs",
@@ -1358,7 +1355,7 @@ static const VMStateDescription vmstate_ac97 = {
 
 static void ac97_realize (PCIDevice *dev, Error **errp)
 {
-    AC97DeviceState *s = AC97_DEVICE(dev);
+    AC97DeviceState *s = AC97(dev);
     uint8_t *c = s->dev.config;
 
     /* TODO: no need to override */
@@ -1407,7 +1404,7 @@ static void ac97_realize (PCIDevice *dev, Error **errp)
 
 static void ac97_exit (PCIDevice *dev)
 {
-    AC97DeviceState *s = AC97_DEVICE(dev);
+    AC97DeviceState *s = AC97(dev);
 
     memory_region_destroy (&s->io_nam);
     memory_region_destroy (&s->io_nabm);
@@ -1415,7 +1412,7 @@ static void ac97_exit (PCIDevice *dev)
 
 static int ac97_init (PCIBus *bus)
 {
-    pci_create_simple (bus, -1, "AC97");
+    pci_create_simple(bus, -1, TYPE_AC97);
     return 0;
 }
 
@@ -1443,7 +1440,7 @@ static void ac97_class_init (ObjectClass *klass, void *data)
 }
 
 static const TypeInfo ac97_info = {
-    .name          = "AC97",
+    .name          = TYPE_AC97,
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof (AC97DeviceState),
     .class_init    = ac97_class_init,

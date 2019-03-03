@@ -100,6 +100,11 @@ void cpu_address_space_init(CPUState *cpu, int asidx,
 #if !defined(CONFIG_USER_ONLY) && defined(CONFIG_TCG)
 /* cputlb.c */
 /**
+ * tlb_init - initialize a CPU's TLB
+ * @cpu: CPU whose TLB should be initialized
+ */
+void tlb_init(CPUState *cpu);
+/**
  * tlb_flush_page:
  * @cpu: CPU whose TLB should be flushed
  * @addr: virtual address of page to be flushed
@@ -258,6 +263,9 @@ void tlb_set_page(CPUState *cpu, target_ulong vaddr,
 void probe_write(CPUArchState *env, target_ulong addr, int size, int mmu_idx,
                  uintptr_t retaddr);
 #else
+static inline void tlb_init(CPUState *cpu)
+{
+}
 static inline void tlb_flush_page(CPUState *cpu, target_ulong addr)
 {
 }
@@ -502,8 +510,6 @@ hwaddr memory_region_section_get_iotlb(CPUState *cpu,
                                        hwaddr paddr, hwaddr xlat,
                                        int prot,
                                        target_ulong *address);
-bool memory_region_is_unassigned(MemoryRegion *mr);
-
 #endif
 
 /* vl.c */

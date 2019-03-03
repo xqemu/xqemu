@@ -397,10 +397,13 @@ static int do_store_exclusive(CPUMIPSState *env)
     target_ulong addr;
     target_ulong page_addr;
     target_ulong val;
+    uint32_t val_wp = 0;
+    uint32_t llnewval_wp = 0;
     int flags;
     int segv = 0;
     int reg;
     int d;
+    int wp;
 
     addr = env->lladdr;
     page_addr = addr & TARGET_PAGE_MASK;
@@ -412,19 +415,31 @@ static int do_store_exclusive(CPUMIPSState *env)
     } else {
         reg = env->llreg & 0x1f;
         d = (env->llreg & 0x20) != 0;
-        if (d) {
-            segv = get_user_s64(val, addr);
+        wp = (env->llreg & 0x40) != 0;
+        if (!wp) {
+            if (d) {
+                segv = get_user_s64(val, addr);
+            } else {
+                segv = get_user_s32(val, addr);
+            }
         } else {
             segv = get_user_s32(val, addr);
+            segv |= get_user_s32(val_wp, addr);
+            llnewval_wp = env->llnewval_wp;
         }
         if (!segv) {
-            if (val != env->llval) {
+            if (val != env->llval && val_wp == llnewval_wp) {
                 env->active_tc.gpr[reg] = 0;
             } else {
-                if (d) {
-                    segv = put_user_u64(env->llnewval, addr);
+                if (!wp) {
+                    if (d) {
+                        segv = put_user_u64(env->llnewval, addr);
+                    } else {
+                        segv = put_user_u32(env->llnewval, addr);
+                    }
                 } else {
                     segv = put_user_u32(env->llnewval, addr);
+                    segv |= put_user_u32(env->llnewval_wp, addr + 4);
                 }
                 if (!segv) {
                     env->active_tc.gpr[reg] = 1;
@@ -577,18 +592,10 @@ done_syscall:
             /* just indicate that signals should be handled asap */
             break;
         case EXCP_DEBUG:
-            {
-                int sig;
-
-                sig = gdb_handlesig(cs, TARGET_SIGTRAP);
-                if (sig)
-                  {
-                    info.si_signo = sig;
-                    info.si_errno = 0;
-                    info.si_code = TARGET_TRAP_BRKPT;
-                    queue_signal(env, info.si_signo, QEMU_SI_FAULT, &info);
-                  }
-            }
+            info.si_signo = TARGET_SIGTRAP;
+            info.si_errno = 0;
+            info.si_code = TARGET_TRAP_BRKPT;
+            queue_signal(env, info.si_signo, QEMU_SI_FAULT, &info);
             break;
         case EXCP_SC:
             if (do_store_exclusive(env)) {
@@ -725,12 +732,90 @@ void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
     struct image_info *info = ts->info;
     int i;
 
+    struct mode_req {
+        bool single;
+        bool soft;
+        bool fr1;
+        bool frdefault;
+        bool fre;
+    };
+
+    static const struct mode_req fpu_reqs[] = {
+        [MIPS_ABI_FP_ANY]    = { true,  true,  true,  true,  true  },
+        [MIPS_ABI_FP_DOUBLE] = { false, false, false, true,  true  },
+        [MIPS_ABI_FP_SINGLE] = { true,  false, false, false, false },
+        [MIPS_ABI_FP_SOFT]   = { false, true,  false, false, false },
+        [MIPS_ABI_FP_OLD_64] = { false, false, false, false, false },
+        [MIPS_ABI_FP_XX]     = { false, false, true,  true,  true  },
+        [MIPS_ABI_FP_64]     = { false, false, true,  false, false },
+        [MIPS_ABI_FP_64A]    = { false, false, true,  false, true  }
+    };
+
+    /*
+     * Mode requirements when .MIPS.abiflags is not present in the ELF.
+     * Not present means that everything is acceptable except FR1.
+     */
+    static struct mode_req none_req = { true, true, false, true, true };
+
+    struct mode_req prog_req;
+    struct mode_req interp_req;
+
     for(i = 0; i < 32; i++) {
         env->active_tc.gpr[i] = regs->regs[i];
     }
     env->active_tc.PC = regs->cp0_epc & ~(target_ulong)1;
     if (regs->cp0_epc & 1) {
         env->hflags |= MIPS_HFLAG_M16;
+    }
+
+#ifdef TARGET_ABI_MIPSO32
+# define MAX_FP_ABI MIPS_ABI_FP_64A
+#else
+# define MAX_FP_ABI MIPS_ABI_FP_SOFT
+#endif
+     if ((info->fp_abi > MAX_FP_ABI && info->fp_abi != MIPS_ABI_FP_UNKNOWN)
+        || (info->interp_fp_abi > MAX_FP_ABI &&
+            info->interp_fp_abi != MIPS_ABI_FP_UNKNOWN)) {
+        fprintf(stderr, "qemu: Unexpected FPU mode\n");
+        exit(1);
+    }
+
+    prog_req = (info->fp_abi == MIPS_ABI_FP_UNKNOWN) ? none_req
+                                            : fpu_reqs[info->fp_abi];
+    interp_req = (info->interp_fp_abi == MIPS_ABI_FP_UNKNOWN) ? none_req
+                                            : fpu_reqs[info->interp_fp_abi];
+
+    prog_req.single &= interp_req.single;
+    prog_req.soft &= interp_req.soft;
+    prog_req.fr1 &= interp_req.fr1;
+    prog_req.frdefault &= interp_req.frdefault;
+    prog_req.fre &= interp_req.fre;
+
+    bool cpu_has_mips_r2_r6 = env->insn_flags & ISA_MIPS32R2 ||
+                              env->insn_flags & ISA_MIPS64R2 ||
+                              env->insn_flags & ISA_MIPS32R6 ||
+                              env->insn_flags & ISA_MIPS64R6;
+
+    if (prog_req.fre && !prog_req.frdefault && !prog_req.fr1) {
+        env->CP0_Config5 |= (1 << CP0C5_FRE);
+        if (env->active_fpu.fcr0 & (1 << FCR0_FREP)) {
+            env->hflags |= MIPS_HFLAG_FRE;
+        }
+    } else if ((prog_req.fr1 && prog_req.frdefault) ||
+         (prog_req.single && !prog_req.frdefault)) {
+        if ((env->active_fpu.fcr0 & (1 << FCR0_F64)
+            && cpu_has_mips_r2_r6) || prog_req.fr1) {
+            env->CP0_Status |= (1 << CP0St_FR);
+            env->hflags |= MIPS_HFLAG_F64;
+        }
+    } else  if (!prog_req.fre && !prog_req.frdefault &&
+          !prog_req.fr1 && !prog_req.single && !prog_req.soft) {
+        fprintf(stderr, "qemu: Can't find a matching FPU mode\n");
+        exit(1);
+    }
+
+    if (env->insn_flags & ISA_NANOMIPS32) {
+        return;
     }
     if (((info->elf_flags & EF_MIPS_NAN2008) != 0) !=
         ((env->active_fpu.fcr31 & (1 << FCR31_NAN2008)) != 0)) {

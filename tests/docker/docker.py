@@ -14,14 +14,12 @@
 from __future__ import print_function
 import os
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__),
-                             '..', '..', 'scripts'))
-import argparse
 import subprocess
 import json
 import hashlib
 import atexit
 import uuid
+import argparse
 import tempfile
 import re
 import signal
@@ -99,7 +97,7 @@ def _get_so_libs(executable):
     return libs
 
 def _copy_binary_with_libs(src, dest_dir):
-    """Copy a binary executable and all its dependant libraries.
+    """Copy a binary executable and all its dependent libraries.
 
     This does rely on the host file-system being fairly multi-arch
     aware so the file don't clash with the guests layout."""
@@ -286,7 +284,7 @@ class SubCommand(object):
     name = None # Subcommand name
     def shared_args(self, parser):
         parser.add_argument("--quiet", action="store_true",
-                            help="Run quietly unless an error occured")
+                            help="Run quietly unless an error occurred")
 
     def args(self, parser):
         """Setup argument parser"""

@@ -79,6 +79,7 @@ typedef struct MirrorBlockJob {
     int max_iov;
     bool initial_zeroing_ongoing;
     int in_active_write_counter;
+    bool prepared;
 } MirrorBlockJob;
 
 typedef struct MirrorBDSOpaque {
@@ -198,7 +199,6 @@ static void coroutine_fn mirror_write_complete(MirrorOp *op, int ret)
 {
     MirrorBlockJob *s = op->s;
 
-    aio_context_acquire(blk_get_aio_context(s->common.blk));
     if (ret < 0) {
         BlockErrorAction action;
 
@@ -208,15 +208,14 @@ static void coroutine_fn mirror_write_complete(MirrorOp *op, int ret)
             s->ret = ret;
         }
     }
+
     mirror_iteration_done(op, ret);
-    aio_context_release(blk_get_aio_context(s->common.blk));
 }
 
 static void coroutine_fn mirror_read_complete(MirrorOp *op, int ret)
 {
     MirrorBlockJob *s = op->s;
 
-    aio_context_acquire(blk_get_aio_context(s->common.blk));
     if (ret < 0) {
         BlockErrorAction action;
 
@@ -227,12 +226,11 @@ static void coroutine_fn mirror_read_complete(MirrorOp *op, int ret)
         }
 
         mirror_iteration_done(op, ret);
-    } else {
-        ret = blk_co_pwritev(s->target, op->offset,
-                             op->qiov.size, &op->qiov, 0);
-        mirror_write_complete(op, ret);
+        return;
     }
-    aio_context_release(blk_get_aio_context(s->common.blk));
+
+    ret = blk_co_pwritev(s->target, op->offset, op->qiov.size, &op->qiov, 0);
+    mirror_write_complete(op, ret);
 }
 
 /* Clip bytes relative to offset to not exceed end-of-file */
@@ -607,26 +605,33 @@ static void mirror_wait_for_all_io(MirrorBlockJob *s)
     }
 }
 
-typedef struct {
-    int ret;
-} MirrorExitData;
-
-static void mirror_exit(Job *job, void *opaque)
+/**
+ * mirror_exit_common: handle both abort() and prepare() cases.
+ * for .prepare, returns 0 on success and -errno on failure.
+ * for .abort cases, denoted by abort = true, MUST return 0.
+ */
+static int mirror_exit_common(Job *job)
 {
     MirrorBlockJob *s = container_of(job, MirrorBlockJob, common.job);
     BlockJob *bjob = &s->common;
-    MirrorExitData *data = opaque;
     MirrorBDSOpaque *bs_opaque = s->mirror_top_bs->opaque;
     AioContext *replace_aio_context = NULL;
     BlockDriverState *src = s->mirror_top_bs->backing->bs;
     BlockDriverState *target_bs = blk_bs(s->target);
     BlockDriverState *mirror_top_bs = s->mirror_top_bs;
     Error *local_err = NULL;
+    bool abort = job->ret < 0;
+    int ret = 0;
+
+    if (s->prepared) {
+        return 0;
+    }
+    s->prepared = true;
 
     bdrv_release_dirty_bitmap(src, s->dirty_bitmap);
 
-    /* Make sure that the source BDS doesn't go away before we called
-     * job_completed(). */
+    /* Make sure that the source BDS doesn't go away during bdrv_replace_node,
+     * before we can call bdrv_drained_end */
     bdrv_ref(src);
     bdrv_ref(mirror_top_bs);
     bdrv_ref(target_bs);
@@ -646,13 +651,13 @@ static void mirror_exit(Job *job, void *opaque)
      * required before it could become a backing file of target_bs. */
     bdrv_child_try_set_perm(mirror_top_bs->backing, 0, BLK_PERM_ALL,
                             &error_abort);
-    if (s->backing_mode == MIRROR_SOURCE_BACKING_CHAIN) {
+    if (!abort && s->backing_mode == MIRROR_SOURCE_BACKING_CHAIN) {
         BlockDriverState *backing = s->is_none_mode ? src : s->base;
         if (backing_bs(target_bs) != backing) {
             bdrv_set_backing_hd(target_bs, backing, &local_err);
             if (local_err) {
                 error_report_err(local_err);
-                data->ret = -EPERM;
+                ret = -EPERM;
             }
         }
     }
@@ -662,11 +667,8 @@ static void mirror_exit(Job *job, void *opaque)
         aio_context_acquire(replace_aio_context);
     }
 
-    if (s->should_complete && data->ret == 0) {
-        BlockDriverState *to_replace = src;
-        if (s->to_replace) {
-            to_replace = s->to_replace;
-        }
+    if (s->should_complete && !abort) {
+        BlockDriverState *to_replace = s->to_replace ?: src;
 
         if (bdrv_get_flags(target_bs) != bdrv_get_flags(to_replace)) {
             bdrv_reopen(target_bs, bdrv_get_flags(to_replace), NULL);
@@ -679,7 +681,7 @@ static void mirror_exit(Job *job, void *opaque)
         bdrv_drained_end(target_bs);
         if (local_err) {
             error_report_err(local_err);
-            data->ret = -EPERM;
+            ret = -EPERM;
         }
     }
     if (s->to_replace) {
@@ -710,12 +712,23 @@ static void mirror_exit(Job *job, void *opaque)
     blk_insert_bs(bjob->blk, mirror_top_bs, &error_abort);
 
     bs_opaque->job = NULL;
-    job_completed(job, data->ret, NULL);
 
-    g_free(data);
     bdrv_drained_end(src);
     bdrv_unref(mirror_top_bs);
     bdrv_unref(src);
+
+    return ret;
+}
+
+static int mirror_prepare(Job *job)
+{
+    return mirror_exit_common(job);
+}
+
+static void mirror_abort(Job *job)
+{
+    int ret = mirror_exit_common(job);
+    assert(ret == 0);
 }
 
 static void mirror_throttle(MirrorBlockJob *s)
@@ -812,10 +825,9 @@ static int mirror_flush(MirrorBlockJob *s)
     return ret;
 }
 
-static void coroutine_fn mirror_run(void *opaque)
+static int coroutine_fn mirror_run(Job *job, Error **errp)
 {
-    MirrorBlockJob *s = opaque;
-    MirrorExitData *data;
+    MirrorBlockJob *s = container_of(job, MirrorBlockJob, common.job);
     BlockDriverState *bs = s->mirror_top_bs->backing->bs;
     BlockDriverState *target_bs = blk_bs(s->target);
     bool need_drain = true;
@@ -1035,13 +1047,11 @@ immediate_exit:
     g_free(s->in_flight_bitmap);
     bdrv_dirty_iter_free(s->dbi);
 
-    data = g_malloc(sizeof(*data));
-    data->ret = ret;
-
     if (need_drain) {
         bdrv_drained_begin(bs);
     }
-    job_defer_to_main_loop(&s->common.job, mirror_exit, data);
+
+    return ret;
 }
 
 static void mirror_complete(Job *job, Error **errp)
@@ -1138,7 +1148,9 @@ static const BlockJobDriver mirror_job_driver = {
         .free                   = block_job_free,
         .user_resume            = block_job_user_resume,
         .drain                  = block_job_drain,
-        .start                  = mirror_run,
+        .run                    = mirror_run,
+        .prepare                = mirror_prepare,
+        .abort                  = mirror_abort,
         .pause                  = mirror_pause,
         .complete               = mirror_complete,
     },
@@ -1154,7 +1166,9 @@ static const BlockJobDriver commit_active_job_driver = {
         .free                   = block_job_free,
         .user_resume            = block_job_user_resume,
         .drain                  = block_job_drain,
-        .start                  = mirror_run,
+        .run                    = mirror_run,
+        .prepare                = mirror_prepare,
+        .abort                  = mirror_abort,
         .pause                  = mirror_pause,
         .complete               = mirror_complete,
     },
@@ -1426,10 +1440,6 @@ static void bdrv_mirror_top_refresh_filename(BlockDriverState *bs, QDict *opts)
             bs->backing->bs->filename);
 }
 
-static void bdrv_mirror_top_close(BlockDriverState *bs)
-{
-}
-
 static void bdrv_mirror_top_child_perm(BlockDriverState *bs, BdrvChild *c,
                                        const BdrvChildRole *role,
                                        BlockReopenQueue *reopen_queue,
@@ -1456,7 +1466,6 @@ static BlockDriver bdrv_mirror_top = {
     .bdrv_co_flush              = bdrv_mirror_top_flush,
     .bdrv_co_block_status       = bdrv_co_block_status_from_backing,
     .bdrv_refresh_filename      = bdrv_mirror_top_refresh_filename,
-    .bdrv_close                 = bdrv_mirror_top_close,
     .bdrv_child_perm            = bdrv_mirror_top_child_perm,
 };
 
@@ -1497,6 +1506,11 @@ static void mirror_start_job(const char *job_id, BlockDriverState *bs,
 
     if (buf_size == 0) {
         buf_size = DEFAULT_MIRROR_BUF_SIZE;
+    }
+
+    if (bs == target) {
+        error_setg(errp, "Can't mirror node into itself");
+        return;
     }
 
     /* In the case of active commit, add dummy driver to provide consistent
@@ -1644,7 +1658,8 @@ fail:
 
 void mirror_start(const char *job_id, BlockDriverState *bs,
                   BlockDriverState *target, const char *replaces,
-                  int64_t speed, uint32_t granularity, int64_t buf_size,
+                  int creation_flags, int64_t speed,
+                  uint32_t granularity, int64_t buf_size,
                   MirrorSyncMode mode, BlockMirrorBackingMode backing_mode,
                   BlockdevOnError on_source_error,
                   BlockdevOnError on_target_error,
@@ -1660,7 +1675,7 @@ void mirror_start(const char *job_id, BlockDriverState *bs,
     }
     is_none_mode = mode == MIRROR_SYNC_MODE_NONE;
     base = mode == MIRROR_SYNC_MODE_TOP ? backing_bs(bs) : NULL;
-    mirror_start_job(job_id, bs, JOB_DEFAULT, target, replaces,
+    mirror_start_job(job_id, bs, creation_flags, target, replaces,
                      speed, granularity, buf_size, backing_mode,
                      on_source_error, on_target_error, unmap, NULL, NULL,
                      &mirror_job_driver, is_none_mode, base, false,

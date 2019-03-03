@@ -40,8 +40,8 @@ typedef struct VMStateField VMStateField;
  */
 struct VMStateInfo {
     const char *name;
-    int (*get)(QEMUFile *f, void *pv, size_t size, VMStateField *field);
-    int (*put)(QEMUFile *f, void *pv, size_t size, VMStateField *field,
+    int (*get)(QEMUFile *f, void *pv, size_t size, const VMStateField *field);
+    int (*put)(QEMUFile *f, void *pv, size_t size, const VMStateField *field,
                QJSON *vmdesc);
 };
 
@@ -186,7 +186,7 @@ struct VMStateDescription {
     int (*post_load)(void *opaque, int version_id);
     int (*pre_save)(void *opaque);
     bool (*needed)(void *opaque);
-    VMStateField *fields;
+    const VMStateField *fields;
     const VMStateDescription **subsections;
 };
 
@@ -922,6 +922,9 @@ extern const VMStateInfo vmstate_info_qtailq;
 
 #define VMSTATE_UINT16_ARRAY(_f, _s, _n)                               \
     VMSTATE_UINT16_ARRAY_V(_f, _s, _n, 0)
+
+#define VMSTATE_UINT16_SUB_ARRAY(_f, _s, _start, _num)                \
+    VMSTATE_SUB_ARRAY(_f, _s, _start, _num, 0, vmstate_info_uint16, uint16_t)
 
 #define VMSTATE_UINT16_2DARRAY(_f, _s, _n1, _n2)                      \
     VMSTATE_UINT16_2DARRAY_V(_f, _s, _n1, _n2, 0)

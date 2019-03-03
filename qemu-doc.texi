@@ -135,6 +135,7 @@ accelerator is required to use more than one host CPU for emulation.
 * pcsys_keys::         Keys in the graphical frontends
 * mux_keys::           Keys in the character backend multiplexer
 * pcsys_monitor::      QEMU Monitor
+* cpu_models::         CPU models
 * disk_images::        Disk Images
 * pcsys_network::      Network emulation
 * pcsys_other_devs::   Other Devices
@@ -602,6 +603,11 @@ The monitor understands integers expressions for every integer
 argument. You can use register names to get the value of specifics
 CPU registers by prefixing them with @emph{$}.
 
+@node cpu_models
+@section CPU models
+
+@include docs/qemu-cpu-models.texi
+
 @node disk_images
 @section Disk Images
 
@@ -937,7 +943,7 @@ for details
 Bulk-only transport storage device, see
 @url{https://git.qemu.org/?p=qemu.git;a=blob_plain;f=docs/usb-storage.txt,usb-storage.txt}
 for details here, too
-@item usb-mtp,x-root=@var{dir}
+@item usb-mtp,rootdir=@var{dir}
 Media transfer protocol device, using @var{dir} as root of the file tree
 that is presented to the guest.
 @item usb-host,hostbus=@var{bus},hostaddr=@var{addr}
@@ -1097,7 +1103,9 @@ support provides a secure session, but no authentication. This allows any
 client to connect, and provides an encrypted session.
 
 @example
-qemu-system-i386 [...OPTIONS...] -vnc :1,tls,x509=/etc/pki/qemu -monitor stdio
+qemu-system-i386 [...OPTIONS...] \
+  -object tls-creds-x509,id=tls0,dir=/etc/pki/qemu,endpoint=server,verify-peer=no \
+  -vnc :1,tls-creds=tls0 -monitor stdio
 @end example
 
 In the above example @code{/etc/pki/qemu} should contain at least three files,
@@ -1112,10 +1120,14 @@ only be readable by the user owning it.
 Certificates can also provide a means to authenticate the client connecting.
 The server will request that the client provide a certificate, which it will
 then validate against the CA certificate. This is a good choice if deploying
-in an environment with a private internal certificate authority.
+in an environment with a private internal certificate authority. It uses the
+same syntax as previously, but with @code{verify-peer} set to @code{yes}
+instead.
 
 @example
-qemu-system-i386 [...OPTIONS...] -vnc :1,tls,x509verify=/etc/pki/qemu -monitor stdio
+qemu-system-i386 [...OPTIONS...] \
+  -object tls-creds-x509,id=tls0,dir=/etc/pki/qemu,endpoint=server,verify-peer=yes \
+  -vnc :1,tls-creds=tls0 -monitor stdio
 @end example
 
 
@@ -1126,7 +1138,9 @@ Finally, the previous method can be combined with VNC password authentication
 to provide two layers of authentication for clients.
 
 @example
-qemu-system-i386 [...OPTIONS...] -vnc :1,password,tls,x509verify=/etc/pki/qemu -monitor stdio
+qemu-system-i386 [...OPTIONS...] \
+  -object tls-creds-x509,id=tls0,dir=/etc/pki/qemu,endpoint=server,verify-peer=yes \
+  -vnc :1,tls-creds=tls0,password -monitor stdio
 (qemu) change vnc password
 Password: ********
 (qemu)
@@ -1163,7 +1177,9 @@ credentials. This can be enabled, by combining the 'sasl' option
 with the aforementioned TLS + x509 options:
 
 @example
-qemu-system-i386 [...OPTIONS...] -vnc :1,tls,x509,sasl -monitor stdio
+qemu-system-i386 [...OPTIONS...] \
+  -object tls-creds-x509,id=tls0,dir=/etc/pki/qemu,endpoint=server,verify-peer=yes \
+  -vnc :1,tls-creds=tls0,sasl -monitor stdio
 @end example
 
 @node vnc_setup_sasl
@@ -2693,8 +2709,17 @@ The binary format is detected automatically.
 @command{qemu-microblaze} TODO.
 
 @cindex user mode (MIPS)
-@command{qemu-mips} TODO.
-@command{qemu-mipsel} TODO.
+@command{qemu-mips} executes 32-bit big endian MIPS binaries (MIPS O32 ABI).
+
+@command{qemu-mipsel} executes 32-bit little endian MIPS binaries (MIPS O32 ABI).
+
+@command{qemu-mips64} executes 64-bit big endian MIPS binaries (MIPS N64 ABI).
+
+@command{qemu-mips64el} executes 64-bit little endian MIPS binaries (MIPS N64 ABI).
+
+@command{qemu-mipsn32} executes 32-bit big endian MIPS binaries (MIPS N32 ABI).
+
+@command{qemu-mipsn32el} executes 32-bit little endian MIPS binaries (MIPS N32 ABI).
 
 @cindex user mode (NiosII)
 @command{qemu-nios2} TODO.

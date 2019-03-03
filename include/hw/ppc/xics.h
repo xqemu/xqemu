@@ -29,7 +29,6 @@
 #define XICS_H
 
 #include "hw/qdev.h"
-#include "target/ppc/cpu-qom.h"
 
 #define XICS_IPI        0x2
 #define XICS_BUID       0x1
@@ -181,8 +180,6 @@ typedef struct XICSFabricClass {
     void (*ics_resend)(XICSFabric *xi);
     ICPState *(*icp_get)(XICSFabric *xi, int server);
 } XICSFabricClass;
-
-#define XICS_IRQS_SPAPR               1024
 
 void spapr_dt_xics(int nr_servers, void *fdt, uint32_t phandle);
 

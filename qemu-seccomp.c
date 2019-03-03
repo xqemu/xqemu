@@ -12,14 +12,16 @@
  * Contributions after 2012-01-13 are licensed under the terms of the
  * GNU GPL, version 2 or (at your option) any later version.
  */
+
 #include "qemu/osdep.h"
+#include "qapi/error.h"
 #include "qemu/config-file.h"
 #include "qemu/option.h"
 #include "qemu/module.h"
-#include "qemu/error-report.h"
 #include <sys/prctl.h>
 #include <seccomp.h>
 #include "sysemu/seccomp.h"
+#include <linux/seccomp.h>
 
 /* For some architectures (notably ARM) cacheflush is not supported until
  * libseccomp 2.2.3, but configure enforces that we are using a more recent
@@ -107,16 +109,49 @@ static const struct QemuSeccompSyscall blacklist[] = {
     { SCMP_SYS(sched_get_priority_min), QEMU_SECCOMP_SET_RESOURCECTL },
 };
 
+static inline __attribute__((unused)) int
+qemu_seccomp(unsigned int operation, unsigned int flags, void *args)
+{
+#ifdef __NR_seccomp
+    return syscall(__NR_seccomp, operation, flags, args);
+#else
+    errno = ENOSYS;
+    return -1;
+#endif
+}
+
+static uint32_t qemu_seccomp_get_kill_action(void)
+{
+#if defined(SECCOMP_GET_ACTION_AVAIL) && defined(SCMP_ACT_KILL_PROCESS) && \
+    defined(SECCOMP_RET_KILL_PROCESS)
+    {
+        uint32_t action = SECCOMP_RET_KILL_PROCESS;
+
+        if (qemu_seccomp(SECCOMP_GET_ACTION_AVAIL, 0, &action) == 0) {
+            return SCMP_ACT_KILL_PROCESS;
+        }
+    }
+#endif
+
+    return SCMP_ACT_TRAP;
+}
+
 
 static int seccomp_start(uint32_t seccomp_opts)
 {
     int rc = 0;
     unsigned int i = 0;
     scmp_filter_ctx ctx;
+    uint32_t action = qemu_seccomp_get_kill_action();
 
     ctx = seccomp_init(SCMP_ACT_ALLOW);
     if (ctx == NULL) {
         rc = -1;
+        goto seccomp_return;
+    }
+
+    rc = seccomp_attr_set(ctx, SCMP_FLTATR_CTL_TSYNC, 1);
+    if (rc != 0) {
         goto seccomp_return;
     }
 
@@ -125,7 +160,7 @@ static int seccomp_start(uint32_t seccomp_opts)
             continue;
         }
 
-        rc = seccomp_rule_add_array(ctx, SCMP_ACT_KILL, blacklist[i].num,
+        rc = seccomp_rule_add_array(ctx, action, blacklist[i].num,
                                     blacklist[i].narg, blacklist[i].arg_cmp);
         if (rc < 0) {
             goto seccomp_return;
@@ -156,7 +191,7 @@ int parse_sandbox(void *opaque, QemuOpts *opts, Error **errp)
                  * to provide a little bit of consistency for
                  * the command line */
             } else {
-                error_report("invalid argument for obsolete");
+                error_setg(errp, "invalid argument for obsolete");
                 return -1;
             }
         }
@@ -171,14 +206,13 @@ int parse_sandbox(void *opaque, QemuOpts *opts, Error **errp)
                 /* calling prctl directly because we're
                  * not sure if host has CAP_SYS_ADMIN set*/
                 if (prctl(PR_SET_NO_NEW_PRIVS, 1)) {
-                    error_report("failed to set no_new_privs "
-                                 "aborting");
+                    error_setg(errp, "failed to set no_new_privs aborting");
                     return -1;
                 }
             } else if (g_str_equal(value, "allow")) {
                 /* default value */
             } else {
-                error_report("invalid argument for elevateprivileges");
+                error_setg(errp, "invalid argument for elevateprivileges");
                 return -1;
             }
         }
@@ -190,7 +224,7 @@ int parse_sandbox(void *opaque, QemuOpts *opts, Error **errp)
             } else if (g_str_equal(value, "allow")) {
                 /* default value */
             } else {
-                error_report("invalid argument for spawn");
+                error_setg(errp, "invalid argument for spawn");
                 return -1;
             }
         }
@@ -202,14 +236,14 @@ int parse_sandbox(void *opaque, QemuOpts *opts, Error **errp)
             } else if (g_str_equal(value, "allow")) {
                 /* default value */
             } else {
-                error_report("invalid argument for resourcecontrol");
+                error_setg(errp, "invalid argument for resourcecontrol");
                 return -1;
             }
         }
 
         if (seccomp_start(seccomp_opts) < 0) {
-            error_report("failed to install seccomp syscall filter "
-                         "in the kernel");
+            error_setg(errp, "failed to install seccomp syscall filter "
+                       "in the kernel");
             return -1;
         }
     }
@@ -248,7 +282,24 @@ static QemuOptsList qemu_sandbox_opts = {
 
 static void seccomp_register(void)
 {
-    qemu_add_opts(&qemu_sandbox_opts);
+    bool add = false;
+
+    /* FIXME: use seccomp_api_get() >= 2 check when released */
+
+#if defined(SECCOMP_FILTER_FLAG_TSYNC)
+    int check;
+
+    /* check host TSYNC capability, it returns errno == ENOSYS if unavailable */
+    check = qemu_seccomp(SECCOMP_SET_MODE_FILTER,
+                         SECCOMP_FILTER_FLAG_TSYNC, NULL);
+    if (check < 0 && errno == EFAULT) {
+        add = true;
+    }
+#endif
+
+    if (add) {
+        qemu_add_opts(&qemu_sandbox_opts);
+    }
 }
 opts_init(seccomp_register);
 #endif

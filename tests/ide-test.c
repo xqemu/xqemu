@@ -29,11 +29,14 @@
 #include "libqos/libqos.h"
 #include "libqos/pci-pc.h"
 #include "libqos/malloc-pc.h"
-
+#include "qapi/qmp/qdict.h"
 #include "qemu-common.h"
 #include "qemu/bswap.h"
 #include "hw/pci/pci_ids.h"
 #include "hw/pci/pci_regs.h"
+
+/* TODO actually test the results and get rid of this */
+#define qmp_discard_response(...) qobject_unref(qmp(__VA_ARGS__))
 
 #define TEST_IMAGE_SIZE 64 * 1024 * 1024
 
@@ -139,6 +142,10 @@ static void ide_test_start(const char *cmdline_fmt, ...)
 
 static void ide_test_quit(void)
 {
+    if (pcibus) {
+        qpci_free_pc(pcibus);
+        pcibus = NULL;
+    }
     pc_alloc_uninit(guest_malloc);
     guest_malloc = NULL;
     qtest_end();
@@ -529,8 +536,8 @@ static void test_bmdma_no_busmaster(void)
 static void test_bmdma_setup(void)
 {
     ide_test_start(
-        "-drive file=%s,if=ide,serial=%s,cache=writeback,format=raw "
-        "-global ide-hd.ver=%s",
+        "-drive file=%s,if=ide,cache=writeback,format=raw "
+        "-global ide-hd.serial=%s -global ide-hd.ver=%s",
         tmp_path, "testdisk", "version");
     qtest_irq_intercept_in(global_qtest, "ioapic");
 }
@@ -561,8 +568,8 @@ static void test_identify(void)
     int ret;
 
     ide_test_start(
-        "-drive file=%s,if=ide,serial=%s,cache=writeback,format=raw "
-        "-global ide-hd.ver=%s",
+        "-drive file=%s,if=ide,cache=writeback,format=raw "
+        "-global ide-hd.serial=%s -global ide-hd.ver=%s",
         tmp_path, "testdisk", "version");
 
     dev = get_pci_device(&bmdma_bar, &ide_bar);
@@ -694,7 +701,6 @@ static void test_retry_flush(const char *machine)
     QPCIDevice *dev;
     QPCIBar bmdma_bar, ide_bar;
     uint8_t data;
-    const char *s;
 
     prepare_blkdebug_script(debug_path, "flush_to_disk");
 
@@ -722,8 +728,7 @@ static void test_retry_flush(const char *machine)
     qmp_eventwait("STOP");
 
     /* Complete the command */
-    s = "{'execute':'cont' }";
-    qmp_discard_response(s);
+    qmp_discard_response("{'execute':'cont' }");
 
     /* Check registers */
     data = qpci_io_readb(dev, ide_bar, reg_device);

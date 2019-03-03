@@ -72,7 +72,7 @@ static uint64_t load_kernel(const char *kernel_filename)
     if (load_elf(kernel_filename, NULL, NULL,
                  &kernel_entry, NULL, &kernel_high,
                  0, EM_RISCV, 1, 0) < 0) {
-        error_report("qemu: could not load kernel '%s'", kernel_filename);
+        error_report("could not load kernel '%s'", kernel_filename);
         exit(1);
     }
     return kernel_entry;
@@ -230,7 +230,9 @@ static void create_fdt(SiFiveUState *s, const struct MemmapEntry *memmap,
 
     qemu_fdt_add_subnode(fdt, "/chosen");
     qemu_fdt_setprop_string(fdt, "/chosen", "stdout-path", nodename);
-    qemu_fdt_setprop_string(fdt, "/chosen", "bootargs", cmdline);
+    if (cmdline) {
+        qemu_fdt_setprop_string(fdt, "/chosen", "bootargs", cmdline);
+    }
     g_free(nodename);
 }
 

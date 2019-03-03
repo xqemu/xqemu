@@ -992,11 +992,17 @@ int nbd_client_init(BlockDriverState *bs,
         logout("Failed to negotiate with the NBD server\n");
         return ret;
     }
-    if (client->info.flags & NBD_FLAG_READ_ONLY &&
-        !bdrv_is_read_only(bs)) {
-        error_setg(errp,
-                   "request for write access conflicts with read-only export");
-        return -EACCES;
+    if (x_dirty_bitmap && !client->info.base_allocation) {
+        error_setg(errp, "requested x-dirty-bitmap %s not found",
+                   x_dirty_bitmap);
+        ret = -EINVAL;
+        goto fail;
+    }
+    if (client->info.flags & NBD_FLAG_READ_ONLY) {
+        ret = bdrv_apply_auto_read_only(bs, "NBD export is read-only", errp);
+        if (ret < 0) {
+            goto fail;
+        }
     }
     if (client->info.flags & NBD_FLAG_SEND_FUA) {
         bs->supported_write_flags = BDRV_REQ_FUA;
@@ -1024,4 +1030,17 @@ int nbd_client_init(BlockDriverState *bs,
 
     logout("Established connection with NBD server\n");
     return 0;
+
+ fail:
+    /*
+     * We have connected, but must fail for other reasons. The
+     * connection is still blocking; send NBD_CMD_DISC as a courtesy
+     * to the server.
+     */
+    {
+        NBDRequest request = { .type = NBD_CMD_DISC };
+
+        nbd_send_request(client->ioc ?: QIO_CHANNEL(sioc), &request);
+        return ret;
+    }
 }

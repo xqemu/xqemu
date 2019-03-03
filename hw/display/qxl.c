@@ -259,6 +259,8 @@ static void qxl_spice_destroy_surfaces(PCIQXLDevice *qxl, qxl_async_io async)
 
 static void qxl_spice_monitors_config_async(PCIQXLDevice *qxl, int replay)
 {
+    QXLMonitorsConfig *cfg;
+
     trace_qxl_spice_monitors_config(qxl->id);
     if (replay) {
         /*
@@ -285,6 +287,16 @@ static void qxl_spice_monitors_config_async(PCIQXLDevice *qxl, int replay)
                 MEMSLOT_GROUP_GUEST,
                 (uintptr_t)qxl_cookie_new(QXL_COOKIE_TYPE_IO,
                                           QXL_IO_MONITORS_CONFIG_ASYNC));
+    }
+
+    cfg = qxl_phys2virt(qxl, qxl->guest_monitors_config, MEMSLOT_GROUP_GUEST);
+    if (cfg != NULL && cfg->count == 1) {
+        qxl->guest_primary.resized = 1;
+        qxl->guest_head0_width  = cfg->heads[0].width;
+        qxl->guest_head0_height = cfg->heads[0].height;
+    } else {
+        qxl->guest_head0_width  = 0;
+        qxl->guest_head0_height = 0;
     }
 }
 
@@ -836,7 +848,7 @@ static int interface_get_cursor_command(QXLInstance *sin, struct QXLCommandExt *
         qxl->guest_primary.commands++;
         qxl_track_command(qxl, ext);
         qxl_log_command(qxl, "csr", ext);
-        if (qxl->id == 0) {
+        if (qxl->have_vga) {
             qxl_render_cursor(qxl, ext);
         }
         trace_qxl_ring_cursor_get(qxl->id, qxl_mode_to_string(qxl->mode));
@@ -1243,7 +1255,7 @@ static void qxl_soft_reset(PCIQXLDevice *d)
     d->current_async = QXL_UNDEFINED_IO;
     qemu_mutex_unlock(&d->async_lock);
 
-    if (d->id == 0) {
+    if (d->have_vga) {
         qxl_enter_vga_mode(d);
     } else {
         d->mode = QXL_MODE_UNDEFINED;
@@ -1881,7 +1893,31 @@ static void qxl_send_events(PCIQXLDevice *d, uint32_t events)
         trace_qxl_send_events_vm_stopped(d->id, events);
         return;
     }
-    old_pending = atomic_fetch_or(&d->ram->int_pending, le_events);
+    /*
+     * Older versions of Spice forgot to define the QXLRam struct
+     * with the '__aligned__(4)' attribute. clang 7 and newer will
+     * thus warn that atomic_fetch_or(&d->ram->int_pending, ...)
+     * might be a misaligned atomic access, and will generate an
+     * out-of-line call for it, which results in a link error since
+     * we don't currently link against libatomic.
+     *
+     * In fact we set up d->ram in init_qxl_ram() so it always starts
+     * at a 4K boundary, so we know that &d->ram->int_pending is
+     * naturally aligned for a uint32_t. Newer Spice versions
+     * (with Spice commit beda5ec7a6848be20c0cac2a9a8ef2a41e8069c1)
+     * will fix the bug directly. To deal with older versions,
+     * we tell the compiler to assume the address really is aligned.
+     * Any compiler which cares about the misalignment will have
+     * __builtin_assume_aligned.
+     */
+#ifdef HAS_ASSUME_ALIGNED
+#define ALIGNED_UINT32_PTR(P) ((uint32_t *)__builtin_assume_aligned(P, 4))
+#else
+#define ALIGNED_UINT32_PTR(P) ((uint32_t *)P)
+#endif
+
+    old_pending = atomic_fetch_or(ALIGNED_UINT32_PTR(&d->ram->int_pending),
+                                  le_events);
     if ((old_pending & le_events) == le_events) {
         return;
     }
@@ -2057,7 +2093,6 @@ static void qxl_realize_common(PCIQXLDevice *qxl, Error **errp)
 
     qemu_spice_display_init_common(&qxl->ssd);
     qxl->mode = QXL_MODE_UNDEFINED;
-    qxl->generation = 1;
     qxl->num_memslots = NUM_MEMSLOTS;
     qemu_mutex_init(&qxl->track_lock);
     qemu_mutex_init(&qxl->async_lock);
@@ -2104,7 +2139,7 @@ static void qxl_realize_common(PCIQXLDevice *qxl, Error **errp)
 
     memory_region_init_io(&qxl->io_bar, OBJECT(qxl), &qxl_io_ops, qxl,
                           "qxl-ioports", io_size);
-    if (qxl->id == 0) {
+    if (qxl->have_vga) {
         vga_dirty_log_start(&qxl->vga);
     }
     memory_region_set_flush_coalesced(&qxl->io_bar);
@@ -2136,7 +2171,7 @@ static void qxl_realize_common(PCIQXLDevice *qxl, Error **errp)
 
     /* print pci bar details */
     dprint(qxl, 1, "ram/%s: %" PRId64 " MB [region 0]\n",
-           qxl->id == 0 ? "pri" : "sec", qxl->vga.vram_size / MiB);
+           qxl->have_vga ? "pri" : "sec", qxl->vga.vram_size / MiB);
     dprint(qxl, 1, "vram/32: %" PRIx64 " MB [region 1]\n",
            qxl->vram32_size / MiB);
     dprint(qxl, 1, "vram/64: %" PRIx64 " MB %s\n",
@@ -2164,7 +2199,6 @@ static void qxl_realize_primary(PCIDevice *dev, Error **errp)
     VGACommonState *vga = &qxl->vga;
     Error *local_err = NULL;
 
-    qxl->id = 0;
     qxl_init_ramsize(qxl);
     vga->vbe_size = qxl->vgamem_size;
     vga->vram_size_mb = qxl->vga.vram_size / MiB;
@@ -2175,8 +2209,15 @@ static void qxl_realize_primary(PCIDevice *dev, Error **errp)
                      vga, "vga");
     portio_list_set_flush_coalesced(&qxl->vga_port_list);
     portio_list_add(&qxl->vga_port_list, pci_address_space_io(dev), 0x3b0);
+    qxl->have_vga = true;
 
     vga->con = graphic_console_init(DEVICE(dev), 0, &qxl_ops, qxl);
+    qxl->id = qemu_console_get_index(vga->con); /* == channel_id */
+    if (qxl->id != 0) {
+        error_setg(errp, "primary qxl-vga device must be console 0 "
+                   "(first display device on the command line)");
+        return;
+    }
 
     qxl_realize_common(qxl, &local_err);
     if (local_err) {
@@ -2191,15 +2232,14 @@ static void qxl_realize_primary(PCIDevice *dev, Error **errp)
 
 static void qxl_realize_secondary(PCIDevice *dev, Error **errp)
 {
-    static int device_id = 1;
     PCIQXLDevice *qxl = PCI_QXL(dev);
 
-    qxl->id = device_id++;
     qxl_init_ramsize(qxl);
     memory_region_init_ram(&qxl->vga.vram, OBJECT(dev), "qxl.vgavram",
                            qxl->vga.vram_size, &error_fatal);
     qxl->vga.vram_ptr = memory_region_get_ram_ptr(&qxl->vga.vram);
     qxl->vga.con = graphic_console_init(DEVICE(dev), 0, &qxl_ops, qxl);
+    qxl->id = qemu_console_get_index(qxl->vga.con); /* == channel_id */
 
     qxl_realize_common(qxl, errp);
 }

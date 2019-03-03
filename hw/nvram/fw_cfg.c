@@ -434,6 +434,11 @@ static bool fw_cfg_data_mem_valid(void *opaque, hwaddr addr,
     return addr == 0;
 }
 
+static uint64_t fw_cfg_ctl_mem_read(void *opaque, hwaddr addr, unsigned size)
+{
+    return 0;
+}
+
 static void fw_cfg_ctl_mem_write(void *opaque, hwaddr addr,
                                  uint64_t value, unsigned size)
 {
@@ -468,6 +473,7 @@ static bool fw_cfg_comb_valid(void *opaque, hwaddr addr,
 }
 
 static const MemoryRegionOps fw_cfg_ctl_mem_ops = {
+    .read = fw_cfg_ctl_mem_read,
     .write = fw_cfg_ctl_mem_write,
     .endianness = DEVICE_BIG_ENDIAN,
     .valid.accepts = fw_cfg_ctl_mem_valid,
@@ -514,15 +520,15 @@ static void fw_cfg_reset(DeviceState *d)
  */
 
 static int get_uint32_as_uint16(QEMUFile *f, void *pv, size_t size,
-                                VMStateField *field)
+                                const VMStateField *field)
 {
     uint32_t *v = pv;
     *v = qemu_get_be16(f);
     return 0;
 }
 
-static int put_unused(QEMUFile *f, void *pv, size_t size, VMStateField *field,
-                      QJSON *vmdesc)
+static int put_unused(QEMUFile *f, void *pv, size_t size,
+                      const VMStateField *field, QJSON *vmdesc)
 {
     fprintf(stderr, "uint32_as_uint16 is only used for backward compatibility.\n");
     fprintf(stderr, "This functions shouldn't be called.\n");
@@ -861,7 +867,7 @@ static void fw_cfg_machine_reset(void *opaque)
     void *ptr;
     size_t len;
     FWCfgState *s = opaque;
-    char *bootindex = get_boot_devices_list(&len, false);
+    char *bootindex = get_boot_devices_list(&len);
 
     ptr = fw_cfg_modify_file(s, "bootorder", (uint8_t *)bootindex, len);
     g_free(ptr);
@@ -1109,12 +1115,7 @@ static void fw_cfg_mem_realize(DeviceState *dev, Error **errp)
     sysbus_init_mmio(sbd, &s->ctl_iomem);
 
     if (s->data_width > data_ops->valid.max_access_size) {
-        /* memberwise copy because the "old_mmio" member is const */
-        s->wide_data_ops.read       = data_ops->read;
-        s->wide_data_ops.write      = data_ops->write;
-        s->wide_data_ops.endianness = data_ops->endianness;
-        s->wide_data_ops.valid      = data_ops->valid;
-        s->wide_data_ops.impl       = data_ops->impl;
+        s->wide_data_ops = *data_ops;
 
         s->wide_data_ops.valid.max_access_size = s->data_width;
         s->wide_data_ops.impl.max_access_size  = s->data_width;

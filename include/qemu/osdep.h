@@ -123,6 +123,18 @@ extern int daemon(int, int);
 #include "qemu/typedefs.h"
 
 /*
+ * For mingw, as of v6.0.0, the function implementing the assert macro is
+ * not marked as noreturn, so the compiler cannot delete code following an
+ * assert(false) as unused.  We rely on this within the code base to delete
+ * code that is unreachable when features are disabled.
+ * All supported versions of Glib's g_assert() satisfy this requirement.
+ */
+#ifdef __MINGW32__
+#undef assert
+#define assert(x)  g_assert(x)
+#endif
+
+/*
  * According to waitpid man page:
  * WCOREDUMP
  *  This  macro  is  not  specified  in POSIX.1-2001 and is not
@@ -448,7 +460,8 @@ bool qemu_has_ofd_lock(void);
 #define FMT_pid "%d"
 #endif
 
-int qemu_create_pidfile(const char *filename);
+bool qemu_write_pidfile(const char *pidfile, Error **errp);
+
 int qemu_get_thread_id(void);
 
 #ifndef CONFIG_IOVEC
@@ -570,6 +583,8 @@ extern uintptr_t qemu_real_host_page_size;
 extern intptr_t qemu_real_host_page_mask;
 
 extern int qemu_icache_linesize;
+extern int qemu_icache_linesize_log;
 extern int qemu_dcache_linesize;
+extern int qemu_dcache_linesize_log;
 
 #endif
