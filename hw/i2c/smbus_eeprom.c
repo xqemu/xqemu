@@ -26,6 +26,7 @@
 #include "hw/hw.h"
 #include "hw/i2c/i2c.h"
 #include "hw/i2c/smbus.h"
+#include "hw/xbox/xbox.h"
 
 //#define DEBUG
 
@@ -84,6 +85,8 @@ static void eeprom_write_data(SMBusDevice *dev, uint8_t cmd, uint8_t *buf, int l
     len -= n;
     if (len)
         memcpy(eeprom->data, buf + n, len);
+
+    save_eeprom(eeprom->data);
 }
 
 static uint8_t eeprom_read_data(SMBusDevice *dev, uint8_t cmd, int n)

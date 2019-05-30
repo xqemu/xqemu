@@ -53,6 +53,8 @@
 
 #define MAX_IDE_BUS 2
 
+#define EEPROM_SIZE 256
+
 // XBOX_TODO: Should be passed in through configuration
 /* bunnie's eeprom */
 const uint8_t default_eeprom[] = {
@@ -225,61 +227,67 @@ static void xbox_memory_init(PCMachineState *pcms,
     xbox_flash_init(rom_memory);
 }
 
-uint8_t *load_eeprom(void)
+uint8_t *load_eeprom(MachineState *machine)
 {
+    XboxMachineState *xbms = XBOX_MACHINE(machine);
     char *filename;
-    int fd;
     int rc;
     int eeprom_file_size;
-    const int eeprom_size = 256;
 
-    uint8_t *eeprom_data = g_malloc(eeprom_size);
+    uint8_t *eeprom_data = g_malloc(EEPROM_SIZE);
 
-    const char *eeprom_file = object_property_get_str(qdev_get_machine(),
-                                                      "eeprom", NULL);
+    const char *eeprom_file = xbms->eeprom;
     if ((eeprom_file != NULL) && *eeprom_file) {
         filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, eeprom_file);
         assert(filename);
 
         eeprom_file_size = get_image_size(filename);
-        if (eeprom_size != eeprom_file_size) {
+        if (EEPROM_SIZE != eeprom_file_size) {
             fprintf(stderr,
                     "qemu: EEPROM file size != %d bytes. (Is %d bytes)\n",
-                    eeprom_size, eeprom_file_size);
+                    EEPROM_SIZE, eeprom_file_size);
             g_free(filename);
             exit(1);
             return NULL;
         }
 
-        fd = open(filename, O_RDONLY | O_BINARY);
-        if (fd < 0) {
+        xbms->eeprom_fd = open(filename, O_RDWR | O_BINARY);
+        if (xbms->eeprom_fd < 0) {
             fprintf(stderr, "qemu: EEPROM file '%s' could not be opened.\n", filename);
             g_free(filename);
             exit(1);
             return NULL;
         }
 
-        rc = read(fd, eeprom_data, eeprom_size);
-        if (rc != eeprom_size) {
+        rc = read(xbms->eeprom_fd, eeprom_data, EEPROM_SIZE);
+        if (rc != EEPROM_SIZE) {
             fprintf(stderr, "qemu: Could not read the full EEPROM file.\n");
-            close(fd);
+            close(xbms->eeprom_fd);
             g_free(filename);
             exit(1);
             return NULL;
         }
 
-        close(fd);
         g_free(filename);
     } else {
-        memcpy(eeprom_data, default_eeprom, eeprom_size);
+        memcpy(eeprom_data, default_eeprom, EEPROM_SIZE);
     }
     return eeprom_data;
+}
+
+void save_eeprom(uint8_t *eeprom_data)
+{
+    XboxMachineState *xbms = XBOX_MACHINE(qdev_get_machine());
+    if (xbms->eeprom_fd > 0) {
+        lseek(xbms->eeprom_fd, 0, SEEK_SET);
+        write(xbms->eeprom_fd, eeprom_data, EEPROM_SIZE);
+    }
 }
 
 /* PC hardware initialisation */
 static void xbox_init(MachineState *machine)
 {
-    uint8_t *eeprom_data = load_eeprom();
+    uint8_t *eeprom_data = load_eeprom(machine);
     xbox_init_common(machine, eeprom_data, NULL, NULL);
 }
 
@@ -378,8 +386,8 @@ void xbox_init_common(MachineState *machine,
     }
 
     /* smbus devices */
-    uint8_t *eeprom_buf = g_malloc0(256);
-    memcpy(eeprom_buf, eeprom, 256);
+    uint8_t *eeprom_buf = g_malloc0(EEPROM_SIZE);
+    memcpy(eeprom_buf, eeprom, EEPROM_SIZE);
     smbus_eeprom_init_one(smbus, 0x54, eeprom_buf);
 
     smbus_xbox_smc_init(smbus, 0x10);
