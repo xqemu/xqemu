@@ -397,7 +397,7 @@ static void hvf_log_sync(MemoryListener *listener,
      * sync of dirty pages is handled elsewhere; just make sure we keep
      * tracking the region.
      */
-    hvf_set_dirty_tracking(section, 1);
+    // hvf_set_dirty_tracking(section, 1);
 }
 
 static void hvf_region_add(MemoryListener *listener,

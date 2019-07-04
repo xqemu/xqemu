@@ -113,7 +113,7 @@ static void decode_modrm_reg(CPUX86State *env, struct x86_decode *decode,
 {
     op->type = X86_VAR_REG;
     op->reg = decode->modrm.reg;
-    op->ptr = get_reg_ref(env, op->reg, decode->rex.rex, decode->rex.r,
+    op->ptr = get_reg_ref(env, op->reg, decode->rex.rex, decode->rex.unused == 4,
                           decode->operand_size);
 }
 
@@ -122,7 +122,7 @@ static void decode_rax(CPUX86State *env, struct x86_decode *decode,
 {
     op->type = X86_VAR_REG;
     op->reg = R_EAX;
-    op->ptr = get_reg_ref(env, op->reg, decode->rex.rex, 0,
+    op->ptr = get_reg_ref(env, op->reg, 0, 0,
                           decode->operand_size);
 }
 
@@ -265,7 +265,7 @@ static void decode_incgroup(CPUX86State *env, struct x86_decode *decode)
 {
     decode->op[0].type = X86_VAR_REG;
     decode->op[0].reg = decode->opcode[0] - 0x40;
-    decode->op[0].ptr = get_reg_ref(env, decode->op[0].reg, decode->rex.rex,
+    decode->op[0].ptr = get_reg_ref(env, decode->op[0].reg, decode->rex.unused == 4,
                                     decode->rex.b, decode->operand_size);
 }
 
@@ -273,7 +273,7 @@ static void decode_decgroup(CPUX86State *env, struct x86_decode *decode)
 {
     decode->op[0].type = X86_VAR_REG;
     decode->op[0].reg = decode->opcode[0] - 0x48;
-    decode->op[0].ptr = get_reg_ref(env, decode->op[0].reg, decode->rex.rex,
+    decode->op[0].ptr = get_reg_ref(env, decode->op[0].reg, decode->rex.unused == 4,
                                     decode->rex.b, decode->operand_size);
 }
 
@@ -290,7 +290,7 @@ static void decode_pushgroup(CPUX86State *env, struct x86_decode *decode)
 {
     decode->op[0].type = X86_VAR_REG;
     decode->op[0].reg = decode->opcode[0] - 0x50;
-    decode->op[0].ptr = get_reg_ref(env, decode->op[0].reg, decode->rex.rex,
+    decode->op[0].ptr = get_reg_ref(env, decode->op[0].reg, decode->rex.unused == 4,
                                     decode->rex.b, decode->operand_size);
 }
 
@@ -298,7 +298,7 @@ static void decode_popgroup(CPUX86State *env, struct x86_decode *decode)
 {
     decode->op[0].type = X86_VAR_REG;
     decode->op[0].reg = decode->opcode[0] - 0x58;
-    decode->op[0].ptr = get_reg_ref(env, decode->op[0].reg, decode->rex.rex,
+    decode->op[0].ptr = get_reg_ref(env, decode->op[0].reg, decode->rex.unused == 4,
                                     decode->rex.b, decode->operand_size);
 }
 
@@ -388,7 +388,7 @@ static void decode_movgroup(CPUX86State *env, struct x86_decode *decode)
 {
     decode->op[0].type = X86_VAR_REG;
     decode->op[0].reg = decode->opcode[0] - 0xb8;
-    decode->op[0].ptr = get_reg_ref(env, decode->op[0].reg, decode->rex.rex,
+    decode->op[0].ptr = get_reg_ref(env, decode->op[0].reg, decode->rex.unused == 4,
                                     decode->rex.b, decode->operand_size);
     decode_immediate(env, decode, &decode->op[1], decode->operand_size);
 }
@@ -404,7 +404,7 @@ static void decode_movgroup8(CPUX86State *env, struct x86_decode *decode)
 {
     decode->op[0].type = X86_VAR_REG;
     decode->op[0].reg = decode->opcode[0] - 0xb0;
-    decode->op[0].ptr = get_reg_ref(env, decode->op[0].reg, decode->rex.rex,
+    decode->op[0].ptr = get_reg_ref(env, decode->op[0].reg, decode->rex.unused == 4,
                                     decode->rex.b, decode->operand_size);
     decode_immediate(env, decode, &decode->op[1], decode->operand_size);
 }
@@ -414,7 +414,7 @@ static void decode_rcx(CPUX86State *env, struct x86_decode *decode,
 {
     op->type = X86_VAR_REG;
     op->reg = R_ECX;
-    op->ptr = get_reg_ref(env, op->reg, decode->rex.rex, decode->rex.b,
+    op->ptr = get_reg_ref(env, op->reg, decode->rex.unused == 4, decode->rex.b,
                           decode->operand_size);
 }
 
@@ -642,7 +642,7 @@ static void decode_bswap(CPUX86State *env, struct x86_decode *decode)
 {
     decode->op[0].type = X86_VAR_REG;
     decode->op[0].reg = decode->opcode[1] - 0xc8;
-    decode->op[0].ptr = get_reg_ref(env, decode->op[0].reg, decode->rex.rex,
+    decode->op[0].ptr = get_reg_ref(env, decode->op[0].reg, decode->rex.unused == 4,
                                     decode->rex.b, decode->operand_size);
 }
 
@@ -1689,10 +1689,10 @@ calc_addr:
     }
 }
 
-target_ulong get_reg_ref(CPUX86State *env, int reg, int rex, int is_extended,
+uintptr_t get_reg_ref(CPUX86State *env, int reg, int rex, int is_extended,
                          int size)
 {
-    target_ulong ptr = 0;
+    uintptr_t ptr = 0;
     int which = 0;
 
     if (is_extended) {
@@ -1704,15 +1704,15 @@ target_ulong get_reg_ref(CPUX86State *env, int reg, int rex, int is_extended,
     case 1:
         if (is_extended || reg < 4 || rex) {
             which = 1;
-            ptr = (target_ulong)&RL(env, reg);
+            ptr = (uintptr_t)&RL(env, reg);
         } else {
             which = 2;
-            ptr = (target_ulong)&RH(env, reg - 4);
+            ptr = (uintptr_t)&RH(env, reg - 4);
         }
         break;
     default:
         which = 3;
-        ptr = (target_ulong)&RRX(env, reg);
+        ptr = (uintptr_t)&RRX(env, reg);
         break;
     }
     return ptr;
