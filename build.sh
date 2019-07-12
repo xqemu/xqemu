@@ -42,19 +42,19 @@ case "$(uname -s)" in # adjust compilation option based on platform
     Linux)
         echo 'Compiling for Linux…'
         sys_cflags='-march=native -Wno-error=redundant-decls -Wno-error=unused-but-set-variable'
-        sys_opts='--enable-kvm --disable-xen --disable-werror'
+        sys_opts='--enable-kvm --disable-xen --disable-werror --audio-drv-list=alsa'
         ;;
     Darwin)
         echo 'Compiling for MacOS…'
         sys_cflags='-march=native'
-        sys_opts='--disable-cocoa'
+        sys_opts='--disable-cocoa --audio-drv-list=coreaudio'
         # necessary to find libffi, which is required by gobject
         export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}/usr/local/opt/libffi/lib/pkgconfig"
         ;;
     CYGWIN*|MINGW*|MSYS*)
         echo 'Compiling for Windows…'
         sys_cflags='-Wno-error'
-        sys_opts='--python=python3 --disable-cocoa --disable-opengl'
+        sys_opts='--python=python3 --disable-cocoa --disable-opengl --audio-drv-list=dsound'
         postbuild='package_windows' # set the above function to be called after build
         ;;
     *)
