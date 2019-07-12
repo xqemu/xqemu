@@ -25,10 +25,12 @@
 #include "hw/pci/pci.h"
 #include "cpu.h"
 #include "hw/xbox/dsp/dsp.h"
+#include "audio/audio.h"
+#include "qemu/fifo8.h"
 #include <math.h>
 
 #define USE_APU_THREAD 1
-#define PROCESS_VOICES 0
+#define PROCESS_VOICES 1
 
 #define NUM_SAMPLES_PER_FRAME 32
 #define NUM_MIXBINS 32
@@ -319,6 +321,11 @@ typedef struct MCPXAPUState {
     PCIDevice dev;
     bool exiting;
     bool set_irq;
+
+    QEMUSoundCard qemu_audio_card;
+    SWVoiceOut *qemu_audio_voice_out;
+    Fifo8 vp_out_buf;
+    QemuSpin vp_out_buf_lock;
 
     MemoryRegion *ram;
     uint8_t *ram_ptr;
@@ -1435,6 +1442,7 @@ static void process_voice(MCPXAPUState *d,
     }
 
     //FIXME: Decode voice volume and bins
+#if 0
     int bin[8] = {
       voice_get_mask(d, v, NV_PAVS_VOICE_CFG_VBIN, NV_PAVS_VOICE_CFG_VBIN_V0BIN),
       voice_get_mask(d, v, NV_PAVS_VOICE_CFG_VBIN, NV_PAVS_VOICE_CFG_VBIN_V1BIN),
@@ -1445,6 +1453,7 @@ static void process_voice(MCPXAPUState *d,
       voice_get_mask(d, v, NV_PAVS_VOICE_CFG_FMT, NV_PAVS_VOICE_CFG_FMT_V6BIN),
       voice_get_mask(d, v, NV_PAVS_VOICE_CFG_FMT, NV_PAVS_VOICE_CFG_FMT_V7BIN)
     };
+#endif
     uint16_t vol[8] = {
       voice_get_mask(d, v, NV_PAVS_VOICE_TAR_VOLA, NV_PAVS_VOICE_TAR_VOLA_VOLUME0),
       voice_get_mask(d, v, NV_PAVS_VOICE_TAR_VOLA, NV_PAVS_VOICE_TAR_VOLA_VOLUME1),
@@ -1468,6 +1477,7 @@ static void process_voice(MCPXAPUState *d,
       voice_set_mask(d, v, NV_PAVS_VOICE_PAR_OFFSET, NV_PAVS_VOICE_PAR_OFFSET_CBO, cbo);
     }
 
+#if 0
     // Apply the amplitude envelope
     //FIXME: Figure out when exactly and how exactly this is actually done
     for(unsigned int j = 0; j < channels; j++) {
@@ -1475,10 +1485,13 @@ static void process_voice(MCPXAPUState *d,
             samples[j][i] *= ea_value;
         }
     }
+#endif
 
     //FIXME: If phase negations means to flip the signal upside down
     //       we should modify volume of bin6 and bin7 here.
 
+
+#if 0
     // Mix samples into voice bins
     for(unsigned int j = 0; j < 8; j++) {
         MCPX_DPRINTF("Adding voice 0x%04X to bin %d [Rate %.2f, Volume 0x%03X] sample %d at %d [%.2fs]\n", v, bin[j], rate, vol[j], samples[0], cbo, cbo / (rate * 48000.0f));
@@ -1487,6 +1500,22 @@ static void process_voice(MCPXAPUState *d,
             //FIXME: What happens to the other channel? Is this behaviour correct?
             mixbins[bin[j]][i] += (0xFFF - vol[j]) * samples[j % channels][i] / 0xFFF;
         }
+    }
+#endif
+
+    /*
+     * FIXME: For now, simply mix samples into a single bin for basic playback
+     */
+
+    // Find the bin with maximal volume and just use that to scale volume
+    int mix_vol = 0xfff;
+    for (int j = 0; j < 8; j++) {
+        mix_vol = MIN(mix_vol,vol[j]);
+    }
+
+    for (int i = 0; i < 0x20; i++) {
+        mixbins[0][i] += ((0xfff - mix_vol) * (samples[0][i] / 0xfff) / 4);
+        // mixbins[0][i] += ((0xfff - mix_vol) * (samples[1][i] / 0xfff) / 4) / 2;
     }
 #endif
 }
@@ -1503,6 +1532,14 @@ static void se_frame(void *opaque)
     timer_mod(d->se.frame_timer, qemu_clock_get_us(QEMU_CLOCK_VIRTUAL) + 600);
 #endif
     MCPX_DPRINTF("mcpx frame ping\n");
+
+    // Check for free space in the output buffer
+    qemu_spin_lock(&d->vp_out_buf_lock);
+    int avail = fifo8_num_free(&d->vp_out_buf);
+    qemu_spin_unlock(&d->vp_out_buf_lock);
+    if (avail < (NUM_SAMPLES_PER_FRAME * 4)) {
+        return;
+    }
 
     /* Buffer for all mixbins for this frame */
     int32_t mixbins[NUM_MIXBINS][NUM_SAMPLES_PER_FRAME] = { 0 };
@@ -1560,6 +1597,11 @@ static void se_frame(void *opaque)
     }
 #endif
 
+    // Temporarily provide samples just from mixbin 0
+    qemu_spin_lock(&d->vp_out_buf_lock);
+    fifo8_push_all(&d->vp_out_buf, (uint8_t*)&mixbins[0][0], sizeof(mixbins[0]));
+    qemu_spin_unlock(&d->vp_out_buf_lock);
+
     /* Write VP results to the GP DSP MIXBUF */
     for (mixbin = 0; mixbin < NUM_MIXBINS; mixbin++) {
         for (sample = 0; sample < NUM_SAMPLES_PER_FRAME; sample++) {
@@ -1583,6 +1625,32 @@ static void se_frame(void *opaque)
 
         // hax
         // dsp_run(d->ep.dsp, 1000);
+    }
+}
+
+static void mcpx_vp_out_cb(void *opaque, int free_b)
+{
+    MCPXAPUState *s = MCPX_APU_DEVICE(opaque);
+    if (free_b <= 0) return;
+
+    int avail = fifo8_num_used(&s->vp_out_buf);
+    int temp = audio_MIN(free_b, avail);
+
+    while (temp > 0) {
+        // Get samples from output buffer
+        qemu_spin_lock(&s->vp_out_buf_lock);
+        uint32_t to_copy;
+        const uint8_t *samples = fifo8_pop_buf(&s->vp_out_buf, temp, &to_copy);
+
+        // Provide samples to audio card
+        int copied = AUD_write(s->qemu_audio_voice_out, (void*)samples, to_copy);
+
+        qemu_spin_unlock(&s->vp_out_buf_lock);
+
+        if (!copied) {
+            break;
+        }
+        temp -= copied;
     }
 }
 
@@ -1681,6 +1749,23 @@ void mcpx_apu_init(PCIBus *bus, int devfn, MemoryRegion *ram)
     d->ep.dsp = dsp_init(d, ep_scratch_rw, ep_fifo_rw);
     d->set_irq = false;
     d->exiting = false;
+
+    AUD_register_card("XboxAPU", &d->qemu_audio_card);
+
+    struct audsettings as = {
+        .freq = 48000,
+        .nchannels = 1,
+        .fmt = AUDIO_FORMAT_S32,
+        .endianness = 0,
+    };
+
+    d->qemu_audio_voice_out = AUD_open_out(&d->qemu_audio_card,
+                                           d->qemu_audio_voice_out,
+            "XboxAPU.out", d, mcpx_vp_out_cb, &as);
+    AUD_set_active_out(d->qemu_audio_voice_out, 1);
+
+    qemu_spin_init(&d->vp_out_buf_lock);
+    fifo8_create(&d->vp_out_buf, 4096);
 
 #if USE_APU_THREAD
     qemu_thread_create(&d->apu_thread, "mcpx.apu_thread",
