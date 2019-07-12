@@ -1383,8 +1383,8 @@ static void process_voice(MCPXAPUState *d,
                 //FIXME: Used wrong sample format in my own decoder.. stupid me lol
                 int16_t tmp[2];
                 adpcm_decode_stereo_block(&tmp[0], &tmp[1], (uint8_t*)block, block_position, block_position);
-                samples[0][i] = tmp[0];
-                samples[1][i] = tmp[1];
+                samples[0][i] = tmp[0] << 16;
+                samples[1][i] = tmp[1] << 16;
             } else {
                 assert(samples_per_block == 1);
                 // There are 65 samples per 36 byte block
@@ -1398,7 +1398,7 @@ static void process_voice(MCPXAPUState *d,
                 //FIXME: Used wrong sample format in my own decoder.. stupid me lol
                 int16_t tmp;
                 adpcm_decode_mono_block(&tmp, (uint8_t*)block, block_position, block_position);
-                samples[0][i] = tmp;
+                samples[0][i] = tmp << 16;
             }
 
         } else {
@@ -1415,13 +1415,13 @@ static void process_voice(MCPXAPUState *d,
             for(unsigned int channel = 0; channel < channels; channel++) {
                 switch(sample_size) {
                 case NV_PAVS_VOICE_CFG_FMT_SAMPLE_SIZE_U8:
-                    samples[channel][i] = ldub_phys(&address_space_memory, addr);
+                    samples[channel][i] = ldub_phys(&address_space_memory, addr) << 24;
                     break;
                 case NV_PAVS_VOICE_CFG_FMT_SAMPLE_SIZE_S16:
-                    samples[channel][i] = (int16_t)lduw_le_phys(&address_space_memory, addr);
+                    samples[channel][i] = (int16_t)lduw_le_phys(&address_space_memory, addr) << 16;
                     break;
                 case NV_PAVS_VOICE_CFG_FMT_SAMPLE_SIZE_S24:
-                    samples[channel][i] = (int32_t)(ldl_le_phys(&address_space_memory, addr) << 8) >> 8;
+                    samples[channel][i] = (int32_t)(ldl_le_phys(&address_space_memory, addr) ) << 8;
                     break;
                 case NV_PAVS_VOICE_CFG_FMT_SAMPLE_SIZE_S32:
                     samples[channel][i] = (int32_t)ldl_le_phys(&address_space_memory, addr);
