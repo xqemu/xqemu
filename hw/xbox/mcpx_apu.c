@@ -27,6 +27,8 @@
 #include "hw/xbox/dsp/dsp.h"
 #include <math.h>
 
+#define USE_APU_THREAD 1
+
 #define NUM_SAMPLES_PER_FRAME 32
 #define NUM_MIXBINS 32
 
@@ -314,15 +316,23 @@ static const struct {
 
 typedef struct MCPXAPUState {
     PCIDevice dev;
+    bool exiting;
+    bool set_irq;
 
     MemoryRegion *ram;
     uint8_t *ram_ptr;
 
     MemoryRegion mmio;
 
+#if USE_APU_THREAD
+    QemuThread apu_thread;
+#endif
+
     /* Setup Engine */
     struct {
+#if !USE_APU_THREAD
         QEMUTimer *frame_timer;
+#endif
     } se;
 
     /* Voice Processor */
@@ -344,10 +354,10 @@ typedef struct MCPXAPUState {
         uint32_t regs[0x10000];
     } ep;
 
-    uint32_t inbuf_sge_handle; //FIXME: Where is this stored?
-    uint32_t outbuf_sge_handle; //FIXME: Where is this stored?
     uint32_t regs[0x20000];
 
+    uint32_t inbuf_sge_handle; //FIXME: Where is this stored?
+    uint32_t outbuf_sge_handle; //FIXME: Where is this stored?
 } MCPXAPUState;
 
 #define MCPX_APU_DEVICE(obj) \
@@ -429,6 +439,7 @@ static void mcpx_apu_write(void *opaque, hwaddr addr,
         update_irq(d);
         break;
     case NV_PAPU_SECTL:
+#if !USE_APU_THREAD
         if (((val & NV_PAPU_SECTL_XCNTMODE) >> 3)
               == NV_PAPU_SECTL_XCNTMODE_OFF) {
             timer_del(d->se.frame_timer);
@@ -436,6 +447,7 @@ static void mcpx_apu_write(void *opaque, hwaddr addr,
             timer_mod(d->se.frame_timer,
                 qemu_clock_get_us(QEMU_CLOCK_VIRTUAL) + 600);
         }
+#endif
         d->regs[addr] = val;
         break;
     case NV_PAPU_FEMEMDATA:
@@ -704,7 +716,14 @@ static void fe_method(MCPXAPUState *d,
             d->regs[NV_PAPU_FECTL] |= NV_PAPU_FECTL_FETRAPREASON_REQUESTED;
 
             d->regs[NV_PAPU_ISTS] |= NV_PAPU_ISTS_FETINTSTS;
+
+#if USE_APU_THREAD
+            qemu_mutex_lock_iothread();
             update_irq(d);
+            qemu_mutex_unlock_iothread();
+#else
+            update_irq(d);
+#endif
         } else {
             assert(false);
         }
@@ -1479,7 +1498,9 @@ static void se_frame(void *opaque)
     int mixbin;
     int sample;
 
+#if !USE_APU_THREAD
     timer_mod(d->se.frame_timer, qemu_clock_get_us(QEMU_CLOCK_VIRTUAL) + 600);
+#endif
     MCPX_DPRINTF("mcpx frame ping\n");
 
     /* Buffer for all mixbins for this frame */
@@ -1510,6 +1531,17 @@ static void se_frame(void *opaque)
             MCPX_DPRINTF("next voice %d\n", d->regs[next]);
             d->regs[current] = d->regs[next];
         }
+    }
+
+    if (d->set_irq) {
+#if USE_APU_THREAD
+        qemu_mutex_lock_iothread();
+        update_irq(d);
+        qemu_mutex_unlock_iothread();
+#else
+        update_irq(d);
+#endif
+        d->set_irq = false;
     }
 
 #if GENERATE_MIXBIN_BEEP
@@ -1575,11 +1607,17 @@ static void mcpx_apu_realize(PCIDevice *dev, Error **errp)
     memory_region_add_subregion(&d->mmio, 0x50000, &d->ep.mmio);
 
     pci_register_bar(&d->dev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY, &d->mmio);
+}
 
+static void mcpx_apu_exitfn(PCIDevice *dev)
+{
+    MCPXAPUState *d = MCPX_APU_DEVICE(dev);
 
-    d->se.frame_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, se_frame, d);
-    d->gp.dsp = dsp_init(d, gp_scratch_rw, gp_fifo_rw);
-    d->ep.dsp = dsp_init(d, ep_scratch_rw, ep_fifo_rw);
+    d->exiting = true;
+
+#if USE_APU_THREAD
+    qemu_thread_join(&d->apu_thread);
+#endif
 }
 
 static void mcpx_apu_class_init(ObjectClass *klass, void *data)
@@ -1592,6 +1630,7 @@ static void mcpx_apu_class_init(ObjectClass *klass, void *data)
     k->revision = 210;
     k->class_id = PCI_CLASS_MULTIMEDIA_AUDIO;
     k->realize = mcpx_apu_realize;
+    k->exit = mcpx_apu_exitfn;
 
     dc->desc = "MCPX Audio Processing Unit";
 }
@@ -1613,6 +1652,21 @@ static void mcpx_apu_register(void)
 }
 type_init(mcpx_apu_register);
 
+#if USE_APU_THREAD
+static void *mcpx_apu_frame_thread(void *arg)
+{
+    volatile MCPXAPUState *d = MCPX_APU_DEVICE(arg);
+
+    while (!d->exiting) {
+        int should_run = (d->regs[NV_PAPU_SECTL] & NV_PAPU_SECTL_XCNTMODE) >> 3;
+        if (should_run == NV_PAPU_SECTL_XCNTMODE_OFF) continue; // FIXME: use a proper sync method
+        se_frame((void*)d);
+    }
+
+    return NULL;
+}
+#endif
+
 void mcpx_apu_init(PCIBus *bus, int devfn, MemoryRegion *ram)
 {
     PCIDevice *dev = pci_create_simple(bus, devfn, "mcpx-apu");
@@ -1621,4 +1675,17 @@ void mcpx_apu_init(PCIBus *bus, int devfn, MemoryRegion *ram)
     /* Keep pointers to system memory */
     d->ram = ram;
     d->ram_ptr = memory_region_get_ram_ptr(d->ram);
+
+    d->gp.dsp = dsp_init(d, gp_scratch_rw, gp_fifo_rw);
+    d->ep.dsp = dsp_init(d, ep_scratch_rw, ep_fifo_rw);
+    d->set_irq = false;
+    d->exiting = false;
+
+#if USE_APU_THREAD
+    qemu_thread_create(&d->apu_thread, "mcpx.apu_thread",
+                       mcpx_apu_frame_thread,
+                       d, QEMU_THREAD_JOINABLE);
+#else
+    d->se.frame_timer = timer_new_us(QEMU_CLOCK_VIRTUAL, se_frame, d);
+#endif
 }
