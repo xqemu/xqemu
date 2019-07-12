@@ -3,6 +3,7 @@
  *
  * Copyright (c) 2012 espes
  * Copyright (c) 2018-2019 Jannik Vogel
+ * Copyright (c) 2019 Matt Borgerson
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -433,7 +434,7 @@ static void mcpx_apu_write(void *opaque, hwaddr addr,
             timer_del(d->se.frame_timer);
         } else {
             timer_mod(d->se.frame_timer,
-                qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + 10);
+                qemu_clock_get_us(QEMU_CLOCK_VIRTUAL) + 600);
         }
         d->regs[addr] = val;
         break;
@@ -1478,7 +1479,7 @@ static void se_frame(void *opaque)
     int mixbin;
     int sample;
 
-    timer_mod(d->se.frame_timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + 10);
+    timer_mod(d->se.frame_timer, qemu_clock_get_us(QEMU_CLOCK_VIRTUAL) + 600);
     MCPX_DPRINTF("mcpx frame ping\n");
 
     /* Buffer for all mixbins for this frame */
