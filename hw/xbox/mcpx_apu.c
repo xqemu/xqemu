@@ -28,6 +28,7 @@
 #include <math.h>
 
 #define USE_APU_THREAD 1
+#define PROCESS_VOICES 0
 
 #define NUM_SAMPLES_PER_FRAME 32
 #define NUM_MIXBINS 32
@@ -1148,7 +1149,7 @@ static const MemoryRegionOps ep_ops = {
     .write = ep_write,
 };
 
-#if 0
+#if PROCESS_VOICES
 #include "adpcm_block.h"
 
 static hwaddr get_data_ptr(hwaddr sge_base, unsigned int max_sge, uint32_t addr) {
@@ -1289,7 +1290,7 @@ static void process_voice(MCPXAPUState *d,
                           int32_t mixbins[NUM_MIXBINS][NUM_SAMPLES_PER_FRAME],
                           uint32_t voice)
 {
-#if 0
+#if PROCESS_VOICES
     uint32_t v = voice;
     int32_t samples[2][0x20] = {0};
 
