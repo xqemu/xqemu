@@ -11,8 +11,8 @@
  * GNU GPL, version 2 or (at your option) any later version.
  */
 
-#ifndef HW_TIMER_PL031
-#define HW_TIMER_PL031
+#ifndef HW_TIMER_PL031_H
+#define HW_TIMER_PL031_H
 
 #include "hw/sysbus.h"
 
@@ -33,6 +33,8 @@ typedef struct PL031State {
      */
     uint32_t tick_offset_vmstate;
     uint32_t tick_offset;
+    bool tick_offset_migrated;
+    bool migrate_tick_offset;
 
     uint32_t mr;
     uint32_t lr;

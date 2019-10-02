@@ -22,6 +22,7 @@
 #include "internal.h"
 #include "kvm_s390x.h"
 #include "sysemu/kvm.h"
+#include "sysemu/tcg.h"
 #include "exec/exec-all.h"
 #include "trace.h"
 #include "hw/s390x/storage-keys.h"
@@ -58,12 +59,12 @@
 static void trigger_access_exception(CPUS390XState *env, uint32_t type,
                                      uint32_t ilen, uint64_t tec)
 {
-    S390CPU *cpu = s390_env_get_cpu(env);
+    S390CPU *cpu = env_archcpu(env);
 
     if (kvm_enabled()) {
         kvm_s390_access_exception(cpu, type, tec);
     } else {
-        CPUState *cs = CPU(cpu);
+        CPUState *cs = env_cpu(env);
         if (type != PGM_ADDRESSING) {
             stq_phys(cs->as, env->psa + offsetof(LowCore, trans_exc_code), tec);
         }
@@ -185,7 +186,7 @@ static int mmu_translate_segment(CPUS390XState *env, target_ulong vaddr,
                                  target_ulong *raddr, int *flags, int rw,
                                  bool exc)
 {
-    CPUState *cs = CPU(s390_env_get_cpu(env));
+    CPUState *cs = env_cpu(env);
     uint64_t origin, offs, pt_entry;
 
     if (st_entry & SEGMENT_ENTRY_RO) {
@@ -214,7 +215,7 @@ static int mmu_translate_region(CPUS390XState *env, target_ulong vaddr,
                                 target_ulong *raddr, int *flags, int rw,
                                 bool exc)
 {
-    CPUState *cs = CPU(s390_env_get_cpu(env));
+    CPUState *cs = env_cpu(env);
     uint64_t origin, offs, new_entry;
     const int pchks[4] = {
         PGM_SEGMENT_TRANS, PGM_REG_THIRD_TRANS,

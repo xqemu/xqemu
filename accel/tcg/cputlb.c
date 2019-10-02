@@ -76,14 +76,14 @@ QEMU_BUILD_BUG_ON(NB_MMU_MODES > 16);
 
 static inline size_t sizeof_tlb(CPUArchState *env, uintptr_t mmu_idx)
 {
-    return env->tlb_mask[mmu_idx] + (1 << CPU_TLB_ENTRY_BITS);
+    return env_tlb(env)->f[mmu_idx].mask + (1 << CPU_TLB_ENTRY_BITS);
 }
 
-static void tlb_window_reset(CPUTLBWindow *window, int64_t ns,
+static void tlb_window_reset(CPUTLBDesc *desc, int64_t ns,
                              size_t max_entries)
 {
-    window->begin_ns = ns;
-    window->max_entries = max_entries;
+    desc->window_begin_ns = ns;
+    desc->window_max_entries = max_entries;
 }
 
 static void tlb_dyn_init(CPUArchState *env)
@@ -91,14 +91,14 @@ static void tlb_dyn_init(CPUArchState *env)
     int i;
 
     for (i = 0; i < NB_MMU_MODES; i++) {
-        CPUTLBDesc *desc = &env->tlb_d[i];
+        CPUTLBDesc *desc = &env_tlb(env)->d[i];
         size_t n_entries = 1 << CPU_TLB_DYN_DEFAULT_BITS;
 
-        tlb_window_reset(&desc->window, get_clock_realtime(), 0);
+        tlb_window_reset(desc, get_clock_realtime(), 0);
         desc->n_used_entries = 0;
-        env->tlb_mask[i] = (n_entries - 1) << CPU_TLB_ENTRY_BITS;
-        env->tlb_table[i] = g_new(CPUTLBEntry, n_entries);
-        env->iotlb[i] = g_new(CPUIOTLBEntry, n_entries);
+        env_tlb(env)->f[i].mask = (n_entries - 1) << CPU_TLB_ENTRY_BITS;
+        env_tlb(env)->f[i].table = g_new(CPUTLBEntry, n_entries);
+        env_tlb(env)->d[i].iotlb = g_new(CPUIOTLBEntry, n_entries);
     }
 }
 
@@ -144,25 +144,25 @@ static void tlb_dyn_init(CPUArchState *env)
  */
 static void tlb_mmu_resize_locked(CPUArchState *env, int mmu_idx)
 {
-    CPUTLBDesc *desc = &env->tlb_d[mmu_idx];
+    CPUTLBDesc *desc = &env_tlb(env)->d[mmu_idx];
     size_t old_size = tlb_n_entries(env, mmu_idx);
     size_t rate;
     size_t new_size = old_size;
     int64_t now = get_clock_realtime();
     int64_t window_len_ms = 100;
     int64_t window_len_ns = window_len_ms * 1000 * 1000;
-    bool window_expired = now > desc->window.begin_ns + window_len_ns;
+    bool window_expired = now > desc->window_begin_ns + window_len_ns;
 
-    if (desc->n_used_entries > desc->window.max_entries) {
-        desc->window.max_entries = desc->n_used_entries;
+    if (desc->n_used_entries > desc->window_max_entries) {
+        desc->window_max_entries = desc->n_used_entries;
     }
-    rate = desc->window.max_entries * 100 / old_size;
+    rate = desc->window_max_entries * 100 / old_size;
 
     if (rate > 70) {
         new_size = MIN(old_size << 1, 1 << CPU_TLB_DYN_MAX_BITS);
     } else if (rate < 30 && window_expired) {
-        size_t ceil = pow2ceil(desc->window.max_entries);
-        size_t expected_rate = desc->window.max_entries * 100 / ceil;
+        size_t ceil = pow2ceil(desc->window_max_entries);
+        size_t expected_rate = desc->window_max_entries * 100 / ceil;
 
         /*
          * Avoid undersizing when the max number of entries seen is just below
@@ -182,19 +182,19 @@ static void tlb_mmu_resize_locked(CPUArchState *env, int mmu_idx)
 
     if (new_size == old_size) {
         if (window_expired) {
-            tlb_window_reset(&desc->window, now, desc->n_used_entries);
+            tlb_window_reset(desc, now, desc->n_used_entries);
         }
         return;
     }
 
-    g_free(env->tlb_table[mmu_idx]);
-    g_free(env->iotlb[mmu_idx]);
+    g_free(env_tlb(env)->f[mmu_idx].table);
+    g_free(env_tlb(env)->d[mmu_idx].iotlb);
 
-    tlb_window_reset(&desc->window, now, 0);
+    tlb_window_reset(desc, now, 0);
     /* desc->n_used_entries is cleared by the caller */
-    env->tlb_mask[mmu_idx] = (new_size - 1) << CPU_TLB_ENTRY_BITS;
-    env->tlb_table[mmu_idx] = g_try_new(CPUTLBEntry, new_size);
-    env->iotlb[mmu_idx] = g_try_new(CPUIOTLBEntry, new_size);
+    env_tlb(env)->f[mmu_idx].mask = (new_size - 1) << CPU_TLB_ENTRY_BITS;
+    env_tlb(env)->f[mmu_idx].table = g_try_new(CPUTLBEntry, new_size);
+    env_tlb(env)->d[mmu_idx].iotlb = g_try_new(CPUIOTLBEntry, new_size);
     /*
      * If the allocations fail, try smaller sizes. We just freed some
      * memory, so going back to half of new_size has a good chance of working.
@@ -202,46 +202,47 @@ static void tlb_mmu_resize_locked(CPUArchState *env, int mmu_idx)
      * allocations to fail though, so we progressively reduce the allocation
      * size, aborting if we cannot even allocate the smallest TLB we support.
      */
-    while (env->tlb_table[mmu_idx] == NULL || env->iotlb[mmu_idx] == NULL) {
+    while (env_tlb(env)->f[mmu_idx].table == NULL ||
+           env_tlb(env)->d[mmu_idx].iotlb == NULL) {
         if (new_size == (1 << CPU_TLB_DYN_MIN_BITS)) {
             error_report("%s: %s", __func__, strerror(errno));
             abort();
         }
         new_size = MAX(new_size >> 1, 1 << CPU_TLB_DYN_MIN_BITS);
-        env->tlb_mask[mmu_idx] = (new_size - 1) << CPU_TLB_ENTRY_BITS;
+        env_tlb(env)->f[mmu_idx].mask = (new_size - 1) << CPU_TLB_ENTRY_BITS;
 
-        g_free(env->tlb_table[mmu_idx]);
-        g_free(env->iotlb[mmu_idx]);
-        env->tlb_table[mmu_idx] = g_try_new(CPUTLBEntry, new_size);
-        env->iotlb[mmu_idx] = g_try_new(CPUIOTLBEntry, new_size);
+        g_free(env_tlb(env)->f[mmu_idx].table);
+        g_free(env_tlb(env)->d[mmu_idx].iotlb);
+        env_tlb(env)->f[mmu_idx].table = g_try_new(CPUTLBEntry, new_size);
+        env_tlb(env)->d[mmu_idx].iotlb = g_try_new(CPUIOTLBEntry, new_size);
     }
 }
 
 static inline void tlb_table_flush_by_mmuidx(CPUArchState *env, int mmu_idx)
 {
     tlb_mmu_resize_locked(env, mmu_idx);
-    memset(env->tlb_table[mmu_idx], -1, sizeof_tlb(env, mmu_idx));
-    env->tlb_d[mmu_idx].n_used_entries = 0;
+    memset(env_tlb(env)->f[mmu_idx].table, -1, sizeof_tlb(env, mmu_idx));
+    env_tlb(env)->d[mmu_idx].n_used_entries = 0;
 }
 
 static inline void tlb_n_used_entries_inc(CPUArchState *env, uintptr_t mmu_idx)
 {
-    env->tlb_d[mmu_idx].n_used_entries++;
+    env_tlb(env)->d[mmu_idx].n_used_entries++;
 }
 
 static inline void tlb_n_used_entries_dec(CPUArchState *env, uintptr_t mmu_idx)
 {
-    env->tlb_d[mmu_idx].n_used_entries--;
+    env_tlb(env)->d[mmu_idx].n_used_entries--;
 }
 
 void tlb_init(CPUState *cpu)
 {
     CPUArchState *env = cpu->env_ptr;
 
-    qemu_spin_init(&env->tlb_c.lock);
+    qemu_spin_init(&env_tlb(env)->c.lock);
 
     /* Ensure that cpu_reset performs a full flush.  */
-    env->tlb_c.dirty = ALL_MMUIDX_BITS;
+    env_tlb(env)->c.dirty = ALL_MMUIDX_BITS;
 
     tlb_dyn_init(env);
 }
@@ -273,9 +274,9 @@ void tlb_flush_counts(size_t *pfull, size_t *ppart, size_t *pelide)
     CPU_FOREACH(cpu) {
         CPUArchState *env = cpu->env_ptr;
 
-        full += atomic_read(&env->tlb_c.full_flush_count);
-        part += atomic_read(&env->tlb_c.part_flush_count);
-        elide += atomic_read(&env->tlb_c.elide_flush_count);
+        full += atomic_read(&env_tlb(env)->c.full_flush_count);
+        part += atomic_read(&env_tlb(env)->c.part_flush_count);
+        elide += atomic_read(&env_tlb(env)->c.elide_flush_count);
     }
     *pfull = full;
     *ppart = part;
@@ -285,10 +286,11 @@ void tlb_flush_counts(size_t *pfull, size_t *ppart, size_t *pelide)
 static void tlb_flush_one_mmuidx_locked(CPUArchState *env, int mmu_idx)
 {
     tlb_table_flush_by_mmuidx(env, mmu_idx);
-    memset(env->tlb_v_table[mmu_idx], -1, sizeof(env->tlb_v_table[0]));
-    env->tlb_d[mmu_idx].large_page_addr = -1;
-    env->tlb_d[mmu_idx].large_page_mask = -1;
-    env->tlb_d[mmu_idx].vindex = 0;
+    env_tlb(env)->d[mmu_idx].large_page_addr = -1;
+    env_tlb(env)->d[mmu_idx].large_page_mask = -1;
+    env_tlb(env)->d[mmu_idx].vindex = 0;
+    memset(env_tlb(env)->d[mmu_idx].vtable, -1,
+           sizeof(env_tlb(env)->d[0].vtable));
 }
 
 static void tlb_flush_by_mmuidx_async_work(CPUState *cpu, run_on_cpu_data data)
@@ -301,31 +303,31 @@ static void tlb_flush_by_mmuidx_async_work(CPUState *cpu, run_on_cpu_data data)
 
     tlb_debug("mmu_idx:0x%04" PRIx16 "\n", asked);
 
-    qemu_spin_lock(&env->tlb_c.lock);
+    qemu_spin_lock(&env_tlb(env)->c.lock);
 
-    all_dirty = env->tlb_c.dirty;
+    all_dirty = env_tlb(env)->c.dirty;
     to_clean = asked & all_dirty;
     all_dirty &= ~to_clean;
-    env->tlb_c.dirty = all_dirty;
+    env_tlb(env)->c.dirty = all_dirty;
 
     for (work = to_clean; work != 0; work &= work - 1) {
         int mmu_idx = ctz32(work);
         tlb_flush_one_mmuidx_locked(env, mmu_idx);
     }
 
-    qemu_spin_unlock(&env->tlb_c.lock);
+    qemu_spin_unlock(&env_tlb(env)->c.lock);
 
     cpu_tb_jmp_cache_clear(cpu);
 
     if (to_clean == ALL_MMUIDX_BITS) {
-        atomic_set(&env->tlb_c.full_flush_count,
-                   env->tlb_c.full_flush_count + 1);
+        atomic_set(&env_tlb(env)->c.full_flush_count,
+                   env_tlb(env)->c.full_flush_count + 1);
     } else {
-        atomic_set(&env->tlb_c.part_flush_count,
-                   env->tlb_c.part_flush_count + ctpop16(to_clean));
+        atomic_set(&env_tlb(env)->c.part_flush_count,
+                   env_tlb(env)->c.part_flush_count + ctpop16(to_clean));
         if (to_clean != asked) {
-            atomic_set(&env->tlb_c.elide_flush_count,
-                       env->tlb_c.elide_flush_count +
+            atomic_set(&env_tlb(env)->c.elide_flush_count,
+                       env_tlb(env)->c.elide_flush_count +
                        ctpop16(asked & ~to_clean));
         }
     }
@@ -410,11 +412,12 @@ static inline bool tlb_flush_entry_locked(CPUTLBEntry *tlb_entry,
 static inline void tlb_flush_vtlb_page_locked(CPUArchState *env, int mmu_idx,
                                               target_ulong page)
 {
+    CPUTLBDesc *d = &env_tlb(env)->d[mmu_idx];
     int k;
 
-    assert_cpu_is_self(ENV_GET_CPU(env));
+    assert_cpu_is_self(env_cpu(env));
     for (k = 0; k < CPU_VTLB_SIZE; k++) {
-        if (tlb_flush_entry_locked(&env->tlb_v_table[mmu_idx][k], page)) {
+        if (tlb_flush_entry_locked(&d->vtable[k], page)) {
             tlb_n_used_entries_dec(env, mmu_idx);
         }
     }
@@ -423,8 +426,8 @@ static inline void tlb_flush_vtlb_page_locked(CPUArchState *env, int mmu_idx,
 static void tlb_flush_page_locked(CPUArchState *env, int midx,
                                   target_ulong page)
 {
-    target_ulong lp_addr = env->tlb_d[midx].large_page_addr;
-    target_ulong lp_mask = env->tlb_d[midx].large_page_mask;
+    target_ulong lp_addr = env_tlb(env)->d[midx].large_page_addr;
+    target_ulong lp_mask = env_tlb(env)->d[midx].large_page_mask;
 
     /* Check if we need to flush due to large pages.  */
     if ((page & lp_mask) == lp_addr) {
@@ -459,13 +462,13 @@ static void tlb_flush_page_by_mmuidx_async_work(CPUState *cpu,
     tlb_debug("page addr:" TARGET_FMT_lx " mmu_map:0x%lx\n",
               addr, mmu_idx_bitmap);
 
-    qemu_spin_lock(&env->tlb_c.lock);
+    qemu_spin_lock(&env_tlb(env)->c.lock);
     for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
         if (test_bit(mmu_idx, &mmu_idx_bitmap)) {
             tlb_flush_page_locked(env, mmu_idx, addr);
         }
     }
-    qemu_spin_unlock(&env->tlb_c.lock);
+    qemu_spin_unlock(&env_tlb(env)->c.lock);
 
     tb_flush_jmp_cache(cpu, addr);
 }
@@ -609,22 +612,22 @@ void tlb_reset_dirty(CPUState *cpu, ram_addr_t start1, ram_addr_t length)
     int mmu_idx;
 
     env = cpu->env_ptr;
-    qemu_spin_lock(&env->tlb_c.lock);
+    qemu_spin_lock(&env_tlb(env)->c.lock);
     for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
         unsigned int i;
         unsigned int n = tlb_n_entries(env, mmu_idx);
 
         for (i = 0; i < n; i++) {
-            tlb_reset_dirty_range_locked(&env->tlb_table[mmu_idx][i], start1,
-                                         length);
+            tlb_reset_dirty_range_locked(&env_tlb(env)->f[mmu_idx].table[i],
+                                         start1, length);
         }
 
         for (i = 0; i < CPU_VTLB_SIZE; i++) {
-            tlb_reset_dirty_range_locked(&env->tlb_v_table[mmu_idx][i], start1,
-                                         length);
+            tlb_reset_dirty_range_locked(&env_tlb(env)->d[mmu_idx].vtable[i],
+                                         start1, length);
         }
     }
-    qemu_spin_unlock(&env->tlb_c.lock);
+    qemu_spin_unlock(&env_tlb(env)->c.lock);
 }
 
 /* Called with tlb_c.lock held */
@@ -646,7 +649,7 @@ void tlb_set_dirty(CPUState *cpu, target_ulong vaddr)
     assert_cpu_is_self(cpu);
 
     vaddr &= TARGET_PAGE_MASK;
-    qemu_spin_lock(&env->tlb_c.lock);
+    qemu_spin_lock(&env_tlb(env)->c.lock);
     for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
         tlb_set_dirty1_locked(tlb_entry(env, mmu_idx, vaddr), vaddr);
     }
@@ -654,10 +657,10 @@ void tlb_set_dirty(CPUState *cpu, target_ulong vaddr)
     for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
         int k;
         for (k = 0; k < CPU_VTLB_SIZE; k++) {
-            tlb_set_dirty1_locked(&env->tlb_v_table[mmu_idx][k], vaddr);
+            tlb_set_dirty1_locked(&env_tlb(env)->d[mmu_idx].vtable[k], vaddr);
         }
     }
-    qemu_spin_unlock(&env->tlb_c.lock);
+    qemu_spin_unlock(&env_tlb(env)->c.lock);
 }
 
 /* Our TLB does not support large pages, so remember the area covered by
@@ -665,7 +668,7 @@ void tlb_set_dirty(CPUState *cpu, target_ulong vaddr)
 static void tlb_add_large_page(CPUArchState *env, int mmu_idx,
                                target_ulong vaddr, target_ulong size)
 {
-    target_ulong lp_addr = env->tlb_d[mmu_idx].large_page_addr;
+    target_ulong lp_addr = env_tlb(env)->d[mmu_idx].large_page_addr;
     target_ulong lp_mask = ~(size - 1);
 
     if (lp_addr == (target_ulong)-1) {
@@ -675,13 +678,13 @@ static void tlb_add_large_page(CPUArchState *env, int mmu_idx,
         /* Extend the existing region to include the new page.
            This is a compromise between unnecessary flushes and
            the cost of maintaining a full variable size TLB.  */
-        lp_mask &= env->tlb_d[mmu_idx].large_page_mask;
+        lp_mask &= env_tlb(env)->d[mmu_idx].large_page_mask;
         while (((lp_addr ^ vaddr) & lp_mask) != 0) {
             lp_mask <<= 1;
         }
     }
-    env->tlb_d[mmu_idx].large_page_addr = lp_addr & lp_mask;
-    env->tlb_d[mmu_idx].large_page_mask = lp_mask;
+    env_tlb(env)->d[mmu_idx].large_page_addr = lp_addr & lp_mask;
+    env_tlb(env)->d[mmu_idx].large_page_mask = lp_mask;
 }
 
 /* Add a new TLB entry. At most one entry for a given virtual address
@@ -696,6 +699,8 @@ void tlb_set_page_with_attrs(CPUState *cpu, target_ulong vaddr,
                              int mmu_idx, target_ulong size)
 {
     CPUArchState *env = cpu->env_ptr;
+    CPUTLB *tlb = env_tlb(env);
+    CPUTLBDesc *desc = &tlb->d[mmu_idx];
     MemoryRegionSection *section;
     unsigned int index;
     target_ulong address;
@@ -757,10 +762,10 @@ void tlb_set_page_with_attrs(CPUState *cpu, target_ulong vaddr,
      * a longer critical section, but this is not a concern since the TLB lock
      * is unlikely to be contended.
      */
-    qemu_spin_lock(&env->tlb_c.lock);
+    qemu_spin_lock(&tlb->c.lock);
 
     /* Note that the tlb is no longer clean.  */
-    env->tlb_c.dirty |= 1 << mmu_idx;
+    tlb->c.dirty |= 1 << mmu_idx;
 
     /* Make sure there's no cached translation for the new page.  */
     tlb_flush_vtlb_page_locked(env, mmu_idx, vaddr_page);
@@ -770,12 +775,12 @@ void tlb_set_page_with_attrs(CPUState *cpu, target_ulong vaddr,
      * different page; otherwise just overwrite the stale data.
      */
     if (!tlb_hit_page_anyprot(te, vaddr_page) && !tlb_entry_is_empty(te)) {
-        unsigned vidx = env->tlb_d[mmu_idx].vindex++ % CPU_VTLB_SIZE;
-        CPUTLBEntry *tv = &env->tlb_v_table[mmu_idx][vidx];
+        unsigned vidx = desc->vindex++ % CPU_VTLB_SIZE;
+        CPUTLBEntry *tv = &desc->vtable[vidx];
 
         /* Evict the old entry into the victim tlb.  */
         copy_tlb_helper_locked(tv, te);
-        env->iotlb_v[mmu_idx][vidx] = env->iotlb[mmu_idx][index];
+        desc->viotlb[vidx] = desc->iotlb[index];
         tlb_n_used_entries_dec(env, mmu_idx);
     }
 
@@ -792,8 +797,8 @@ void tlb_set_page_with_attrs(CPUState *cpu, target_ulong vaddr,
      * subtract here is that of the page base, and not the same as the
      * vaddr we add back in io_readx()/io_writex()/get_page_addr_code().
      */
-    env->iotlb[mmu_idx][index].addr = iotlb - vaddr_page;
-    env->iotlb[mmu_idx][index].attrs = attrs;
+    desc->iotlb[index].addr = iotlb - vaddr_page;
+    desc->iotlb[index].attrs = attrs;
 
     /* Now calculate the new entry */
     tn.addend = addend - vaddr_page;
@@ -829,7 +834,7 @@ void tlb_set_page_with_attrs(CPUState *cpu, target_ulong vaddr,
 
     copy_tlb_helper_locked(te, &tn);
     tlb_n_used_entries_inc(env, mmu_idx);
-    qemu_spin_unlock(&env->tlb_c.lock);
+    qemu_spin_unlock(&tlb->c.lock);
 }
 
 /* Add a new TLB entry, but without specifying the memory
@@ -855,41 +860,36 @@ static inline ram_addr_t qemu_ram_addr_from_host_nofail(void *ptr)
     return ram_addr;
 }
 
-static uint64_t io_readx(CPUArchState *env, CPUIOTLBEntry *iotlbentry,
-                         int mmu_idx,
-                         target_ulong addr, uintptr_t retaddr,
-                         bool recheck, MMUAccessType access_type, int size)
+/*
+ * Note: tlb_fill() can trigger a resize of the TLB. This means that all of the
+ * caller's prior references to the TLB table (e.g. CPUTLBEntry pointers) must
+ * be discarded and looked up again (e.g. via tlb_entry()).
+ */
+static void tlb_fill(CPUState *cpu, target_ulong addr, int size,
+                     MMUAccessType access_type, int mmu_idx, uintptr_t retaddr)
 {
-    CPUState *cpu = ENV_GET_CPU(env);
+    CPUClass *cc = CPU_GET_CLASS(cpu);
+    bool ok;
+
+    /*
+     * This is not a probe, so only valid return is success; failure
+     * should result in exception + longjmp to the cpu loop.
+     */
+    ok = cc->tlb_fill(cpu, addr, size, access_type, mmu_idx, false, retaddr);
+    assert(ok);
+}
+
+static uint64_t io_readx(CPUArchState *env, CPUIOTLBEntry *iotlbentry,
+                         int mmu_idx, target_ulong addr, uintptr_t retaddr,
+                         MMUAccessType access_type, int size)
+{
+    CPUState *cpu = env_cpu(env);
     hwaddr mr_offset;
     MemoryRegionSection *section;
     MemoryRegion *mr;
     uint64_t val;
     bool locked = false;
     MemTxResult r;
-
-    if (recheck) {
-        /*
-         * This is a TLB_RECHECK access, where the MMU protection
-         * covers a smaller range than a target page, and we must
-         * repeat the MMU check here. This tlb_fill() call might
-         * longjump out if this access should cause a guest exception.
-         */
-        CPUTLBEntry *entry;
-        target_ulong tlb_addr;
-
-        tlb_fill(cpu, addr, size, MMU_DATA_LOAD, mmu_idx, retaddr);
-
-        entry = tlb_entry(env, mmu_idx, addr);
-        tlb_addr = entry->addr_read;
-        if (!(tlb_addr & ~(TARGET_PAGE_MASK | TLB_RECHECK))) {
-            /* RAM access */
-            uintptr_t haddr = addr + entry->addend;
-
-            return ldn_p((void *)haddr, size);
-        }
-        /* Fall through for handling IO accesses */
-    }
 
     section = iotlb_to_section(cpu, iotlbentry->addr, iotlbentry->attrs);
     mr = section->mr;
@@ -924,40 +924,15 @@ static uint64_t io_readx(CPUArchState *env, CPUIOTLBEntry *iotlbentry,
 }
 
 static void io_writex(CPUArchState *env, CPUIOTLBEntry *iotlbentry,
-                      int mmu_idx,
-                      uint64_t val, target_ulong addr,
-                      uintptr_t retaddr, bool recheck, int size)
+                      int mmu_idx, uint64_t val, target_ulong addr,
+                      uintptr_t retaddr, int size)
 {
-    CPUState *cpu = ENV_GET_CPU(env);
+    CPUState *cpu = env_cpu(env);
     hwaddr mr_offset;
     MemoryRegionSection *section;
     MemoryRegion *mr;
     bool locked = false;
     MemTxResult r;
-
-    if (recheck) {
-        /*
-         * This is a TLB_RECHECK access, where the MMU protection
-         * covers a smaller range than a target page, and we must
-         * repeat the MMU check here. This tlb_fill() call might
-         * longjump out if this access should cause a guest exception.
-         */
-        CPUTLBEntry *entry;
-        target_ulong tlb_addr;
-
-        tlb_fill(cpu, addr, size, MMU_DATA_STORE, mmu_idx, retaddr);
-
-        entry = tlb_entry(env, mmu_idx, addr);
-        tlb_addr = tlb_addr_write(entry);
-        if (!(tlb_addr & ~(TARGET_PAGE_MASK | TLB_RECHECK))) {
-            /* RAM access */
-            uintptr_t haddr = addr + entry->addend;
-
-            stn_p((void *)haddr, size, val);
-            return;
-        }
-        /* Fall through for handling IO accesses */
-    }
 
     section = iotlb_to_section(cpu, iotlbentry->addr, iotlbentry->attrs);
     mr = section->mr;
@@ -987,6 +962,16 @@ static void io_writex(CPUArchState *env, CPUIOTLBEntry *iotlbentry,
     }
 }
 
+static inline target_ulong tlb_read_ofs(CPUTLBEntry *entry, size_t ofs)
+{
+#if TCG_OVERSIZED_GUEST
+    return *(target_ulong *)((uintptr_t)entry + ofs);
+#else
+    /* ofs might correspond to .addr_write, so use atomic_read */
+    return atomic_read((target_ulong *)((uintptr_t)entry + ofs));
+#endif
+}
+
 /* Return true if ADDR is present in the victim tlb, and has been copied
    back to the main tlb.  */
 static bool victim_tlb_hit(CPUArchState *env, size_t mmu_idx, size_t index,
@@ -994,9 +979,9 @@ static bool victim_tlb_hit(CPUArchState *env, size_t mmu_idx, size_t index,
 {
     size_t vidx;
 
-    assert_cpu_is_self(ENV_GET_CPU(env));
+    assert_cpu_is_self(env_cpu(env));
     for (vidx = 0; vidx < CPU_VTLB_SIZE; ++vidx) {
-        CPUTLBEntry *vtlb = &env->tlb_v_table[mmu_idx][vidx];
+        CPUTLBEntry *vtlb = &env_tlb(env)->d[mmu_idx].vtable[vidx];
         target_ulong cmp;
 
         /* elt_ofs might correspond to .addr_write, so use atomic_read */
@@ -1008,16 +993,16 @@ static bool victim_tlb_hit(CPUArchState *env, size_t mmu_idx, size_t index,
 
         if (cmp == page) {
             /* Found entry in victim tlb, swap tlb and iotlb.  */
-            CPUTLBEntry tmptlb, *tlb = &env->tlb_table[mmu_idx][index];
+            CPUTLBEntry tmptlb, *tlb = &env_tlb(env)->f[mmu_idx].table[index];
 
-            qemu_spin_lock(&env->tlb_c.lock);
+            qemu_spin_lock(&env_tlb(env)->c.lock);
             copy_tlb_helper_locked(&tmptlb, tlb);
             copy_tlb_helper_locked(tlb, vtlb);
             copy_tlb_helper_locked(vtlb, &tmptlb);
-            qemu_spin_unlock(&env->tlb_c.lock);
+            qemu_spin_unlock(&env_tlb(env)->c.lock);
 
-            CPUIOTLBEntry tmpio, *io = &env->iotlb[mmu_idx][index];
-            CPUIOTLBEntry *vio = &env->iotlb_v[mmu_idx][vidx];
+            CPUIOTLBEntry tmpio, *io = &env_tlb(env)->d[mmu_idx].iotlb[index];
+            CPUIOTLBEntry *vio = &env_tlb(env)->d[mmu_idx].viotlb[vidx];
             tmpio = *io; *io = *vio; *vio = tmpio;
             return true;
         }
@@ -1044,7 +1029,7 @@ tb_page_addr_t get_page_addr_code(CPUArchState *env, target_ulong addr)
 
     if (unlikely(!tlb_hit(entry->addr_code, addr))) {
         if (!VICTIM_TLB_HIT(addr_code, addr)) {
-            tlb_fill(ENV_GET_CPU(env), addr, 0, MMU_INST_FETCH, mmu_idx, 0);
+            tlb_fill(env_cpu(env), addr, 0, MMU_INST_FETCH, mmu_idx, 0);
             index = tlb_index(env, mmu_idx, addr);
             entry = tlb_entry(env, mmu_idx, addr);
         }
@@ -1082,10 +1067,60 @@ void probe_write(CPUArchState *env, target_ulong addr, int size, int mmu_idx,
     if (!tlb_hit(tlb_addr_write(entry), addr)) {
         /* TLB entry is for a different page */
         if (!VICTIM_TLB_HIT(addr_write, addr)) {
-            tlb_fill(ENV_GET_CPU(env), addr, size, MMU_DATA_STORE,
+            tlb_fill(env_cpu(env), addr, size, MMU_DATA_STORE,
                      mmu_idx, retaddr);
         }
     }
+}
+
+void *tlb_vaddr_to_host(CPUArchState *env, abi_ptr addr,
+                        MMUAccessType access_type, int mmu_idx)
+{
+    CPUTLBEntry *entry = tlb_entry(env, mmu_idx, addr);
+    uintptr_t tlb_addr, page;
+    size_t elt_ofs;
+
+    switch (access_type) {
+    case MMU_DATA_LOAD:
+        elt_ofs = offsetof(CPUTLBEntry, addr_read);
+        break;
+    case MMU_DATA_STORE:
+        elt_ofs = offsetof(CPUTLBEntry, addr_write);
+        break;
+    case MMU_INST_FETCH:
+        elt_ofs = offsetof(CPUTLBEntry, addr_code);
+        break;
+    default:
+        g_assert_not_reached();
+    }
+
+    page = addr & TARGET_PAGE_MASK;
+    tlb_addr = tlb_read_ofs(entry, elt_ofs);
+
+    if (!tlb_hit_page(tlb_addr, page)) {
+        uintptr_t index = tlb_index(env, mmu_idx, addr);
+
+        if (!victim_tlb_hit(env, mmu_idx, index, elt_ofs, page)) {
+            CPUState *cs = env_cpu(env);
+            CPUClass *cc = CPU_GET_CLASS(cs);
+
+            if (!cc->tlb_fill(cs, addr, 0, access_type, mmu_idx, true, 0)) {
+                /* Non-faulting page table read failed.  */
+                return NULL;
+            }
+
+            /* TLB resize via tlb_fill may have moved the entry.  */
+            entry = tlb_entry(env, mmu_idx, addr);
+        }
+        tlb_addr = tlb_read_ofs(entry, elt_ofs);
+    }
+
+    if (tlb_addr & ~TARGET_PAGE_MASK) {
+        /* IO access */
+        return NULL;
+    }
+
+    return (void *)((uintptr_t)addr + entry->addend);
 }
 
 /* Probe for a read-modify-write atomic operation.  Do not allow unaligned
@@ -1109,7 +1144,7 @@ static void *atomic_mmu_lookup(CPUArchState *env, target_ulong addr,
     /* Enforce guest required alignment.  */
     if (unlikely(a_bits > 0 && (addr & ((1 << a_bits) - 1)))) {
         /* ??? Maybe indicate atomic op to cpu_unaligned_access */
-        cpu_unaligned_access(ENV_GET_CPU(env), addr, MMU_DATA_STORE,
+        cpu_unaligned_access(env_cpu(env), addr, MMU_DATA_STORE,
                              mmu_idx, retaddr);
     }
 
@@ -1125,7 +1160,7 @@ static void *atomic_mmu_lookup(CPUArchState *env, target_ulong addr,
     /* Check TLB entry and enforce page permissions.  */
     if (!tlb_hit(tlb_addr, addr)) {
         if (!VICTIM_TLB_HIT(addr_write, addr)) {
-            tlb_fill(ENV_GET_CPU(env), addr, 1 << s_bits, MMU_DATA_STORE,
+            tlb_fill(env_cpu(env), addr, 1 << s_bits, MMU_DATA_STORE,
                      mmu_idx, retaddr);
             index = tlb_index(env, mmu_idx, addr);
             tlbe = tlb_entry(env, mmu_idx, addr);
@@ -1142,7 +1177,7 @@ static void *atomic_mmu_lookup(CPUArchState *env, target_ulong addr,
 
     /* Let the guest notice RMW on a write-only page.  */
     if (unlikely(tlbe->addr_read != (tlb_addr & ~TLB_NOTDIRTY))) {
-        tlb_fill(ENV_GET_CPU(env), addr, 1 << s_bits, MMU_DATA_LOAD,
+        tlb_fill(env_cpu(env), addr, 1 << s_bits, MMU_DATA_LOAD,
                  mmu_idx, retaddr);
         /* Since we don't support reads and writes to different addresses,
            and we do have the proper page loaded for write, this shouldn't
@@ -1155,7 +1190,7 @@ static void *atomic_mmu_lookup(CPUArchState *env, target_ulong addr,
     ndi->active = false;
     if (unlikely(tlb_addr & TLB_NOTDIRTY)) {
         ndi->active = true;
-        memory_notdirty_write_prepare(ndi, ENV_GET_CPU(env), addr,
+        memory_notdirty_write_prepare(ndi, env_cpu(env), addr,
                                       qemu_ram_addr_from_host_nofail(hostaddr),
                                       1 << s_bits);
     }
@@ -1163,30 +1198,485 @@ static void *atomic_mmu_lookup(CPUArchState *env, target_ulong addr,
     return hostaddr;
 
  stop_the_world:
-    cpu_loop_exit_atomic(ENV_GET_CPU(env), retaddr);
+    cpu_loop_exit_atomic(env_cpu(env), retaddr);
 }
 
 #ifdef TARGET_WORDS_BIGENDIAN
-# define TGT_BE(X)  (X)
-# define TGT_LE(X)  BSWAP(X)
+#define NEED_BE_BSWAP 0
+#define NEED_LE_BSWAP 1
 #else
-# define TGT_BE(X)  BSWAP(X)
-# define TGT_LE(X)  (X)
+#define NEED_BE_BSWAP 1
+#define NEED_LE_BSWAP 0
 #endif
 
-#define MMUSUFFIX _mmu
+/*
+ * Byte Swap Helper
+ *
+ * This should all dead code away depending on the build host and
+ * access type.
+ */
 
-#define DATA_SIZE 1
-#include "softmmu_template.h"
+static inline uint64_t handle_bswap(uint64_t val, int size, bool big_endian)
+{
+    if ((big_endian && NEED_BE_BSWAP) || (!big_endian && NEED_LE_BSWAP)) {
+        switch (size) {
+        case 1: return val;
+        case 2: return bswap16(val);
+        case 4: return bswap32(val);
+        case 8: return bswap64(val);
+        default:
+            g_assert_not_reached();
+        }
+    } else {
+        return val;
+    }
+}
 
-#define DATA_SIZE 2
-#include "softmmu_template.h"
+/*
+ * Load Helpers
+ *
+ * We support two different access types. SOFTMMU_CODE_ACCESS is
+ * specifically for reading instructions from system memory. It is
+ * called by the translation loop and in some helpers where the code
+ * is disassembled. It shouldn't be called directly by guest code.
+ */
 
-#define DATA_SIZE 4
-#include "softmmu_template.h"
+typedef uint64_t FullLoadHelper(CPUArchState *env, target_ulong addr,
+                                TCGMemOpIdx oi, uintptr_t retaddr);
 
-#define DATA_SIZE 8
-#include "softmmu_template.h"
+static inline uint64_t __attribute__((always_inline))
+load_helper(CPUArchState *env, target_ulong addr, TCGMemOpIdx oi,
+            uintptr_t retaddr, size_t size, bool big_endian, bool code_read,
+            FullLoadHelper *full_load)
+{
+    uintptr_t mmu_idx = get_mmuidx(oi);
+    uintptr_t index = tlb_index(env, mmu_idx, addr);
+    CPUTLBEntry *entry = tlb_entry(env, mmu_idx, addr);
+    target_ulong tlb_addr = code_read ? entry->addr_code : entry->addr_read;
+    const size_t tlb_off = code_read ?
+        offsetof(CPUTLBEntry, addr_code) : offsetof(CPUTLBEntry, addr_read);
+    const MMUAccessType access_type =
+        code_read ? MMU_INST_FETCH : MMU_DATA_LOAD;
+    unsigned a_bits = get_alignment_bits(get_memop(oi));
+    void *haddr;
+    uint64_t res;
+
+    /* Handle CPU specific unaligned behaviour */
+    if (addr & ((1 << a_bits) - 1)) {
+        cpu_unaligned_access(env_cpu(env), addr, access_type,
+                             mmu_idx, retaddr);
+    }
+
+    /* If the TLB entry is for a different page, reload and try again.  */
+    if (!tlb_hit(tlb_addr, addr)) {
+        if (!victim_tlb_hit(env, mmu_idx, index, tlb_off,
+                            addr & TARGET_PAGE_MASK)) {
+            tlb_fill(env_cpu(env), addr, size,
+                     access_type, mmu_idx, retaddr);
+            index = tlb_index(env, mmu_idx, addr);
+            entry = tlb_entry(env, mmu_idx, addr);
+        }
+        tlb_addr = code_read ? entry->addr_code : entry->addr_read;
+    }
+
+    /* Handle an IO access.  */
+    if (unlikely(tlb_addr & ~TARGET_PAGE_MASK)) {
+        if ((addr & (size - 1)) != 0) {
+            goto do_unaligned_access;
+        }
+
+        if (tlb_addr & TLB_RECHECK) {
+            /*
+             * This is a TLB_RECHECK access, where the MMU protection
+             * covers a smaller range than a target page, and we must
+             * repeat the MMU check here. This tlb_fill() call might
+             * longjump out if this access should cause a guest exception.
+             */
+            tlb_fill(env_cpu(env), addr, size,
+                     access_type, mmu_idx, retaddr);
+            index = tlb_index(env, mmu_idx, addr);
+            entry = tlb_entry(env, mmu_idx, addr);
+
+            tlb_addr = code_read ? entry->addr_code : entry->addr_read;
+            tlb_addr &= ~TLB_RECHECK;
+            if (!(tlb_addr & ~TARGET_PAGE_MASK)) {
+                /* RAM access */
+                goto do_aligned_access;
+            }
+        }
+
+        res = io_readx(env, &env_tlb(env)->d[mmu_idx].iotlb[index],
+                       mmu_idx, addr, retaddr, access_type, size);
+        return handle_bswap(res, size, big_endian);
+    }
+
+    /* Handle slow unaligned access (it spans two pages or IO).  */
+    if (size > 1
+        && unlikely((addr & ~TARGET_PAGE_MASK) + size - 1
+                    >= TARGET_PAGE_SIZE)) {
+        target_ulong addr1, addr2;
+        uint64_t r1, r2;
+        unsigned shift;
+    do_unaligned_access:
+        addr1 = addr & ~((target_ulong)size - 1);
+        addr2 = addr1 + size;
+        r1 = full_load(env, addr1, oi, retaddr);
+        r2 = full_load(env, addr2, oi, retaddr);
+        shift = (addr & (size - 1)) * 8;
+
+        if (big_endian) {
+            /* Big-endian combine.  */
+            res = (r1 << shift) | (r2 >> ((size * 8) - shift));
+        } else {
+            /* Little-endian combine.  */
+            res = (r1 >> shift) | (r2 << ((size * 8) - shift));
+        }
+        return res & MAKE_64BIT_MASK(0, size * 8);
+    }
+
+ do_aligned_access:
+    haddr = (void *)((uintptr_t)addr + entry->addend);
+    switch (size) {
+    case 1:
+        res = ldub_p(haddr);
+        break;
+    case 2:
+        if (big_endian) {
+            res = lduw_be_p(haddr);
+        } else {
+            res = lduw_le_p(haddr);
+        }
+        break;
+    case 4:
+        if (big_endian) {
+            res = (uint32_t)ldl_be_p(haddr);
+        } else {
+            res = (uint32_t)ldl_le_p(haddr);
+        }
+        break;
+    case 8:
+        if (big_endian) {
+            res = ldq_be_p(haddr);
+        } else {
+            res = ldq_le_p(haddr);
+        }
+        break;
+    default:
+        g_assert_not_reached();
+    }
+
+    return res;
+}
+
+/*
+ * For the benefit of TCG generated code, we want to avoid the
+ * complication of ABI-specific return type promotion and always
+ * return a value extended to the register size of the host. This is
+ * tcg_target_long, except in the case of a 32-bit host and 64-bit
+ * data, and for that we always have uint64_t.
+ *
+ * We don't bother with this widened value for SOFTMMU_CODE_ACCESS.
+ */
+
+static uint64_t full_ldub_mmu(CPUArchState *env, target_ulong addr,
+                              TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return load_helper(env, addr, oi, retaddr, 1, false, false,
+                       full_ldub_mmu);
+}
+
+tcg_target_ulong helper_ret_ldub_mmu(CPUArchState *env, target_ulong addr,
+                                     TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return full_ldub_mmu(env, addr, oi, retaddr);
+}
+
+static uint64_t full_le_lduw_mmu(CPUArchState *env, target_ulong addr,
+                                 TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return load_helper(env, addr, oi, retaddr, 2, false, false,
+                       full_le_lduw_mmu);
+}
+
+tcg_target_ulong helper_le_lduw_mmu(CPUArchState *env, target_ulong addr,
+                                    TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return full_le_lduw_mmu(env, addr, oi, retaddr);
+}
+
+static uint64_t full_be_lduw_mmu(CPUArchState *env, target_ulong addr,
+                                 TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return load_helper(env, addr, oi, retaddr, 2, true, false,
+                       full_be_lduw_mmu);
+}
+
+tcg_target_ulong helper_be_lduw_mmu(CPUArchState *env, target_ulong addr,
+                                    TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return full_be_lduw_mmu(env, addr, oi, retaddr);
+}
+
+static uint64_t full_le_ldul_mmu(CPUArchState *env, target_ulong addr,
+                                 TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return load_helper(env, addr, oi, retaddr, 4, false, false,
+                       full_le_ldul_mmu);
+}
+
+tcg_target_ulong helper_le_ldul_mmu(CPUArchState *env, target_ulong addr,
+                                    TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return full_le_ldul_mmu(env, addr, oi, retaddr);
+}
+
+static uint64_t full_be_ldul_mmu(CPUArchState *env, target_ulong addr,
+                                 TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return load_helper(env, addr, oi, retaddr, 4, true, false,
+                       full_be_ldul_mmu);
+}
+
+tcg_target_ulong helper_be_ldul_mmu(CPUArchState *env, target_ulong addr,
+                                    TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return full_be_ldul_mmu(env, addr, oi, retaddr);
+}
+
+uint64_t helper_le_ldq_mmu(CPUArchState *env, target_ulong addr,
+                           TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return load_helper(env, addr, oi, retaddr, 8, false, false,
+                       helper_le_ldq_mmu);
+}
+
+uint64_t helper_be_ldq_mmu(CPUArchState *env, target_ulong addr,
+                           TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return load_helper(env, addr, oi, retaddr, 8, true, false,
+                       helper_be_ldq_mmu);
+}
+
+/*
+ * Provide signed versions of the load routines as well.  We can of course
+ * avoid this for 64-bit data, or for 32-bit data on 32-bit host.
+ */
+
+
+tcg_target_ulong helper_ret_ldsb_mmu(CPUArchState *env, target_ulong addr,
+                                     TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return (int8_t)helper_ret_ldub_mmu(env, addr, oi, retaddr);
+}
+
+tcg_target_ulong helper_le_ldsw_mmu(CPUArchState *env, target_ulong addr,
+                                    TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return (int16_t)helper_le_lduw_mmu(env, addr, oi, retaddr);
+}
+
+tcg_target_ulong helper_be_ldsw_mmu(CPUArchState *env, target_ulong addr,
+                                    TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return (int16_t)helper_be_lduw_mmu(env, addr, oi, retaddr);
+}
+
+tcg_target_ulong helper_le_ldsl_mmu(CPUArchState *env, target_ulong addr,
+                                    TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return (int32_t)helper_le_ldul_mmu(env, addr, oi, retaddr);
+}
+
+tcg_target_ulong helper_be_ldsl_mmu(CPUArchState *env, target_ulong addr,
+                                    TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return (int32_t)helper_be_ldul_mmu(env, addr, oi, retaddr);
+}
+
+/*
+ * Store Helpers
+ */
+
+static inline void __attribute__((always_inline))
+store_helper(CPUArchState *env, target_ulong addr, uint64_t val,
+             TCGMemOpIdx oi, uintptr_t retaddr, size_t size, bool big_endian)
+{
+    uintptr_t mmu_idx = get_mmuidx(oi);
+    uintptr_t index = tlb_index(env, mmu_idx, addr);
+    CPUTLBEntry *entry = tlb_entry(env, mmu_idx, addr);
+    target_ulong tlb_addr = tlb_addr_write(entry);
+    const size_t tlb_off = offsetof(CPUTLBEntry, addr_write);
+    unsigned a_bits = get_alignment_bits(get_memop(oi));
+    void *haddr;
+
+    /* Handle CPU specific unaligned behaviour */
+    if (addr & ((1 << a_bits) - 1)) {
+        cpu_unaligned_access(env_cpu(env), addr, MMU_DATA_STORE,
+                             mmu_idx, retaddr);
+    }
+
+    /* If the TLB entry is for a different page, reload and try again.  */
+    if (!tlb_hit(tlb_addr, addr)) {
+        if (!victim_tlb_hit(env, mmu_idx, index, tlb_off,
+            addr & TARGET_PAGE_MASK)) {
+            tlb_fill(env_cpu(env), addr, size, MMU_DATA_STORE,
+                     mmu_idx, retaddr);
+            index = tlb_index(env, mmu_idx, addr);
+            entry = tlb_entry(env, mmu_idx, addr);
+        }
+        tlb_addr = tlb_addr_write(entry) & ~TLB_INVALID_MASK;
+    }
+
+    /* Handle an IO access.  */
+    if (unlikely(tlb_addr & ~TARGET_PAGE_MASK)) {
+        if ((addr & (size - 1)) != 0) {
+            goto do_unaligned_access;
+        }
+
+        if (tlb_addr & TLB_RECHECK) {
+            /*
+             * This is a TLB_RECHECK access, where the MMU protection
+             * covers a smaller range than a target page, and we must
+             * repeat the MMU check here. This tlb_fill() call might
+             * longjump out if this access should cause a guest exception.
+             */
+            tlb_fill(env_cpu(env), addr, size, MMU_DATA_STORE,
+                     mmu_idx, retaddr);
+            index = tlb_index(env, mmu_idx, addr);
+            entry = tlb_entry(env, mmu_idx, addr);
+
+            tlb_addr = tlb_addr_write(entry);
+            tlb_addr &= ~TLB_RECHECK;
+            if (!(tlb_addr & ~TARGET_PAGE_MASK)) {
+                /* RAM access */
+                goto do_aligned_access;
+            }
+        }
+
+        io_writex(env, &env_tlb(env)->d[mmu_idx].iotlb[index], mmu_idx,
+                  handle_bswap(val, size, big_endian),
+                  addr, retaddr, size);
+        return;
+    }
+
+    /* Handle slow unaligned access (it spans two pages or IO).  */
+    if (size > 1
+        && unlikely((addr & ~TARGET_PAGE_MASK) + size - 1
+                     >= TARGET_PAGE_SIZE)) {
+        int i;
+        uintptr_t index2;
+        CPUTLBEntry *entry2;
+        target_ulong page2, tlb_addr2;
+    do_unaligned_access:
+        /*
+         * Ensure the second page is in the TLB.  Note that the first page
+         * is already guaranteed to be filled, and that the second page
+         * cannot evict the first.
+         */
+        page2 = (addr + size) & TARGET_PAGE_MASK;
+        index2 = tlb_index(env, mmu_idx, page2);
+        entry2 = tlb_entry(env, mmu_idx, page2);
+        tlb_addr2 = tlb_addr_write(entry2);
+        if (!tlb_hit_page(tlb_addr2, page2)
+            && !victim_tlb_hit(env, mmu_idx, index2, tlb_off,
+                               page2 & TARGET_PAGE_MASK)) {
+            tlb_fill(env_cpu(env), page2, size, MMU_DATA_STORE,
+                     mmu_idx, retaddr);
+        }
+
+        /*
+         * XXX: not efficient, but simple.
+         * This loop must go in the forward direction to avoid issues
+         * with self-modifying code in Windows 64-bit.
+         */
+        for (i = 0; i < size; ++i) {
+            uint8_t val8;
+            if (big_endian) {
+                /* Big-endian extract.  */
+                val8 = val >> (((size - 1) * 8) - (i * 8));
+            } else {
+                /* Little-endian extract.  */
+                val8 = val >> (i * 8);
+            }
+            helper_ret_stb_mmu(env, addr + i, val8, oi, retaddr);
+        }
+        return;
+    }
+
+ do_aligned_access:
+    haddr = (void *)((uintptr_t)addr + entry->addend);
+    switch (size) {
+    case 1:
+        stb_p(haddr, val);
+        break;
+    case 2:
+        if (big_endian) {
+            stw_be_p(haddr, val);
+        } else {
+            stw_le_p(haddr, val);
+        }
+        break;
+    case 4:
+        if (big_endian) {
+            stl_be_p(haddr, val);
+        } else {
+            stl_le_p(haddr, val);
+        }
+        break;
+    case 8:
+        if (big_endian) {
+            stq_be_p(haddr, val);
+        } else {
+            stq_le_p(haddr, val);
+        }
+        break;
+    default:
+        g_assert_not_reached();
+        break;
+    }
+}
+
+void helper_ret_stb_mmu(CPUArchState *env, target_ulong addr, uint8_t val,
+                        TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    store_helper(env, addr, val, oi, retaddr, 1, false);
+}
+
+void helper_le_stw_mmu(CPUArchState *env, target_ulong addr, uint16_t val,
+                       TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    store_helper(env, addr, val, oi, retaddr, 2, false);
+}
+
+void helper_be_stw_mmu(CPUArchState *env, target_ulong addr, uint16_t val,
+                       TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    store_helper(env, addr, val, oi, retaddr, 2, true);
+}
+
+void helper_le_stl_mmu(CPUArchState *env, target_ulong addr, uint32_t val,
+                       TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    store_helper(env, addr, val, oi, retaddr, 4, false);
+}
+
+void helper_be_stl_mmu(CPUArchState *env, target_ulong addr, uint32_t val,
+                       TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    store_helper(env, addr, val, oi, retaddr, 4, true);
+}
+
+void helper_le_stq_mmu(CPUArchState *env, target_ulong addr, uint64_t val,
+                       TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    store_helper(env, addr, val, oi, retaddr, 8, false);
+}
+
+void helper_be_stq_mmu(CPUArchState *env, target_ulong addr, uint64_t val,
+                       TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    store_helper(env, addr, val, oi, retaddr, 8, true);
+}
 
 /* First set of helpers allows passing in of OI and RETADDR.  This makes
    them callable from other helpers.  */
@@ -1247,20 +1737,81 @@ static void *atomic_mmu_lookup(CPUArchState *env, target_ulong addr,
 
 /* Code access functions.  */
 
-#undef MMUSUFFIX
-#define MMUSUFFIX _cmmu
-#undef GETPC
-#define GETPC() ((uintptr_t)0)
-#define SOFTMMU_CODE_ACCESS
+static uint64_t full_ldub_cmmu(CPUArchState *env, target_ulong addr,
+                               TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return load_helper(env, addr, oi, retaddr, 1, false, true,
+                       full_ldub_cmmu);
+}
 
-#define DATA_SIZE 1
-#include "softmmu_template.h"
+uint8_t helper_ret_ldb_cmmu(CPUArchState *env, target_ulong addr,
+                            TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return full_ldub_cmmu(env, addr, oi, retaddr);
+}
 
-#define DATA_SIZE 2
-#include "softmmu_template.h"
+static uint64_t full_le_lduw_cmmu(CPUArchState *env, target_ulong addr,
+                                  TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return load_helper(env, addr, oi, retaddr, 2, false, true,
+                       full_le_lduw_cmmu);
+}
 
-#define DATA_SIZE 4
-#include "softmmu_template.h"
+uint16_t helper_le_ldw_cmmu(CPUArchState *env, target_ulong addr,
+                            TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return full_le_lduw_cmmu(env, addr, oi, retaddr);
+}
 
-#define DATA_SIZE 8
-#include "softmmu_template.h"
+static uint64_t full_be_lduw_cmmu(CPUArchState *env, target_ulong addr,
+                                  TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return load_helper(env, addr, oi, retaddr, 2, true, true,
+                       full_be_lduw_cmmu);
+}
+
+uint16_t helper_be_ldw_cmmu(CPUArchState *env, target_ulong addr,
+                            TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return full_be_lduw_cmmu(env, addr, oi, retaddr);
+}
+
+static uint64_t full_le_ldul_cmmu(CPUArchState *env, target_ulong addr,
+                                  TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return load_helper(env, addr, oi, retaddr, 4, false, true,
+                       full_le_ldul_cmmu);
+}
+
+uint32_t helper_le_ldl_cmmu(CPUArchState *env, target_ulong addr,
+                            TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return full_le_ldul_cmmu(env, addr, oi, retaddr);
+}
+
+static uint64_t full_be_ldul_cmmu(CPUArchState *env, target_ulong addr,
+                                  TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return load_helper(env, addr, oi, retaddr, 4, true, true,
+                       full_be_ldul_cmmu);
+}
+
+uint32_t helper_be_ldl_cmmu(CPUArchState *env, target_ulong addr,
+                            TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return full_be_ldul_cmmu(env, addr, oi, retaddr);
+}
+
+uint64_t helper_le_ldq_cmmu(CPUArchState *env, target_ulong addr,
+                            TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return load_helper(env, addr, oi, retaddr, 8, false, true,
+                       helper_le_ldq_cmmu);
+}
+
+uint64_t helper_be_ldq_cmmu(CPUArchState *env, target_ulong addr,
+                            TCGMemOpIdx oi, uintptr_t retaddr)
+{
+    return load_helper(env, addr, oi, retaddr, 8, true, true,
+                       helper_be_ldq_cmmu);
+}

@@ -138,25 +138,26 @@ no incompatible TCG features have been enabled (e.g. icount/replay).
 ETEXI
 
 DEF("smp", HAS_ARG, QEMU_OPTION_smp,
-    "-smp [cpus=]n[,maxcpus=cpus][,cores=cores][,threads=threads][,sockets=sockets]\n"
+    "-smp [cpus=]n[,maxcpus=cpus][,cores=cores][,threads=threads][,dies=dies][,sockets=sockets]\n"
     "                set the number of CPUs to 'n' [default=1]\n"
     "                maxcpus= maximum number of total cpus, including\n"
     "                offline CPUs for hotplug, etc\n"
-    "                cores= number of CPU cores on one socket\n"
+    "                cores= number of CPU cores on one socket (for PC, it's on one die)\n"
     "                threads= number of threads on one CPU core\n"
+    "                dies= number of CPU dies on one socket (for PC only)\n"
     "                sockets= number of discrete sockets in the system\n",
         QEMU_ARCH_ALL)
 STEXI
-@item -smp [cpus=]@var{n}[,cores=@var{cores}][,threads=@var{threads}][,sockets=@var{sockets}][,maxcpus=@var{maxcpus}]
+@item -smp [cpus=]@var{n}[,cores=@var{cores}][,threads=@var{threads}][,dies=dies][,sockets=@var{sockets}][,maxcpus=@var{maxcpus}]
 @findex -smp
 Simulate an SMP system with @var{n} CPUs. On the PC target, up to 255
 CPUs are supported. On Sparc32 target, Linux limits the number of usable CPUs
 to 4.
-For the PC target, the number of @var{cores} per socket, the number
-of @var{threads} per cores and the total number of @var{sockets} can be
-specified. Missing values will be computed. If any on the three values is
-given, the total number of CPUs @var{n} can be omitted. @var{maxcpus}
-specifies the maximum number of hotpluggable CPUs.
+For the PC target, the number of @var{cores} per die, the number of @var{threads}
+per cores, the number of @var{dies} per packages and the total number of
+@var{sockets} can be specified. Missing values will be computed.
+If any on the three values is given, the total number of CPUs @var{n} can be omitted.
+@var{maxcpus} specifies the maximum number of hotpluggable CPUs.
 ETEXI
 
 DEF("numa", HAS_ARG, QEMU_OPTION_numa,
@@ -1232,26 +1233,35 @@ the write back by pressing @key{C-a s} (@pxref{disk_images}).
 ETEXI
 
 DEF("fsdev", HAS_ARG, QEMU_OPTION_fsdev,
-    "-fsdev fsdriver,id=id[,path=path,][security_model={mapped-xattr|mapped-file|passthrough|none}]\n"
-    " [,writeout=immediate][,readonly][,socket=socket|sock_fd=sock_fd][,fmode=fmode][,dmode=dmode]\n"
+    "-fsdev local,id=id,path=path,security_model=mapped-xattr|mapped-file|passthrough|none\n"
+    " [,writeout=immediate][,readonly][,fmode=fmode][,dmode=dmode]\n"
     " [[,throttling.bps-total=b]|[[,throttling.bps-read=r][,throttling.bps-write=w]]]\n"
     " [[,throttling.iops-total=i]|[[,throttling.iops-read=r][,throttling.iops-write=w]]]\n"
     " [[,throttling.bps-total-max=bm]|[[,throttling.bps-read-max=rm][,throttling.bps-write-max=wm]]]\n"
     " [[,throttling.iops-total-max=im]|[[,throttling.iops-read-max=irm][,throttling.iops-write-max=iwm]]]\n"
-    " [[,throttling.iops-size=is]]\n",
+    " [[,throttling.iops-size=is]]\n"
+    "-fsdev proxy,id=id,socket=socket[,writeout=immediate][,readonly]\n"
+    "-fsdev proxy,id=id,sock_fd=sock_fd[,writeout=immediate][,readonly]\n"
+    "-fsdev synth,id=id\n",
     QEMU_ARCH_ALL)
 
 STEXI
 
-@item -fsdev @var{fsdriver},id=@var{id},path=@var{path},[security_model=@var{security_model}][,writeout=@var{writeout}][,readonly][,socket=@var{socket}|sock_fd=@var{sock_fd}][,fmode=@var{fmode}][,dmode=@var{dmode}]
+@item -fsdev local,id=@var{id},path=@var{path},security_model=@var{security_model} [,writeout=@var{writeout}][,readonly][,fmode=@var{fmode}][,dmode=@var{dmode}] [,throttling.@var{option}=@var{value}[,throttling.@var{option}=@var{value}[,...]]]
+@itemx -fsdev proxy,id=@var{id},socket=@var{socket}[,writeout=@var{writeout}][,readonly]
+@itemx -fsdev proxy,id=@var{id},sock_fd=@var{sock_fd}[,writeout=@var{writeout}][,readonly]
+@itemx -fsdev synth,id=@var{id}[,readonly]
 @findex -fsdev
 Define a new file system device. Valid options are:
 @table @option
-@item @var{fsdriver}
-This option specifies the fs driver backend to use.
-Currently "local" and "proxy" file system drivers are supported.
+@item local
+Accesses to the filesystem are done by QEMU.
+@item proxy
+Accesses to the filesystem are done by virtfs-proxy-helper(1).
+@item synth
+Synthetic filesystem, only used by QTests.
 @item id=@var{id}
-Specifies identifier for this device
+Specifies identifier for this device.
 @item path=@var{path}
 Specifies the export path for the file system device. Files under
 this path will be available to the 9p client on the guest.
@@ -1279,48 +1289,76 @@ Enables exporting 9p share as a readonly mount for guests. By default
 read-write access is given.
 @item socket=@var{socket}
 Enables proxy filesystem driver to use passed socket file for communicating
-with virtfs-proxy-helper
+with virtfs-proxy-helper(1).
 @item sock_fd=@var{sock_fd}
 Enables proxy filesystem driver to use passed socket descriptor for
-communicating with virtfs-proxy-helper. Usually a helper like libvirt
-will create socketpair and pass one of the fds as sock_fd
+communicating with virtfs-proxy-helper(1). Usually a helper like libvirt
+will create socketpair and pass one of the fds as sock_fd.
 @item fmode=@var{fmode}
 Specifies the default mode for newly created files on the host. Works only
 with security models "mapped-xattr" and "mapped-file".
 @item dmode=@var{dmode}
 Specifies the default mode for newly created directories on the host. Works
 only with security models "mapped-xattr" and "mapped-file".
+@item throttling.bps-total=@var{b},throttling.bps-read=@var{r},throttling.bps-write=@var{w}
+Specify bandwidth throttling limits in bytes per second, either for all request
+types or for reads or writes only.
+@item throttling.bps-total-max=@var{bm},bps-read-max=@var{rm},bps-write-max=@var{wm}
+Specify bursts in bytes per second, either for all request types or for reads
+or writes only.  Bursts allow the guest I/O to spike above the limit
+temporarily.
+@item throttling.iops-total=@var{i},throttling.iops-read=@var{r}, throttling.iops-write=@var{w}
+Specify request rate limits in requests per second, either for all request
+types or for reads or writes only.
+@item throttling.iops-total-max=@var{im},throttling.iops-read-max=@var{irm}, throttling.iops-write-max=@var{iwm}
+Specify bursts in requests per second, either for all request types or for reads
+or writes only.  Bursts allow the guest I/O to spike above the limit temporarily.
+@item throttling.iops-size=@var{is}
+Let every @var{is} bytes of a request count as a new request for iops
+throttling purposes.
 @end table
 
--fsdev option is used along with -device driver "virtio-9p-pci".
-@item -device virtio-9p-pci,fsdev=@var{id},mount_tag=@var{mount_tag}
-Options for virtio-9p-pci driver are:
+-fsdev option is used along with -device driver "virtio-9p-...".
+@item -device virtio-9p-@var{type},fsdev=@var{id},mount_tag=@var{mount_tag}
+Options for virtio-9p-... driver are:
 @table @option
+@item @var{type}
+Specifies the variant to be used. Supported values are "pci", "ccw" or "device",
+depending on the machine type.
 @item fsdev=@var{id}
-Specifies the id value specified along with -fsdev option
+Specifies the id value specified along with -fsdev option.
 @item mount_tag=@var{mount_tag}
-Specifies the tag name to be used by the guest to mount this export point
+Specifies the tag name to be used by the guest to mount this export point.
 @end table
 
 ETEXI
 
 DEF("virtfs", HAS_ARG, QEMU_OPTION_virtfs,
-    "-virtfs local,path=path,mount_tag=tag,security_model=[mapped-xattr|mapped-file|passthrough|none]\n"
-    "        [,id=id][,writeout=immediate][,readonly][,socket=socket|sock_fd=sock_fd][,fmode=fmode][,dmode=dmode]\n",
+    "-virtfs local,path=path,mount_tag=tag,security_model=mapped-xattr|mapped-file|passthrough|none\n"
+    "        [,id=id][,writeout=immediate][,readonly][,fmode=fmode][,dmode=dmode]\n"
+    "-virtfs proxy,mount_tag=tag,socket=socket[,id=id][,writeout=immediate][,readonly]\n"
+    "-virtfs proxy,mount_tag=tag,sock_fd=sock_fd[,id=id][,writeout=immediate][,readonly]\n"
+    "-virtfs synth,mount_tag=tag[,id=id][,readonly]\n",
     QEMU_ARCH_ALL)
 
 STEXI
 
-@item -virtfs @var{fsdriver}[,path=@var{path}],mount_tag=@var{mount_tag}[,security_model=@var{security_model}][,writeout=@var{writeout}][,readonly][,socket=@var{socket}|sock_fd=@var{sock_fd}][,fmode=@var{fmode}][,dmode=@var{dmode}]
+@item -virtfs local,path=@var{path},mount_tag=@var{mount_tag} ,security_model=@var{security_model}[,writeout=@var{writeout}][,readonly] [,fmode=@var{fmode}][,dmode=@var{dmode}]
+@itemx -virtfs proxy,socket=@var{socket},mount_tag=@var{mount_tag} [,writeout=@var{writeout}][,readonly]
+@itemx -virtfs proxy,sock_fd=@var{sock_fd},mount_tag=@var{mount_tag} [,writeout=@var{writeout}][,readonly]
+@itemx -virtfs synth,mount_tag=@var{mount_tag}
 @findex -virtfs
 
-The general form of a Virtual File system pass-through options are:
+Define a new filesystem device and expose it to the guest using a virtio-9p-device. The general form of a Virtual File system pass-through options are:
 @table @option
-@item @var{fsdriver}
-This option specifies the fs driver backend to use.
-Currently "local" and "proxy" file system drivers are supported.
+@item local
+Accesses to the filesystem are done by QEMU.
+@item proxy
+Accesses to the filesystem are done by virtfs-proxy-helper(1).
+@item synth
+Synthetic filesystem, only used by QTests.
 @item id=@var{id}
-Specifies identifier for this device
+Specifies identifier for the filesystem device
 @item path=@var{path}
 Specifies the export path for the file system device. Files under
 this path will be available to the 9p client on the guest.
@@ -1348,17 +1386,19 @@ Enables exporting 9p share as a readonly mount for guests. By default
 read-write access is given.
 @item socket=@var{socket}
 Enables proxy filesystem driver to use passed socket file for
-communicating with virtfs-proxy-helper. Usually a helper like libvirt
-will create socketpair and pass one of the fds as sock_fd
+communicating with virtfs-proxy-helper(1). Usually a helper like libvirt
+will create socketpair and pass one of the fds as sock_fd.
 @item sock_fd
 Enables proxy filesystem driver to use passed 'sock_fd' as the socket
-descriptor for interfacing with virtfs-proxy-helper
+descriptor for interfacing with virtfs-proxy-helper(1).
 @item fmode=@var{fmode}
 Specifies the default mode for newly created files on the host. Works only
 with security models "mapped-xattr" and "mapped-file".
 @item dmode=@var{dmode}
 Specifies the default mode for newly created directories on the host. Works
 only with security models "mapped-xattr" and "mapped-file".
+@item mount_tag=@var{mount_tag}
+Specifies the tag name to be used by the guest to mount this export point.
 @end table
 ETEXI
 
@@ -1368,7 +1408,8 @@ DEF("virtfs_synth", 0, QEMU_OPTION_virtfs_synth,
 STEXI
 @item -virtfs_synth
 @findex -virtfs_synth
-Create synthetic file system image
+Create synthetic file system image. Note that this option is now deprecated.
+Please use @code{-fsdev synth} and @code{-device virtio-9p-...} instead.
 ETEXI
 
 DEF("iscsi", HAS_ARG, QEMU_OPTION_iscsi,
@@ -2040,7 +2081,7 @@ Specify SMBIOS type 0 fields
 @item -smbios type=1[,manufacturer=@var{str}][,product=@var{str}][,version=@var{str}][,serial=@var{str}][,uuid=@var{uuid}][,sku=@var{str}][,family=@var{str}]
 Specify SMBIOS type 1 fields
 
-@item -smbios type=2[,manufacturer=@var{str}][,product=@var{str}][,version=@var{str}][,serial=@var{str}][,asset=@var{str}][,location=@var{str}][,family=@var{str}]
+@item -smbios type=2[,manufacturer=@var{str}][,product=@var{str}][,version=@var{str}][,serial=@var{str}][,asset=@var{str}][,location=@var{str}]
 Specify SMBIOS type 2 fields
 
 @item -smbios type=3[,manufacturer=@var{str}][,version=@var{str}][,serial=@var{str}][,asset=@var{str}][,sku=@var{str}]
@@ -3601,6 +3642,16 @@ the 0x200 sized block starting at 0xffffffc000080000 and another 0x1000 sized
 block starting at 0xffffffc00005f000.
 ETEXI
 
+DEF("seed", HAS_ARG, QEMU_OPTION_seed, \
+    "-seed number       seed the pseudo-random number generator\n",
+    QEMU_ARCH_ALL)
+STEXI
+@item -seed @var{number}
+@findex -seed
+Force the guest to use a deterministic pseudo-random number generator, seeded
+with @var{number}.  This does not affect crypto routines within the host.
+ETEXI
+
 DEF("L", HAS_ARG, QEMU_OPTION_L, \
     "-L path         set the directory for the BIOS, VGA BIOS and keymaps\n",
     QEMU_ARCH_ALL)
@@ -3968,26 +4019,28 @@ ETEXI
 DEF("semihosting", 0, QEMU_OPTION_semihosting,
     "-semihosting    semihosting mode\n",
     QEMU_ARCH_ARM | QEMU_ARCH_M68K | QEMU_ARCH_XTENSA | QEMU_ARCH_LM32 |
-    QEMU_ARCH_MIPS)
+    QEMU_ARCH_MIPS | QEMU_ARCH_NIOS2)
 STEXI
 @item -semihosting
 @findex -semihosting
-Enable semihosting mode (ARM, M68K, Xtensa, MIPS only).
+Enable semihosting mode (ARM, M68K, Xtensa, MIPS, Nios II only).
 ETEXI
 DEF("semihosting-config", HAS_ARG, QEMU_OPTION_semihosting_config,
-    "-semihosting-config [enable=on|off][,target=native|gdb|auto][,arg=str[,...]]\n" \
+    "-semihosting-config [enable=on|off][,target=native|gdb|auto][,chardev=id][,arg=str[,...]]\n" \
     "                semihosting configuration\n",
 QEMU_ARCH_ARM | QEMU_ARCH_M68K | QEMU_ARCH_XTENSA | QEMU_ARCH_LM32 |
-QEMU_ARCH_MIPS)
+QEMU_ARCH_MIPS | QEMU_ARCH_NIOS2)
 STEXI
-@item -semihosting-config [enable=on|off][,target=native|gdb|auto][,arg=str[,...]]
+@item -semihosting-config [enable=on|off][,target=native|gdb|auto][,chardev=id][,arg=str[,...]]
 @findex -semihosting-config
-Enable and configure semihosting (ARM, M68K, Xtensa, MIPS only).
+Enable and configure semihosting (ARM, M68K, Xtensa, MIPS, Nios II only).
 @table @option
 @item target=@code{native|gdb|auto}
 Defines where the semihosting calls will be addressed, to QEMU (@code{native})
 or to GDB (@code{gdb}). The default is @code{auto}, which means @code{gdb}
 during debug sessions and @code{native} otherwise.
+@item chardev=@var{str1}
+Send the output to a chardev backend output for native or auto output when not in gdb
 @item arg=@var{str1},arg=@var{str2},...
 Allows the user to pass input arguments, and can be used multiple times to build
 up a list. The old-style @code{-kernel}/@code{-append} method of passing a
@@ -4233,6 +4286,11 @@ using the SNIA NVM programming model (e.g. Intel NVDIMM).
 If @option{pmem} is set to 'on', QEMU will take necessary operations to
 guarantee the persistence of its own writes to @option{mem-path}
 (e.g. in vNVDIMM label emulation and live migration).
+Also, we will map the backend-file with MAP_SYNC flag, which ensures the
+file metadata is in sync for @option{mem-path} in case of host crash
+or a power failure. MAP_SYNC requires support from both the host kernel
+(since Linux kernel 4.15) and the filesystem of @option{mem-path} mounted
+with DAX option.
 
 @item -object memory-backend-ram,id=@var{id},merge=@var{on|off},dump=@var{on|off},share=@var{on|off},prealloc=@var{on|off},size=@var{size},host-nodes=@var{host-nodes},policy=@var{default|preferred|bind|interleave}
 
@@ -4271,7 +4329,7 @@ Creates a random number generator backend which obtains entropy from
 a device on the host. The @option{id} parameter is a unique ID that
 will be used to reference this entropy backend from the @option{virtio-rng}
 device. The @option{filename} parameter specifies which file to obtain
-entropy from and if omitted defaults to @option{/dev/random}.
+entropy from and if omitted defaults to @option{/dev/urandom}.
 
 @item -object rng-egd,id=@var{id},chardev=@var{chardevid}
 
@@ -4420,17 +4478,23 @@ Dump the network traffic on netdev @var{dev} to the file specified by
 The file format is libpcap, so it can be analyzed with tools such as tcpdump
 or Wireshark.
 
-@item -object colo-compare,id=@var{id},primary_in=@var{chardevid},secondary_in=@var{chardevid},outdev=@var{chardevid}[,vnet_hdr_support]
+@item -object colo-compare,id=@var{id},primary_in=@var{chardevid},secondary_in=@var{chardevid},outdev=@var{chardevid},iothread=@var{id}[,vnet_hdr_support][,notify_dev=@var{id}]
 
 Colo-compare gets packet from primary_in@var{chardevid} and secondary_in@var{chardevid}, than compare primary packet with
 secondary packet. If the packets are same, we will output primary
 packet to outdev@var{chardevid}, else we will notify colo-frame
 do checkpoint and send primary packet to outdev@var{chardevid}.
-if it has the vnet_hdr_support flag, colo compare will send/recv packet with vnet_hdr_len.
+In order to improve efficiency, we need to put the task of comparison
+in another thread. If it has the vnet_hdr_support flag, colo compare
+will send/recv packet with vnet_hdr_len.
+If you want to use Xen COLO, will need the notify_dev to notify Xen
+colo-frame to do checkpoint.
 
 we must use it with the help of filter-mirror and filter-redirector.
 
 @example
+
+KVM COLO
 
 primary:
 -netdev tap,id=hn0,vhost=off,script=/etc/qemu-ifup,downscript=/etc/qemu-ifdown
@@ -4441,10 +4505,38 @@ primary:
 -chardev socket,id=compare0-0,host=3.3.3.3,port=9001
 -chardev socket,id=compare_out,host=3.3.3.3,port=9005,server,nowait
 -chardev socket,id=compare_out0,host=3.3.3.3,port=9005
+-object iothread,id=iothread1
 -object filter-mirror,id=m0,netdev=hn0,queue=tx,outdev=mirror0
 -object filter-redirector,netdev=hn0,id=redire0,queue=rx,indev=compare_out
 -object filter-redirector,netdev=hn0,id=redire1,queue=rx,outdev=compare0
--object colo-compare,id=comp0,primary_in=compare0-0,secondary_in=compare1,outdev=compare_out0
+-object colo-compare,id=comp0,primary_in=compare0-0,secondary_in=compare1,outdev=compare_out0,iothread=iothread1
+
+secondary:
+-netdev tap,id=hn0,vhost=off,script=/etc/qemu-ifup,down script=/etc/qemu-ifdown
+-device e1000,netdev=hn0,mac=52:a4:00:12:78:66
+-chardev socket,id=red0,host=3.3.3.3,port=9003
+-chardev socket,id=red1,host=3.3.3.3,port=9004
+-object filter-redirector,id=f1,netdev=hn0,queue=tx,indev=red0
+-object filter-redirector,id=f2,netdev=hn0,queue=rx,outdev=red1
+
+
+Xen COLO
+
+primary:
+-netdev tap,id=hn0,vhost=off,script=/etc/qemu-ifup,downscript=/etc/qemu-ifdown
+-device e1000,id=e0,netdev=hn0,mac=52:a4:00:12:78:66
+-chardev socket,id=mirror0,host=3.3.3.3,port=9003,server,nowait
+-chardev socket,id=compare1,host=3.3.3.3,port=9004,server,nowait
+-chardev socket,id=compare0,host=3.3.3.3,port=9001,server,nowait
+-chardev socket,id=compare0-0,host=3.3.3.3,port=9001
+-chardev socket,id=compare_out,host=3.3.3.3,port=9005,server,nowait
+-chardev socket,id=compare_out0,host=3.3.3.3,port=9005
+-chardev socket,id=notify_way,host=3.3.3.3,port=9009,server,nowait
+-object filter-mirror,id=m0,netdev=hn0,queue=tx,outdev=mirror0
+-object filter-redirector,netdev=hn0,id=redire0,queue=rx,indev=compare_out
+-object filter-redirector,netdev=hn0,id=redire1,queue=rx,outdev=compare0
+-object iothread,id=iothread1
+-object colo-compare,id=comp0,primary_in=compare0-0,secondary_in=compare1,outdev=compare_out0,notify_dev=nofity_way,iothread=iothread1
 
 secondary:
 -netdev tap,id=hn0,vhost=off,script=/etc/qemu-ifup,down script=/etc/qemu-ifdown

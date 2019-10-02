@@ -40,6 +40,7 @@
 #include "sysemu/blockdev.h"
 #include "sysemu/sysemu.h"
 #include "qemu/log.h"
+#include "qemu/module.h"
 #include "trace.h"
 
 /********************************************************/
@@ -513,6 +514,7 @@ static void floppy_drive_realize(DeviceState *qdev, Error **errp)
     FloppyDrive *dev = FLOPPY_DRIVE(qdev);
     FloppyBus *bus = FLOPPY_BUS(qdev->parent_bus);
     FDrive *drive;
+    bool read_only;
     int ret;
 
     if (dev->unit == -1) {
@@ -538,9 +540,15 @@ static void floppy_drive_realize(DeviceState *qdev, Error **errp)
 
     if (!dev->conf.blk) {
         /* Anonymous BlockBackend for an empty drive */
-        dev->conf.blk = blk_new(0, BLK_PERM_ALL);
+        dev->conf.blk = blk_new(qemu_get_aio_context(), 0, BLK_PERM_ALL);
         ret = blk_attach_dev(dev->conf.blk, qdev);
         assert(ret == 0);
+
+        /* Don't take write permissions on an empty drive to allow attaching a
+         * read-only node later */
+        read_only = true;
+    } else {
+        read_only = !blk_bs(dev->conf.blk) || blk_is_read_only(dev->conf.blk);
     }
 
     blkconf_blocksizes(&dev->conf);
@@ -558,9 +566,7 @@ static void floppy_drive_realize(DeviceState *qdev, Error **errp)
     dev->conf.rerror = BLOCKDEV_ON_ERROR_AUTO;
     dev->conf.werror = BLOCKDEV_ON_ERROR_AUTO;
 
-    if (!blkconf_apply_backend_options(&dev->conf,
-                                       blk_is_read_only(dev->conf.blk),
-                                       false, errp)) {
+    if (!blkconf_apply_backend_options(&dev->conf, read_only, false, errp)) {
         return;
     }
 
@@ -2647,6 +2653,7 @@ static void fdctrl_realize_common(DeviceState *dev, FDCtrl *fdctrl,
 
     FLOPPY_DPRINTF("init controller\n");
     fdctrl->fifo = qemu_memalign(512, FD_SECTOR_LEN);
+    memset(fdctrl->fifo, 0, FD_SECTOR_LEN);
     fdctrl->fifo_size = 512;
     fdctrl->result_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
                                              fdctrl_result_timer, fdctrl);

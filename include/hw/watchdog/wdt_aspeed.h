@@ -6,8 +6,9 @@
  * This code is licensed under the GPL version 2 or later. See the
  * COPYING file in the top-level directory.
  */
-#ifndef ASPEED_WDT_H
-#define ASPEED_WDT_H
+
+#ifndef WDT_ASPEED_H
+#define WDT_ASPEED_H
 
 #include "hw/sysbus.h"
 
@@ -26,9 +27,10 @@ typedef struct AspeedWDTState {
     MemoryRegion iomem;
     uint32_t regs[ASPEED_WDT_REGS_MAX];
 
+    AspeedSCUState *scu;
     uint32_t pclk_freq;
     uint32_t silicon_rev;
     uint32_t ext_pulse_width_mask;
 } AspeedWDTState;
 
-#endif  /* ASPEED_WDT_H */
+#endif /* WDT_ASPEED_H */

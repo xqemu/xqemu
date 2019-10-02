@@ -119,11 +119,13 @@ struct SpaprMachineClass {
     bool pre_2_10_has_unused_icps;
     bool legacy_irq_allocation;
     bool broken_host_serial_model; /* present real host info to the guest */
+    bool pre_4_1_migration; /* don't migrate hpt-max-page-size */
 
     void (*phb_placement)(SpaprMachineState *spapr, uint32_t index,
                           uint64_t *buid, hwaddr *pio, 
                           hwaddr *mmio32, hwaddr *mmio64,
-                          unsigned n_dma, uint32_t *liobns, Error **errp);
+                          unsigned n_dma, uint32_t *liobns, hwaddr *nv2gpa,
+                          hwaddr *nv2atsd, Error **errp);
     SpaprResizeHpt resize_hpt_default;
     SpaprCapabilities default_caps;
     SpaprIrq *irq;
@@ -199,6 +201,8 @@ struct SpaprMachineState {
 
     bool cmd_line_caps[SPAPR_CAP_NUM];
     SpaprCapabilities def, eff, mig;
+
+    unsigned gpu_numa_id;
 };
 
 #define H_SUCCESS         0
@@ -777,6 +781,8 @@ void spapr_reallocate_hpt(SpaprMachineState *spapr, int shift,
                           Error **errp);
 void spapr_clear_pending_events(SpaprMachineState *spapr);
 int spapr_max_server_number(SpaprMachineState *spapr);
+void spapr_store_hpte(PowerPCCPU *cpu, hwaddr ptex,
+                      uint64_t pte0, uint64_t pte1);
 
 /* DRC callbacks. */
 void spapr_core_release(DeviceState *dev);
@@ -840,6 +846,7 @@ extern const VMStateDescription vmstate_spapr_cap_dfp;
 extern const VMStateDescription vmstate_spapr_cap_cfpc;
 extern const VMStateDescription vmstate_spapr_cap_sbbc;
 extern const VMStateDescription vmstate_spapr_cap_ibs;
+extern const VMStateDescription vmstate_spapr_cap_hpt_maxpagesize;
 extern const VMStateDescription vmstate_spapr_cap_nested_kvm_hv;
 extern const VMStateDescription vmstate_spapr_cap_large_decr;
 extern const VMStateDescription vmstate_spapr_cap_ccf_assist;

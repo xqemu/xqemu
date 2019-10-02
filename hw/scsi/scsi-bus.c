@@ -2,6 +2,7 @@
 #include "hw/hw.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
+#include "qemu/module.h"
 #include "qemu/option.h"
 #include "hw/scsi/scsi.h"
 #include "scsi/constants.h"
@@ -206,8 +207,8 @@ static void scsi_qdev_realize(DeviceState *qdev, Error **errp)
         error_propagate(errp, local_err);
         return;
     }
-    dev->vmsentry = qemu_add_vm_change_state_handler(scsi_dma_restart_cb,
-                                                     dev);
+    dev->vmsentry = qdev_add_vm_change_state_handler(DEVICE(dev),
+            scsi_dma_restart_cb, dev);
 }
 
 static void scsi_qdev_unrealize(DeviceState *qdev, Error **errp)

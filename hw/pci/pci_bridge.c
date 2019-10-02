@@ -32,6 +32,7 @@
 #include "qemu/osdep.h"
 #include "hw/pci/pci_bridge.h"
 #include "hw/pci/pci_bus.h"
+#include "qemu/module.h"
 #include "qemu/range.h"
 #include "qapi/error.h"
 
@@ -273,7 +274,7 @@ void pci_bridge_write_config(PCIDevice *d,
     newctl = pci_get_word(d->config + PCI_BRIDGE_CONTROL);
     if (~oldctl & newctl & PCI_BRIDGE_CTL_BUS_RESET) {
         /* Trigger hot reset on 0->1 transition. */
-        qbus_reset_all(&s->sec_bus.qbus);
+        qbus_reset_all(BUS(&s->sec_bus));
     }
 }
 

@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include "qemu/osdep.h"
 #include "qemu/error-report.h"
 #include "qapi/error.h"
@@ -32,6 +33,7 @@
 #include "cpu-models.h"
 #include "kvm_ppc.h"
 #include "sysemu/qtest.h"
+#include "sysemu/tcg.h"
 
 #include "hw/ppc/spapr.h"
 
@@ -64,6 +66,7 @@ typedef struct SpaprCapabilityInfo {
     void (*apply)(SpaprMachineState *spapr, uint8_t val, Error **errp);
     void (*cpu_apply)(SpaprMachineState *spapr, PowerPCCPU *cpu,
                       uint8_t val, Error **errp);
+    bool (*migrate_needed)(void *opaque);
 } SpaprCapabilityInfo;
 
 static void spapr_cap_get_bool(Object *obj, Visitor *v, const char *name,
@@ -347,7 +350,12 @@ static void cap_hpt_maxpagesize_apply(SpaprMachineState *spapr,
         warn_report("Many guests require at least 64kiB hpt-max-page-size");
     }
 
-    spapr_check_pagesize(spapr, qemu_getrampagesize(), errp);
+    spapr_check_pagesize(spapr, qemu_minrampagesize(), errp);
+}
+
+static bool cap_hpt_maxpagesize_migrate_needed(void *opaque)
+{
+    return !SPAPR_MACHINE_GET_CLASS(opaque)->pre_4_1_migration;
 }
 
 static bool spapr_pagesize_cb(void *opaque, uint32_t seg_pshift,
@@ -542,6 +550,7 @@ SpaprCapabilityInfo capability_table[SPAPR_CAP_NUM] = {
         .type = "int",
         .apply = cap_hpt_maxpagesize_apply,
         .cpu_apply = cap_hpt_maxpagesize_cpu_apply,
+        .migrate_needed = cap_hpt_maxpagesize_migrate_needed,
     },
     [SPAPR_CAP_NESTED_KVM_HV] = {
         .name = "nested-hv",
@@ -609,7 +618,7 @@ static SpaprCapabilities default_caps_with_cpu(SpaprMachineState *spapr,
         uint8_t mps;
 
         if (kvmppc_hpt_needs_host_contiguous_pages()) {
-            mps = ctz64(qemu_getrampagesize());
+            mps = ctz64(qemu_minrampagesize());
         } else {
             mps = 34; /* allow everything up to 16GiB, i.e. everything */
         }
@@ -679,8 +688,11 @@ int spapr_caps_post_migration(SpaprMachineState *spapr)
 static bool spapr_cap_##sname##_needed(void *opaque)    \
 {                                                       \
     SpaprMachineState *spapr = opaque;                  \
+    bool (*needed)(void *opaque) =                      \
+        capability_table[cap].migrate_needed;           \
                                                         \
-    return spapr->cmd_line_caps[cap] &&                 \
+    return needed ? needed(opaque) : true &&            \
+           spapr->cmd_line_caps[cap] &&                 \
            (spapr->eff.caps[cap] !=                     \
             spapr->def.caps[cap]);                      \
 }                                                       \
@@ -703,6 +715,7 @@ SPAPR_CAP_MIG_STATE(dfp, SPAPR_CAP_DFP);
 SPAPR_CAP_MIG_STATE(cfpc, SPAPR_CAP_CFPC);
 SPAPR_CAP_MIG_STATE(sbbc, SPAPR_CAP_SBBC);
 SPAPR_CAP_MIG_STATE(ibs, SPAPR_CAP_IBS);
+SPAPR_CAP_MIG_STATE(hpt_maxpagesize, SPAPR_CAP_HPT_MAXPAGESIZE);
 SPAPR_CAP_MIG_STATE(nested_kvm_hv, SPAPR_CAP_NESTED_KVM_HV);
 SPAPR_CAP_MIG_STATE(large_decr, SPAPR_CAP_LARGE_DECREMENTER);
 SPAPR_CAP_MIG_STATE(ccf_assist, SPAPR_CAP_CCF_ASSIST);

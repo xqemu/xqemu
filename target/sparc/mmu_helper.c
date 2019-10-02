@@ -20,19 +20,21 @@
 #include "qemu/osdep.h"
 #include "cpu.h"
 #include "exec/exec-all.h"
+#include "qemu/qemu-print.h"
 #include "trace.h"
 
 /* Sparc MMU emulation */
 
 #if defined(CONFIG_USER_ONLY)
 
-int sparc_cpu_handle_mmu_fault(CPUState *cs, vaddr address, int size, int rw,
-                               int mmu_idx)
+bool sparc_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
+                        MMUAccessType access_type, int mmu_idx,
+                        bool probe, uintptr_t retaddr)
 {
     SPARCCPU *cpu = SPARC_CPU(cs);
     CPUSPARCState *env = &cpu->env;
 
-    if (rw & 2) {
+    if (access_type == MMU_INST_FETCH) {
         cs->exception_index = TT_TFAULT;
     } else {
         cs->exception_index = TT_DFAULT;
@@ -42,7 +44,7 @@ int sparc_cpu_handle_mmu_fault(CPUState *cs, vaddr address, int size, int rw,
         env->mmuregs[4] = address;
 #endif
     }
-    return 1;
+    cpu_loop_exit_restore(cs, retaddr);
 }
 
 #else
@@ -95,7 +97,7 @@ static int get_physical_address(CPUSPARCState *env, hwaddr *physical,
     uint32_t pde;
     int error_code = 0, is_dirty, is_user;
     unsigned long page_offset;
-    CPUState *cs = CPU(sparc_env_get_cpu(env));
+    CPUState *cs = env_cpu(env);
 
     is_user = mmu_idx == MMU_USER_IDX;
 
@@ -207,8 +209,9 @@ static int get_physical_address(CPUSPARCState *env, hwaddr *physical,
 }
 
 /* Perform address translation */
-int sparc_cpu_handle_mmu_fault(CPUState *cs, vaddr address, int size, int rw,
-                               int mmu_idx)
+bool sparc_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
+                        MMUAccessType access_type, int mmu_idx,
+                        bool probe, uintptr_t retaddr)
 {
     SPARCCPU *cpu = SPARC_CPU(cs);
     CPUSPARCState *env = &cpu->env;
@@ -217,16 +220,26 @@ int sparc_cpu_handle_mmu_fault(CPUState *cs, vaddr address, int size, int rw,
     target_ulong page_size;
     int error_code = 0, prot, access_index;
 
+    /*
+     * TODO: If we ever need tlb_vaddr_to_host for this target,
+     * then we must figure out how to manipulate FSR and FAR
+     * when both MMU_NF and probe are set.  In the meantime,
+     * do not support this use case.
+     */
+    assert(!probe);
+
     address &= TARGET_PAGE_MASK;
     error_code = get_physical_address(env, &paddr, &prot, &access_index,
-                                      address, rw, mmu_idx, &page_size);
+                                      address, access_type,
+                                      mmu_idx, &page_size);
     vaddr = address;
-    if (error_code == 0) {
+    if (likely(error_code == 0)) {
         qemu_log_mask(CPU_LOG_MMU,
-                "Translate at %" VADDR_PRIx " -> " TARGET_FMT_plx ", vaddr "
-                TARGET_FMT_lx "\n", address, paddr, vaddr);
+                      "Translate at %" VADDR_PRIx " -> "
+                      TARGET_FMT_plx ", vaddr " TARGET_FMT_lx "\n",
+                      address, paddr, vaddr);
         tlb_set_page(cs, vaddr, paddr, prot, mmu_idx, page_size);
-        return 0;
+        return true;
     }
 
     if (env->mmuregs[3]) { /* Fault status register */
@@ -242,20 +255,20 @@ int sparc_cpu_handle_mmu_fault(CPUState *cs, vaddr address, int size, int rw,
            switching to normal mode. */
         prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
         tlb_set_page(cs, vaddr, paddr, prot, mmu_idx, TARGET_PAGE_SIZE);
-        return 0;
+        return true;
     } else {
-        if (rw & 2) {
+        if (access_type == MMU_INST_FETCH) {
             cs->exception_index = TT_TFAULT;
         } else {
             cs->exception_index = TT_DFAULT;
         }
-        return 1;
+        cpu_loop_exit_restore(cs, retaddr);
     }
 }
 
 target_ulong mmu_probe(CPUSPARCState *env, target_ulong address, int mmulev)
 {
-    CPUState *cs = CPU(sparc_env_get_cpu(env));
+    CPUState *cs = env_cpu(env);
     hwaddr pde_ptr;
     uint32_t pde;
 
@@ -320,9 +333,9 @@ target_ulong mmu_probe(CPUSPARCState *env, target_ulong address, int mmulev)
     return 0;
 }
 
-void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUSPARCState *env)
+void dump_mmu(CPUSPARCState *env)
 {
-    CPUState *cs = CPU(sparc_env_get_cpu(env));
+    CPUState *cs = env_cpu(env);
     target_ulong va, va1, va2;
     unsigned int n, m, o;
     hwaddr pde_ptr, pa;
@@ -330,29 +343,29 @@ void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUSPARCState *env)
 
     pde_ptr = (env->mmuregs[1] << 4) + (env->mmuregs[2] << 2);
     pde = ldl_phys(cs->as, pde_ptr);
-    (*cpu_fprintf)(f, "Root ptr: " TARGET_FMT_plx ", ctx: %d\n",
-                   (hwaddr)env->mmuregs[1] << 4, env->mmuregs[2]);
+    qemu_printf("Root ptr: " TARGET_FMT_plx ", ctx: %d\n",
+                (hwaddr)env->mmuregs[1] << 4, env->mmuregs[2]);
     for (n = 0, va = 0; n < 256; n++, va += 16 * 1024 * 1024) {
         pde = mmu_probe(env, va, 2);
         if (pde) {
             pa = cpu_get_phys_page_debug(cs, va);
-            (*cpu_fprintf)(f, "VA: " TARGET_FMT_lx ", PA: " TARGET_FMT_plx
-                           " PDE: " TARGET_FMT_lx "\n", va, pa, pde);
+            qemu_printf("VA: " TARGET_FMT_lx ", PA: " TARGET_FMT_plx
+                        " PDE: " TARGET_FMT_lx "\n", va, pa, pde);
             for (m = 0, va1 = va; m < 64; m++, va1 += 256 * 1024) {
                 pde = mmu_probe(env, va1, 1);
                 if (pde) {
                     pa = cpu_get_phys_page_debug(cs, va1);
-                    (*cpu_fprintf)(f, " VA: " TARGET_FMT_lx ", PA: "
-                                   TARGET_FMT_plx " PDE: " TARGET_FMT_lx "\n",
-                                   va1, pa, pde);
+                    qemu_printf(" VA: " TARGET_FMT_lx ", PA: "
+                                TARGET_FMT_plx " PDE: " TARGET_FMT_lx "\n",
+                                va1, pa, pde);
                     for (o = 0, va2 = va1; o < 64; o++, va2 += 4 * 1024) {
                         pde = mmu_probe(env, va2, 0);
                         if (pde) {
                             pa = cpu_get_phys_page_debug(cs, va2);
-                            (*cpu_fprintf)(f, "  VA: " TARGET_FMT_lx ", PA: "
-                                           TARGET_FMT_plx " PTE: "
-                                           TARGET_FMT_lx "\n",
-                                           va2, pa, pde);
+                            qemu_printf("  VA: " TARGET_FMT_lx ", PA: "
+                                        TARGET_FMT_plx " PTE: "
+                                        TARGET_FMT_lx "\n",
+                                        va2, pa, pde);
                         }
                     }
                 }
@@ -481,7 +494,7 @@ static int get_physical_address_data(CPUSPARCState *env,
                                      hwaddr *physical, int *prot,
                                      target_ulong address, int rw, int mmu_idx)
 {
-    CPUState *cs = CPU(sparc_env_get_cpu(env));
+    CPUState *cs = env_cpu(env);
     unsigned int i;
     uint64_t context;
     uint64_t sfsr = 0;
@@ -599,7 +612,7 @@ static int get_physical_address_code(CPUSPARCState *env,
                                      hwaddr *physical, int *prot,
                                      target_ulong address, int mmu_idx)
 {
-    CPUState *cs = CPU(sparc_env_get_cpu(env));
+    CPUState *cs = env_cpu(env);
     unsigned int i;
     uint64_t context;
     bool is_user = false;
@@ -712,8 +725,9 @@ static int get_physical_address(CPUSPARCState *env, hwaddr *physical,
 }
 
 /* Perform address translation */
-int sparc_cpu_handle_mmu_fault(CPUState *cs, vaddr address, int size, int rw,
-                               int mmu_idx)
+bool sparc_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
+                        MMUAccessType access_type, int mmu_idx,
+                        bool probe, uintptr_t retaddr)
 {
     SPARCCPU *cpu = SPARC_CPU(cs);
     CPUSPARCState *env = &cpu->env;
@@ -724,8 +738,9 @@ int sparc_cpu_handle_mmu_fault(CPUState *cs, vaddr address, int size, int rw,
 
     address &= TARGET_PAGE_MASK;
     error_code = get_physical_address(env, &paddr, &prot, &access_index,
-                                      address, rw, mmu_idx, &page_size);
-    if (error_code == 0) {
+                                      address, access_type,
+                                      mmu_idx, &page_size);
+    if (likely(error_code == 0)) {
         vaddr = address;
 
         trace_mmu_helper_mmu_fault(address, paddr, mmu_idx, env->tl,
@@ -733,27 +748,29 @@ int sparc_cpu_handle_mmu_fault(CPUState *cs, vaddr address, int size, int rw,
                                    env->dmmu.mmu_secondary_context);
 
         tlb_set_page(cs, vaddr, paddr, prot, mmu_idx, page_size);
-        return 0;
+        return true;
     }
-    /* XXX */
-    return 1;
+    if (probe) {
+        return false;
+    }
+    cpu_loop_exit_restore(cs, retaddr);
 }
 
-void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUSPARCState *env)
+void dump_mmu(CPUSPARCState *env)
 {
     unsigned int i;
     const char *mask;
 
-    (*cpu_fprintf)(f, "MMU contexts: Primary: %" PRId64 ", Secondary: %"
-                   PRId64 "\n",
-                   env->dmmu.mmu_primary_context,
-                   env->dmmu.mmu_secondary_context);
-    (*cpu_fprintf)(f, "DMMU Tag Access: %" PRIx64 ", TSB Tag Target: %" PRIx64
-                   "\n", env->dmmu.tag_access, env->dmmu.tsb_tag_target);
+    qemu_printf("MMU contexts: Primary: %" PRId64 ", Secondary: %"
+                PRId64 "\n",
+                env->dmmu.mmu_primary_context,
+                env->dmmu.mmu_secondary_context);
+    qemu_printf("DMMU Tag Access: %" PRIx64 ", TSB Tag Target: %" PRIx64
+                "\n", env->dmmu.tag_access, env->dmmu.tsb_tag_target);
     if ((env->lsu & DMMU_E) == 0) {
-        (*cpu_fprintf)(f, "DMMU disabled\n");
+        qemu_printf("DMMU disabled\n");
     } else {
-        (*cpu_fprintf)(f, "DMMU dump\n");
+        qemu_printf("DMMU dump\n");
         for (i = 0; i < 64; i++) {
             switch (TTE_PGSIZE(env->dtlb[i].tte)) {
             default:
@@ -771,26 +788,26 @@ void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUSPARCState *env)
                 break;
             }
             if (TTE_IS_VALID(env->dtlb[i].tte)) {
-                (*cpu_fprintf)(f, "[%02u] VA: %" PRIx64 ", PA: %llx"
-                               ", %s, %s, %s, %s, ctx %" PRId64 " %s\n",
-                               i,
-                               env->dtlb[i].tag & (uint64_t)~0x1fffULL,
-                               TTE_PA(env->dtlb[i].tte),
-                               mask,
-                               TTE_IS_PRIV(env->dtlb[i].tte) ? "priv" : "user",
-                               TTE_IS_W_OK(env->dtlb[i].tte) ? "RW" : "RO",
-                               TTE_IS_LOCKED(env->dtlb[i].tte) ?
-                               "locked" : "unlocked",
-                               env->dtlb[i].tag & (uint64_t)0x1fffULL,
-                               TTE_IS_GLOBAL(env->dtlb[i].tte) ?
-                               "global" : "local");
+                qemu_printf("[%02u] VA: %" PRIx64 ", PA: %llx"
+                            ", %s, %s, %s, %s, ctx %" PRId64 " %s\n",
+                            i,
+                            env->dtlb[i].tag & (uint64_t)~0x1fffULL,
+                            TTE_PA(env->dtlb[i].tte),
+                            mask,
+                            TTE_IS_PRIV(env->dtlb[i].tte) ? "priv" : "user",
+                            TTE_IS_W_OK(env->dtlb[i].tte) ? "RW" : "RO",
+                            TTE_IS_LOCKED(env->dtlb[i].tte) ?
+                            "locked" : "unlocked",
+                            env->dtlb[i].tag & (uint64_t)0x1fffULL,
+                            TTE_IS_GLOBAL(env->dtlb[i].tte) ?
+                            "global" : "local");
             }
         }
     }
     if ((env->lsu & IMMU_E) == 0) {
-        (*cpu_fprintf)(f, "IMMU disabled\n");
+        qemu_printf("IMMU disabled\n");
     } else {
-        (*cpu_fprintf)(f, "IMMU dump\n");
+        qemu_printf("IMMU dump\n");
         for (i = 0; i < 64; i++) {
             switch (TTE_PGSIZE(env->itlb[i].tte)) {
             default:
@@ -808,18 +825,18 @@ void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUSPARCState *env)
                 break;
             }
             if (TTE_IS_VALID(env->itlb[i].tte)) {
-                (*cpu_fprintf)(f, "[%02u] VA: %" PRIx64 ", PA: %llx"
-                               ", %s, %s, %s, ctx %" PRId64 " %s\n",
-                               i,
-                               env->itlb[i].tag & (uint64_t)~0x1fffULL,
-                               TTE_PA(env->itlb[i].tte),
-                               mask,
-                               TTE_IS_PRIV(env->itlb[i].tte) ? "priv" : "user",
-                               TTE_IS_LOCKED(env->itlb[i].tte) ?
-                               "locked" : "unlocked",
-                               env->itlb[i].tag & (uint64_t)0x1fffULL,
-                               TTE_IS_GLOBAL(env->itlb[i].tte) ?
-                               "global" : "local");
+                qemu_printf("[%02u] VA: %" PRIx64 ", PA: %llx"
+                            ", %s, %s, %s, ctx %" PRId64 " %s\n",
+                            i,
+                            env->itlb[i].tag & (uint64_t)~0x1fffULL,
+                            TTE_PA(env->itlb[i].tte),
+                            mask,
+                            TTE_IS_PRIV(env->itlb[i].tte) ? "priv" : "user",
+                            TTE_IS_LOCKED(env->itlb[i].tte) ?
+                            "locked" : "unlocked",
+                            env->itlb[i].tag & (uint64_t)0x1fffULL,
+                            TTE_IS_GLOBAL(env->itlb[i].tte) ?
+                            "global" : "local");
             }
         }
     }

@@ -11,6 +11,7 @@
 #include "qemu/osdep.h"
 #include "libqtest.h"
 #include "qemu/bswap.h"
+#include "qemu/module.h"
 #include "standard-headers/linux/virtio_blk.h"
 #include "standard-headers/linux/virtio_pci.h"
 #include "libqos/qgraph.h"
@@ -679,6 +680,7 @@ static void pci_hotplug(void *obj, void *data, QGuestAllocator *t_alloc)
 {
     QVirtioPCIDevice *dev1 = obj;
     QVirtioPCIDevice *dev;
+    QTestState *qts = dev1->pdev->bus->qts;
 
     /* plug secondary disk */
     qtest_qmp_device_add("virtio-blk-pci", "drv1",
@@ -693,7 +695,7 @@ static void pci_hotplug(void *obj, void *data, QGuestAllocator *t_alloc)
     qos_object_destroy((QOSGraphObject *)dev);
 
     /* unplug secondary disk */
-    qpci_unplug_acpi_device_test("drv1", PCI_SLOT_HP);
+    qpci_unplug_acpi_device_test(qts, "drv1", PCI_SLOT_HP);
 }
 
 /*

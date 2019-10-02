@@ -46,6 +46,8 @@
         OBJECT_GET_CLASS(IOMMUMemoryRegionClass, (obj), \
                          TYPE_IOMMU_MEMORY_REGION)
 
+extern bool global_dirty_log;
+
 typedef struct MemoryRegionOps MemoryRegionOps;
 typedef struct MemoryRegionMmio MemoryRegionMmio;
 
@@ -414,6 +416,7 @@ struct MemoryListener {
     void (*log_stop)(MemoryListener *listener, MemoryRegionSection *section,
                      int old, int new);
     void (*log_sync)(MemoryListener *listener, MemoryRegionSection *section);
+    void (*log_clear)(MemoryListener *listener, MemoryRegionSection *section);
     void (*log_global_start)(MemoryListener *listener);
     void (*log_global_stop)(MemoryListener *listener);
     void (*eventfd_add)(MemoryListener *listener, MemoryRegionSection *section,
@@ -1255,23 +1258,6 @@ void memory_region_ram_resize(MemoryRegion *mr, ram_addr_t newsize,
 void memory_region_set_log(MemoryRegion *mr, bool log, unsigned client);
 
 /**
- * memory_region_get_dirty: Check whether a range of bytes is dirty
- *                          for a specified client.
- *
- * Checks whether a range of bytes has been written to since the last
- * call to memory_region_reset_dirty() with the same @client.  Dirty logging
- * must be enabled.
- *
- * @mr: the memory region being queried.
- * @addr: the address (relative to the start of the region) being queried.
- * @size: the size of the range being queried.
- * @client: the user of the logging information; %DIRTY_MEMORY_MIGRATION or
- *          %DIRTY_MEMORY_VGA.
- */
-bool memory_region_get_dirty(MemoryRegion *mr, hwaddr addr,
-                             hwaddr size, unsigned client);
-
-/**
  * memory_region_set_dirty: Mark a range of bytes as dirty in a memory region.
  *
  * Marks a range of bytes as dirty, after it has been dirtied outside
@@ -1302,6 +1288,22 @@ bool memory_region_test_and_clear_dirty(MemoryRegion *mr, hwaddr addr,
  */
 void memory_region_set_client_dirty(MemoryRegion *mr, hwaddr addr,
                                     hwaddr size, unsigned client);
+
+/**
+ * memory_region_clear_dirty_bitmap - clear dirty bitmap for memory range
+ *
+ * This function is called when the caller wants to clear the remote
+ * dirty bitmap of a memory range within the memory region.  This can
+ * be used by e.g. KVM to manually clear dirty log when
+ * KVM_CAP_MANUAL_DIRTY_LOG_PROTECT is declared support by the host
+ * kernel.
+ *
+ * @mr:     the memory region to clear the dirty log upon
+ * @start:  start address offset within the memory region
+ * @len:    length of the memory region to clear dirty bitmap
+ */
+void memory_region_clear_dirty_bitmap(MemoryRegion *mr, hwaddr start,
+                                      hwaddr len);
 
 /**
  * memory_region_snapshot_and_clear_dirty: Get a snapshot of the dirty
@@ -1739,8 +1741,7 @@ void memory_global_dirty_log_start(void);
  */
 void memory_global_dirty_log_stop(void);
 
-void mtree_info(fprintf_function mon_printf, void *f, bool flatview,
-                bool dispatch_tree, bool owner);
+void mtree_info(bool flatview, bool dispatch_tree, bool owner);
 
 /**
  * memory_region_dispatch_read: perform a read directly to the specified
@@ -1793,6 +1794,16 @@ void address_space_init(AddressSpace *as, MemoryRegion *root, const char *name);
  * @as: address space to be destroyed
  */
 void address_space_destroy(AddressSpace *as);
+
+/**
+ * address_space_remove_listeners: unregister all listeners of an address space
+ *
+ * Removes all callbacks previously registered with memory_listener_register()
+ * for @as.
+ *
+ * @as: an initialized #AddressSpace
+ */
+void address_space_remove_listeners(AddressSpace *as);
 
 /**
  * address_space_rw: read from or write to an address space.

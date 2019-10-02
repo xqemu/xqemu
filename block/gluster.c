@@ -18,6 +18,7 @@
 #include "qapi/qmp/qerror.h"
 #include "qemu/uri.h"
 #include "qemu/error-report.h"
+#include "qemu/module.h"
 #include "qemu/option.h"
 #include "qemu/cutils.h"
 
@@ -97,7 +98,14 @@ static QemuOptsList qemu_gluster_create_opts = {
         {
             .name = BLOCK_OPT_PREALLOC,
             .type = QEMU_OPT_STRING,
-            .help = "Preallocation mode (allowed values: off, full)"
+            .help = "Preallocation mode (allowed values: off"
+#ifdef CONFIG_GLUSTERFS_FALLOCATE
+                    ", falloc"
+#endif
+#ifdef CONFIG_GLUSTERFS_ZEROFILL
+                    ", full"
+#endif
+                    ")"
         },
         {
             .name = GLUSTER_OPT_DEBUG,
@@ -923,7 +931,17 @@ static int qemu_gluster_reopen_prepare(BDRVReopenState *state,
     gconf->has_debug = true;
     gconf->logfile = g_strdup(s->logfile);
     gconf->has_logfile = true;
-    reop_s->glfs = qemu_gluster_init(gconf, state->bs->filename, NULL, errp);
+
+    /*
+     * If 'state->bs->exact_filename' is empty, 'state->options' should contain
+     * the JSON parameters already parsed.
+     */
+    if (state->bs->exact_filename[0] != '\0') {
+        reop_s->glfs = qemu_gluster_init(gconf, state->bs->exact_filename, NULL,
+                                         errp);
+    } else {
+        reop_s->glfs = qemu_gluster_init(gconf, NULL, state->options, errp);
+    }
     if (reop_s->glfs == NULL) {
         ret = -errno;
         goto exit;

@@ -1,3 +1,4 @@
+#include "qemu/osdep.h"
 #include "ati_int.h"
 
 #ifdef DEBUG_ATI
@@ -18,6 +19,8 @@ static struct ati_regdesc ati_reg_names[] = {
     {"CRTC_GEN_CNTL", 0x0050},
     {"CRTC_EXT_CNTL", 0x0054},
     {"DAC_CNTL", 0x0058},
+    {"GPIO_VGA_DDC", 0x0060},
+    {"GPIO_DVI_DDC", 0x0064},
     {"GPIO_MONID", 0x0068},
     {"I2C_CNTL_1", 0x0094},
     {"PALETTE_INDEX", 0x00b0},

@@ -13,9 +13,9 @@
  * later.  See the COPYING file in the top-level directory.
  *
  */
+
 #include "qemu/osdep.h"
 #include "qapi/error.h"
-#include "qemu-common.h"
 #include "qemu/cutils.h"
 #include "rdma.h"
 #include "migration.h"
@@ -24,6 +24,7 @@
 #include "qemu-file-channel.h"
 #include "qemu/error-report.h"
 #include "qemu/main-loop.h"
+#include "qemu/module.h"
 #include "qemu/sockets.h"
 #include "qemu/bitmap.h"
 #include "qemu/coroutine.h"
@@ -838,10 +839,9 @@ static void qemu_rdma_dump_gid(const char *who, struct rdma_cm_id *id)
  */
 static int qemu_rdma_broken_ipv6_kernel(struct ibv_context *verbs, Error **errp)
 {
-    struct ibv_port_attr port_attr;
-
     /* This bug only exists in linux, to our knowledge. */
 #ifdef CONFIG_LINUX
+    struct ibv_port_attr port_attr;
 
     /*
      * Verbs are only NULL if management has bound to '[::]'.

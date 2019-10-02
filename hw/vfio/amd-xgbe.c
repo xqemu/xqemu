@@ -13,6 +13,7 @@
 
 #include "qemu/osdep.h"
 #include "hw/vfio/vfio-amd-xgbe.h"
+#include "qemu/module.h"
 
 static void amd_xgbe_realize(DeviceState *dev, Error **errp)
 {
@@ -26,7 +27,7 @@ static void amd_xgbe_realize(DeviceState *dev, Error **errp)
 }
 
 static const VMStateDescription vfio_platform_amd_xgbe_vmstate = {
-    .name = TYPE_VFIO_AMD_XGBE,
+    .name = "vfio-amd-xgbe",
     .unmigratable = 1,
 };
 

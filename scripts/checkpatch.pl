@@ -262,6 +262,19 @@ our $UTF8	= qr{
 	| $NON_ASCII_UTF8
 }x;
 
+# some readers default to ISO-8859-1 when showing email source. detect
+# when UTF-8 is incorrectly interpreted as ISO-8859-1 and reencoded back.
+# False positives are possible but very unlikely.
+our $UTF8_MOJIBAKE = qr{
+	\xC3[\x82-\x9F] \xC2[\x80-\xBF]                    # c2-df 80-bf
+	| \xC3\xA0 \xC2[\xA0-\xBF] \xC2[\x80-\xBF]         # e0 a0-bf 80-bf
+	| \xC3[\xA1-\xAC\xAE\xAF] (?: \xC2[\x80-\xBF]){2}  # e1-ec/ee/ef 80-bf 80-bf
+	| \xC3\xAD \xC2[\x80-\x9F] \xC2[\x80-\xBF]         # ed 80-9f 80-bf
+	| \xC3\xB0 \xC2[\x90-\xBF] (?: \xC2[\x80-\xBF]){2} # f0 90-bf 80-bf 80-bf
+	| \xC3[\xB1-\xB3] (?: \xC2[\x80-\xBF]){3}          # f1-f3 80-bf 80-bf 80-bf
+	| \xC3\xB4 \xC2[\x80-\x8F] (?: \xC2[\x80-\xBF]){2} # f4 80-b8 80-bf 80-bf
+}x;
+
 # There are still some false positives, but this catches most
 # common cases.
 our $typeTypedefs = qr{(?x:
@@ -1506,6 +1519,9 @@ sub process {
 			ERROR("Invalid UTF-8, patch and commit message should be encoded in UTF-8\n" . $hereptr);
 		}
 
+		if ($rawline =~ m/$UTF8_MOJIBAKE/) {
+			ERROR("Doubly-encoded UTF-8\n" . $herecurr);
+		}
 # Check if it's the start of a commit log
 # (not a header line and we haven't seen the patch filename)
 		if ($in_header_lines && $realfile =~ /^$/ &&
@@ -1949,7 +1965,8 @@ sub process {
 		}
 
 # no C99 // comments
-		if ($line =~ m{//}) {
+		if ($line =~ m{//} &&
+		    $rawline !~ m{// SPDX-License-Identifier: }) {
 			ERROR("do not use C99 // comments\n" . $herecurr);
 		}
 		# Remove C99 comments.
@@ -2295,7 +2312,8 @@ sub process {
 			       $value =~ s/\([^\(\)]*\)/1/) {
 			}
 #print "value<$value>\n";
-			if ($value =~ /^\s*(?:$Ident|-?$Constant)\s*$/) {
+			if ($value =~ /^\s*(?:$Ident|-?$Constant)\s*$/ &&
+			    $line =~ /;$/) {
 				ERROR("return is not a function, parentheses are not required\n" . $herecurr);
 
 			} elsif ($spacing !~ /\s+/) {

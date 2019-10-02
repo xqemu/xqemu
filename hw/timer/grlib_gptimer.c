@@ -1,7 +1,7 @@
 /*
  * QEMU GRLIB GPTimer Emulator
  *
- * Copyright (c) 2010-2011 AdaCore
+ * Copyright (c) 2010-2019 AdaCore
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,10 +23,12 @@
  */
 
 #include "qemu/osdep.h"
+#include "hw/sparc/grlib.h"
 #include "hw/sysbus.h"
 #include "qemu/timer.h"
 #include "hw/ptimer.h"
 #include "qemu/main-loop.h"
+#include "qemu/module.h"
 
 #include "trace.h"
 
@@ -52,7 +54,6 @@
 #define COUNTER_RELOAD_OFFSET 0x04
 #define TIMER_BASE            0x10
 
-#define TYPE_GRLIB_GPTIMER "grlib,gptimer"
 #define GRLIB_GPTIMER(obj) \
     OBJECT_CHECK(GPTimerUnit, (obj), TYPE_GRLIB_GPTIMER)
 

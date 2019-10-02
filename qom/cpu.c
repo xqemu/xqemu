@@ -20,7 +20,6 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
-#include "qemu-common.h"
 #include "qom/cpu.h"
 #include "sysemu/hw_accel.h"
 #include "qemu/notify.h"
@@ -28,7 +27,9 @@
 #include "exec/log.h"
 #include "exec/cpu-common.h"
 #include "qemu/error-report.h"
+#include "qemu/qemu-print.h"
 #include "sysemu/sysemu.h"
+#include "sysemu/tcg.h"
 #include "hw/boards.h"
 #include "hw/qdev-properties.h"
 #include "trace-root.h"
@@ -114,7 +115,7 @@ void cpu_exit(CPUState *cpu)
     atomic_set(&cpu->exit_request, 1);
     /* Ensure cpu_exec will see the exit request after TCG has exited.  */
     smp_wmb();
-    atomic_set(&cpu->icount_decr.u16.high, -1);
+    atomic_set(&cpu->icount_decr_ptr->u16.high, -1);
 }
 
 int cpu_write_elf32_qemunote(WriteCoreDumpFunction f, CPUState *cpu,
@@ -219,24 +220,22 @@ GuestPanicInformation *cpu_get_crash_info(CPUState *cpu)
     return res;
 }
 
-void cpu_dump_state(CPUState *cpu, FILE *f, fprintf_function cpu_fprintf,
-                    int flags)
+void cpu_dump_state(CPUState *cpu, FILE *f, int flags)
 {
     CPUClass *cc = CPU_GET_CLASS(cpu);
 
     if (cc->dump_state) {
         cpu_synchronize_state(cpu);
-        cc->dump_state(cpu, f, cpu_fprintf, flags);
+        cc->dump_state(cpu, f, flags);
     }
 }
 
-void cpu_dump_statistics(CPUState *cpu, FILE *f, fprintf_function cpu_fprintf,
-                         int flags)
+void cpu_dump_statistics(CPUState *cpu, int flags)
 {
     CPUClass *cc = CPU_GET_CLASS(cpu);
 
     if (cc->dump_statistics) {
-        cc->dump_statistics(cpu, f, cpu_fprintf, flags);
+        cc->dump_statistics(cpu, flags);
     }
 }
 
@@ -265,7 +264,7 @@ static void cpu_common_reset(CPUState *cpu)
     cpu->mem_io_pc = 0;
     cpu->mem_io_vaddr = 0;
     cpu->icount_extra = 0;
-    atomic_set(&cpu->icount_decr.u32, 0);
+    atomic_set(&cpu->icount_decr_ptr->u32, 0);
     cpu->can_do_io = 1;
     cpu->exception_index = -1;
     cpu->crash_occurred = false;

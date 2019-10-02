@@ -33,22 +33,6 @@
 
 /*****************************************************************************/
 /* Softmmu support */
-#if !defined(CONFIG_USER_ONLY)
-
-/* try to fill the TLB and return an exception if error. If retaddr is
-   NULL, it means that the function was called in C code (i.e. not
-   from generated code or from helper.c) */
-/* XXX: fix it to restore all registers */
-void tlb_fill(CPUState *cs, target_ulong addr, int size,
-              MMUAccessType access_type, int mmu_idx, uintptr_t retaddr)
-{
-    int ret = s390_cpu_handle_mmu_fault(cs, addr, size, access_type, mmu_idx);
-    if (unlikely(ret != 0)) {
-        cpu_loop_exit_restore(cs, retaddr);
-    }
-}
-
-#endif
 
 /* #define DEBUG_HELPER */
 #ifdef DEBUG_HELPER
@@ -1477,7 +1461,7 @@ static uint32_t do_csst(CPUS390XState *env, uint32_t r3, uint64_t a1,
 #endif
         if ((HAVE_CMPXCHG128 ? 0 : fc + 2 > max) ||
             (HAVE_ATOMIC128  ? 0 : sc > max)) {
-            cpu_loop_exit_atomic(ENV_GET_CPU(env), ra);
+            cpu_loop_exit_atomic(env_cpu(env), ra);
         }
     }
 
@@ -1633,7 +1617,6 @@ uint32_t HELPER(csst_parallel)(CPUS390XState *env, uint32_t r3, uint64_t a1,
 void HELPER(lctlg)(CPUS390XState *env, uint32_t r1, uint64_t a2, uint32_t r3)
 {
     uintptr_t ra = GETPC();
-    S390CPU *cpu = s390_env_get_cpu(env);
     bool PERchanged = false;
     uint64_t src = a2;
     uint32_t i;
@@ -1658,16 +1641,15 @@ void HELPER(lctlg)(CPUS390XState *env, uint32_t r1, uint64_t a2, uint32_t r3)
     }
 
     if (PERchanged && env->psw.mask & PSW_MASK_PER) {
-        s390_cpu_recompute_watchpoints(CPU(cpu));
+        s390_cpu_recompute_watchpoints(env_cpu(env));
     }
 
-    tlb_flush(CPU(cpu));
+    tlb_flush(env_cpu(env));
 }
 
 void HELPER(lctl)(CPUS390XState *env, uint32_t r1, uint64_t a2, uint32_t r3)
 {
     uintptr_t ra = GETPC();
-    S390CPU *cpu = s390_env_get_cpu(env);
     bool PERchanged = false;
     uint64_t src = a2;
     uint32_t i;
@@ -1691,10 +1673,10 @@ void HELPER(lctl)(CPUS390XState *env, uint32_t r1, uint64_t a2, uint32_t r3)
     }
 
     if (PERchanged && env->psw.mask & PSW_MASK_PER) {
-        s390_cpu_recompute_watchpoints(CPU(cpu));
+        s390_cpu_recompute_watchpoints(env_cpu(env));
     }
 
-    tlb_flush(CPU(cpu));
+    tlb_flush(env_cpu(env));
 }
 
 void HELPER(stctg)(CPUS390XState *env, uint32_t r1, uint64_t a2, uint32_t r3)
@@ -1753,8 +1735,8 @@ uint32_t HELPER(testblock)(CPUS390XState *env, uint64_t real_addr)
 
 uint32_t HELPER(tprot)(CPUS390XState *env, uint64_t a1, uint64_t a2)
 {
-    S390CPU *cpu = s390_env_get_cpu(env);
-    CPUState *cs = CPU(cpu);
+    S390CPU *cpu = env_archcpu(env);
+    CPUState *cs = env_cpu(env);
 
     /*
      * TODO: we currently don't handle all access protection types
@@ -1922,7 +1904,7 @@ uint32_t HELPER(mvcp)(CPUS390XState *env, uint64_t l, uint64_t a1, uint64_t a2)
 
 void HELPER(idte)(CPUS390XState *env, uint64_t r1, uint64_t r2, uint32_t m4)
 {
-    CPUState *cs = CPU(s390_env_get_cpu(env));
+    CPUState *cs = env_cpu(env);
     const uintptr_t ra = GETPC();
     uint64_t table, entry, raddr;
     uint16_t entries, i, index = 0;
@@ -1974,7 +1956,7 @@ void HELPER(idte)(CPUS390XState *env, uint64_t r1, uint64_t r2, uint32_t m4)
 void HELPER(ipte)(CPUS390XState *env, uint64_t pto, uint64_t vaddr,
                   uint32_t m4)
 {
-    CPUState *cs = CPU(s390_env_get_cpu(env));
+    CPUState *cs = env_cpu(env);
     const uintptr_t ra = GETPC();
     uint64_t page = vaddr & TARGET_PAGE_MASK;
     uint64_t pte_addr, pte;
@@ -2014,17 +1996,13 @@ void HELPER(ipte)(CPUS390XState *env, uint64_t pto, uint64_t vaddr,
 /* flush local tlb */
 void HELPER(ptlb)(CPUS390XState *env)
 {
-    S390CPU *cpu = s390_env_get_cpu(env);
-
-    tlb_flush(CPU(cpu));
+    tlb_flush(env_cpu(env));
 }
 
 /* flush global tlb */
 void HELPER(purge)(CPUS390XState *env)
 {
-    S390CPU *cpu = s390_env_get_cpu(env);
-
-    tlb_flush_all_cpus_synced(CPU(cpu));
+    tlb_flush_all_cpus_synced(env_cpu(env));
 }
 
 /* load using real address */
@@ -2068,7 +2046,7 @@ void HELPER(sturg)(CPUS390XState *env, uint64_t addr, uint64_t v1)
 /* load real address */
 uint64_t HELPER(lra)(CPUS390XState *env, uint64_t addr)
 {
-    CPUState *cs = CPU(s390_env_get_cpu(env));
+    CPUState *cs = env_cpu(env);
     uint32_t cc = 0;
     uint64_t asc = env->psw.mask & PSW_MASK_ASC;
     uint64_t ret;

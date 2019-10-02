@@ -23,6 +23,7 @@
 
 #include "qemu/osdep.h"
 #include "qemu/log.h"
+#include "qemu/module.h"
 #include "hw/hw.h"
 #include "hw/sysbus.h"
 #include "sysemu/sysemu.h"
@@ -277,7 +278,7 @@ static void milkymist_memcard_realize(DeviceState *dev, Error **errp)
     /* FIXME use a qdev drive property instead of drive_get_next() */
     dinfo = drive_get_next(IF_SD);
     blk = dinfo ? blk_by_legacy_dinfo(dinfo) : NULL;
-    carddev = qdev_create(&s->sdbus.qbus, TYPE_SD_CARD);
+    carddev = qdev_create(BUS(&s->sdbus), TYPE_SD_CARD);
     qdev_prop_set_drive(carddev, "drive", blk, &err);
     object_property_set_bool(OBJECT(carddev), true, "realized", &err);
     if (err) {

@@ -27,13 +27,13 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
-#include "qemu-common.h"
 #include "cpu.h"
 #include "hw/hw.h"
 #include "trace.h"
 #include "qemu/timer.h"
 #include "hw/ppc/xics.h"
 #include "qemu/error-report.h"
+#include "qemu/module.h"
 #include "qapi/visitor.h"
 #include "monitor/monitor.h"
 #include "hw/intc/intc.h"
@@ -267,7 +267,14 @@ static int icp_post_load(void *opaque, int version_id)
     ICPState *icp = opaque;
 
     if (kvm_irqchip_in_kernel()) {
-        return icp_set_kvm_state(icp);
+        Error *local_err = NULL;
+        int ret;
+
+        ret = icp_set_kvm_state(icp, &local_err);
+        if (ret < 0) {
+            error_report_err(local_err);
+            return ret;
+        }
     }
 
     return 0;
@@ -300,7 +307,12 @@ static void icp_reset_handler(void *dev)
     qemu_set_irq(icp->output, 0);
 
     if (kvm_irqchip_in_kernel()) {
-        icp_set_kvm_state(ICP(dev));
+        Error *local_err = NULL;
+
+        icp_set_kvm_state(ICP(dev), &local_err);
+        if (local_err) {
+            error_report_err(local_err);
+        }
     }
 }
 
@@ -351,6 +363,7 @@ static void icp_realize(DeviceState *dev, Error **errp)
         return;
     }
 
+    /* Connect the presenter to the VCPU (required for CPU hotplug) */
     if (kvm_irqchip_in_kernel()) {
         icp_kvm_realize(dev, &err);
         if (err) {
@@ -563,7 +576,12 @@ static void ics_simple_reset(DeviceState *dev)
     icsc->parent_reset(dev);
 
     if (kvm_irqchip_in_kernel()) {
-        ics_set_kvm_state(ICS_BASE(dev));
+        Error *local_err = NULL;
+
+        ics_set_kvm_state(ICS_BASE(dev), &local_err);
+        if (local_err) {
+            error_report_err(local_err);
+        }
     }
 }
 
@@ -610,6 +628,12 @@ static const TypeInfo ics_simple_info = {
     .class_size = sizeof(ICSStateClass),
 };
 
+static void ics_reset_irq(ICSIRQState *irq)
+{
+    irq->priority = 0xff;
+    irq->saved_priority = 0xff;
+}
+
 static void ics_base_reset(DeviceState *dev)
 {
     ICSState *ics = ICS_BASE(dev);
@@ -623,8 +647,7 @@ static void ics_base_reset(DeviceState *dev)
     memset(ics->irqs, 0, sizeof(ICSIRQState) * ics->nr_irqs);
 
     for (i = 0; i < ics->nr_irqs; i++) {
-        ics->irqs[i].priority = 0xff;
-        ics->irqs[i].saved_priority = 0xff;
+        ics_reset_irq(ics->irqs + i);
         ics->irqs[i].flags = flags[i];
     }
 }
@@ -674,7 +697,14 @@ static int ics_base_post_load(void *opaque, int version_id)
     ICSState *ics = opaque;
 
     if (kvm_irqchip_in_kernel()) {
-        return ics_set_kvm_state(ics);
+        Error *local_err = NULL;
+        int ret;
+
+        ret = ics_set_kvm_state(ics, &local_err);
+        if (ret < 0) {
+            error_report_err(local_err);
+            return ret;
+        }
     }
 
     return 0;
@@ -760,7 +790,13 @@ void ics_set_irq_type(ICSState *ics, int srcno, bool lsi)
         lsi ? XICS_FLAGS_IRQ_LSI : XICS_FLAGS_IRQ_MSI;
 
     if (kvm_irqchip_in_kernel()) {
-        ics_set_kvm_state_one(ics, srcno);
+        Error *local_err = NULL;
+
+        ics_reset_irq(ics->irqs + srcno);
+        ics_set_kvm_state_one(ics, srcno, &local_err);
+        if (local_err) {
+            error_report_err(local_err);
+        }
     }
 }
 

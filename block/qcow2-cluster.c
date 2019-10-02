@@ -26,8 +26,6 @@
 #include <zlib.h>
 
 #include "qapi/error.h"
-#include "qemu-common.h"
-#include "block/block_int.h"
 #include "qcow2.h"
 #include "qemu/bswap.h"
 #include "trace.h"
@@ -472,13 +470,12 @@ static bool coroutine_fn do_perform_cow_encrypt(BlockDriverState *bs,
 {
     if (bytes && bs->encrypted) {
         BDRVQcow2State *s = bs->opaque;
-        int64_t offset = (s->crypt_physical_offset ?
-                          (cluster_offset + offset_in_cluster) :
-                          (src_cluster_offset + offset_in_cluster));
         assert((offset_in_cluster & ~BDRV_SECTOR_MASK) == 0);
         assert((bytes & ~BDRV_SECTOR_MASK) == 0);
         assert(s->crypto);
-        if (qcrypto_block_encrypt(s->crypto, offset, buffer, bytes, NULL) < 0) {
+        if (qcow2_co_encrypt(bs, cluster_offset,
+                             src_cluster_offset + offset_in_cluster,
+                             buffer, bytes) < 0) {
             return false;
         }
     }
@@ -796,8 +793,9 @@ int qcow2_alloc_compressed_cluster_offset(BlockDriverState *bs,
         return cluster_offset;
     }
 
-    nb_csectors = ((cluster_offset + compressed_size - 1) >> 9) -
-                  (cluster_offset >> 9);
+    nb_csectors =
+        (cluster_offset + compressed_size - 1) / QCOW2_COMPRESSED_SECTOR_SIZE -
+        (cluster_offset / QCOW2_COMPRESSED_SECTOR_SIZE);
 
     cluster_offset |= QCOW_OFLAG_COMPRESSED |
                       ((uint64_t)nb_csectors << s->csize_shift);
@@ -832,7 +830,7 @@ static int perform_cow(BlockDriverState *bs, QCowL2Meta *m)
     assert(start->offset + start->nb_bytes <= end->offset);
     assert(!m->data_qiov || m->data_qiov->size == data_bytes);
 
-    if (start->nb_bytes == 0 && end->nb_bytes == 0) {
+    if ((start->nb_bytes == 0 && end->nb_bytes == 0) || m->skip_cow) {
         return 0;
     }
 

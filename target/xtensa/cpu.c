@@ -31,7 +31,7 @@
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "cpu.h"
-#include "qemu-common.h"
+#include "qemu/module.h"
 #include "migration/vmstate.h"
 
 
@@ -78,11 +78,11 @@ static void xtensa_cpu_reset(CPUState *s)
     env->sregs[VECBASE] = env->config->vecbase;
     env->sregs[IBREAKENABLE] = 0;
     env->sregs[MEMCTL] = MEMCTL_IL0EN & env->config->memctl_mask;
-    env->sregs[CACHEATTR] = 0x22222222;
     env->sregs[ATOMCTL] = xtensa_option_enabled(env->config,
             XTENSA_OPTION_ATOMCTL) ? 0x28 : 0x15;
     env->sregs[CONFIGID0] = env->config->configid[0];
     env->sregs[CONFIGID1] = env->config->configid[1];
+    env->exclusive_addr = -1;
 
 #ifndef CONFIG_USER_ONLY
     reset_mmu(env);
@@ -138,12 +138,11 @@ static void xtensa_cpu_realizefn(DeviceState *dev, Error **errp)
 
 static void xtensa_cpu_initfn(Object *obj)
 {
-    CPUState *cs = CPU(obj);
     XtensaCPU *cpu = XTENSA_CPU(obj);
     XtensaCPUClass *xcc = XTENSA_CPU_GET_CLASS(obj);
     CPUXtensaState *env = &cpu->env;
 
-    cs->env_ptr = env;
+    cpu_set_cpustate_pointers(cpu);
     env->config = xcc->config;
 
 #ifndef CONFIG_USER_ONLY
@@ -181,9 +180,8 @@ static void xtensa_cpu_class_init(ObjectClass *oc, void *data)
     cc->gdb_read_register = xtensa_cpu_gdb_read_register;
     cc->gdb_write_register = xtensa_cpu_gdb_write_register;
     cc->gdb_stop_before_watchpoint = true;
-#ifdef CONFIG_USER_ONLY
-    cc->handle_mmu_fault = xtensa_cpu_handle_mmu_fault;
-#else
+    cc->tlb_fill = xtensa_cpu_tlb_fill;
+#ifndef CONFIG_USER_ONLY
     cc->do_unaligned_access = xtensa_cpu_do_unaligned_access;
     cc->get_phys_page_debug = xtensa_cpu_get_phys_page_debug;
     cc->do_transaction_failed = xtensa_cpu_do_transaction_failed;

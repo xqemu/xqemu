@@ -279,7 +279,7 @@ typedef struct DisasContext {
 } DisasContext;
 
 /* Note that ssm/rsm instructions number PSW_W and PSW_E differently.  */
-static int expand_sm_imm(int val)
+static int expand_sm_imm(DisasContext *ctx, int val)
 {
     if (val & PSW_SM_E) {
         val = (val & ~PSW_SM_E) | PSW_E;
@@ -291,43 +291,43 @@ static int expand_sm_imm(int val)
 }
 
 /* Inverted space register indicates 0 means sr0 not inferred from base.  */
-static int expand_sr3x(int val)
+static int expand_sr3x(DisasContext *ctx, int val)
 {
     return ~val;
 }
 
 /* Convert the M:A bits within a memory insn to the tri-state value
    we use for the final M.  */
-static int ma_to_m(int val)
+static int ma_to_m(DisasContext *ctx, int val)
 {
     return val & 2 ? (val & 1 ? -1 : 1) : 0;
 }
 
 /* Convert the sign of the displacement to a pre or post-modify.  */
-static int pos_to_m(int val)
+static int pos_to_m(DisasContext *ctx, int val)
 {
     return val ? 1 : -1;
 }
 
-static int neg_to_m(int val)
+static int neg_to_m(DisasContext *ctx, int val)
 {
     return val ? -1 : 1;
 }
 
 /* Used for branch targets and fp memory ops.  */
-static int expand_shl2(int val)
+static int expand_shl2(DisasContext *ctx, int val)
 {
     return val << 2;
 }
 
 /* Used for fp memory ops.  */
-static int expand_shl3(int val)
+static int expand_shl3(DisasContext *ctx, int val)
 {
     return val << 3;
 }
 
 /* Used for assemble_21.  */
-static int expand_shl11(int val)
+static int expand_shl11(DisasContext *ctx, int val)
 {
     return val << 11;
 }
@@ -2518,6 +2518,60 @@ static bool trans_pxtlbx(DisasContext *ctx, arg_pxtlbx *a)
 #endif
 }
 
+/*
+ * Implement the pcxl and pcxl2 Fast TLB Insert instructions.
+ * See
+ *     https://parisc.wiki.kernel.org/images-parisc/a/a9/Pcxl2_ers.pdf
+ *     page 13-9 (195/206)
+ */
+static bool trans_ixtlbxf(DisasContext *ctx, arg_ixtlbxf *a)
+{
+    CHECK_MOST_PRIVILEGED(EXCP_PRIV_OPR);
+#ifndef CONFIG_USER_ONLY
+    TCGv_tl addr, atl, stl;
+    TCGv_reg reg;
+
+    nullify_over(ctx);
+
+    /*
+     * FIXME:
+     *  if (not (pcxl or pcxl2))
+     *    return gen_illegal(ctx);
+     *
+     * Note for future: these are 32-bit systems; no hppa64.
+     */
+
+    atl = tcg_temp_new_tl();
+    stl = tcg_temp_new_tl();
+    addr = tcg_temp_new_tl();
+
+    tcg_gen_ld32u_i64(stl, cpu_env,
+                      a->data ? offsetof(CPUHPPAState, cr[CR_ISR])
+                      : offsetof(CPUHPPAState, cr[CR_IIASQ]));
+    tcg_gen_ld32u_i64(atl, cpu_env,
+                      a->data ? offsetof(CPUHPPAState, cr[CR_IOR])
+                      : offsetof(CPUHPPAState, cr[CR_IIAOQ]));
+    tcg_gen_shli_i64(stl, stl, 32);
+    tcg_gen_or_tl(addr, atl, stl);
+    tcg_temp_free_tl(atl);
+    tcg_temp_free_tl(stl);
+
+    reg = load_gpr(ctx, a->r);
+    if (a->addr) {
+        gen_helper_itlba(cpu_env, addr, reg);
+    } else {
+        gen_helper_itlbp(cpu_env, addr, reg);
+    }
+    tcg_temp_free_tl(addr);
+
+    /* Exit TB for TLB change if mmu is enabled.  */
+    if (ctx->tb_flags & PSW_C) {
+        ctx->base.is_jmp = DISAS_IAQ_N_STALE;
+    }
+    return nullify_end(ctx);
+#endif
+}
+
 static bool trans_lpa(DisasContext *ctx, arg_ldst *a)
 {
     CHECK_MOST_PRIVILEGED(EXCP_PRIV_OPR);
@@ -4312,11 +4366,10 @@ static const TranslatorOps hppa_tr_ops = {
     .disas_log          = hppa_tr_disas_log,
 };
 
-void gen_intermediate_code(CPUState *cs, struct TranslationBlock *tb)
-
+void gen_intermediate_code(CPUState *cs, TranslationBlock *tb, int max_insns)
 {
     DisasContext ctx;
-    translator_loop(&hppa_tr_ops, &ctx.base, cs, tb);
+    translator_loop(&hppa_tr_ops, &ctx.base, cs, tb, max_insns);
 }
 
 void restore_state_to_opc(CPUHPPAState *env, TranslationBlock *tb,

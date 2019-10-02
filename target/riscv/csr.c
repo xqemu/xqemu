@@ -56,7 +56,23 @@ static int fs(CPURISCVState *env, int csrno)
 static int ctr(CPURISCVState *env, int csrno)
 {
 #if !defined(CONFIG_USER_ONLY)
+    CPUState *cs = env_cpu(env);
+    RISCVCPU *cpu = RISCV_CPU(cs);
     uint32_t ctr_en = ~0u;
+
+    if (!cpu->cfg.ext_counters) {
+        /* The Counters extensions is not enabled */
+        return -1;
+    }
+
+    /*
+     * The counters are always enabled at run time on newer priv specs, as the
+     * CSR has changed from controlling that the counters can be read to
+     * controlling that the counters increment.
+     */
+    if (env->priv_ver > PRIV_VERSION_1_09_1) {
+        return 0;
+    }
 
     if (env->priv < PRV_M) {
         ctr_en &= env->mcounteren;
@@ -237,6 +253,7 @@ static const target_ulong sstatus_v1_9_mask = SSTATUS_SIE | SSTATUS_SPIE |
 static const target_ulong sstatus_v1_10_mask = SSTATUS_SIE | SSTATUS_SPIE |
     SSTATUS_UIE | SSTATUS_UPIE | SSTATUS_SPP | SSTATUS_FS | SSTATUS_XS |
     SSTATUS_SUM | SSTATUS_MXR | SSTATUS_SD;
+static const target_ulong sip_writable_mask = SIP_SSIP | MIP_USIP | MIP_UEIP;
 
 #if defined(TARGET_RISCV32)
 static const char valid_vm_1_09[16] = {
@@ -290,13 +307,12 @@ static int write_mstatus(CPURISCVState *env, int csrno, target_ulong val)
 {
     target_ulong mstatus = env->mstatus;
     target_ulong mask = 0;
-    target_ulong mpp = get_field(val, MSTATUS_MPP);
 
     /* flush tlb on mstatus fields that affect VM */
     if (env->priv_ver <= PRIV_VERSION_1_09_1) {
         if ((val ^ mstatus) & (MSTATUS_MXR | MSTATUS_MPP |
                 MSTATUS_MPRV | MSTATUS_SUM | MSTATUS_VM)) {
-            tlb_flush(CPU(riscv_env_get_cpu(env)));
+            tlb_flush(env_cpu(env));
         }
         mask = MSTATUS_SIE | MSTATUS_SPIE | MSTATUS_MIE | MSTATUS_MPIE |
             MSTATUS_SPP | MSTATUS_FS | MSTATUS_MPRV | MSTATUS_SUM |
@@ -305,21 +321,21 @@ static int write_mstatus(CPURISCVState *env, int csrno, target_ulong val)
                 MSTATUS_VM : 0);
     }
     if (env->priv_ver >= PRIV_VERSION_1_10_0) {
-        if ((val ^ mstatus) & (MSTATUS_MXR | MSTATUS_MPP |
+        if ((val ^ mstatus) & (MSTATUS_MXR | MSTATUS_MPP | MSTATUS_MPV |
                 MSTATUS_MPRV | MSTATUS_SUM)) {
-            tlb_flush(CPU(riscv_env_get_cpu(env)));
+            tlb_flush(env_cpu(env));
         }
         mask = MSTATUS_SIE | MSTATUS_SPIE | MSTATUS_MIE | MSTATUS_MPIE |
             MSTATUS_SPP | MSTATUS_FS | MSTATUS_MPRV | MSTATUS_SUM |
             MSTATUS_MPP | MSTATUS_MXR | MSTATUS_TVM | MSTATUS_TSR |
             MSTATUS_TW;
-    }
-
-    /* silenty discard mstatus.mpp writes for unsupported modes */
-    if (mpp == PRV_H ||
-        (!riscv_has_ext(env, RVS) && mpp == PRV_S) ||
-        (!riscv_has_ext(env, RVU) && mpp == PRV_U)) {
-        mask &= ~MSTATUS_MPP;
+#if defined(TARGET_RISCV64)
+            /*
+             * RV32: MPV and MTL are not in mstatus. The current plan is to
+             * add them to mstatush. For now, we just don't support it.
+             */
+            mask |= MSTATUS_MPP | MSTATUS_MPV;
+#endif
     }
 
     mstatus = (mstatus & ~mask) | (val & mask);
@@ -382,7 +398,7 @@ static int write_misa(CPURISCVState *env, int csrno, target_ulong val)
 
     /* flush translation cache */
     if (val != env->misa) {
-        tb_flush(CPU(riscv_env_get_cpu(env)));
+        tb_flush(env_cpu(env));
     }
 
     env->misa = val;
@@ -461,18 +477,22 @@ static int write_mcounteren(CPURISCVState *env, int csrno, target_ulong val)
     return 0;
 }
 
+/* This regiser is replaced with CSR_MCOUNTINHIBIT in 1.11.0 */
 static int read_mscounteren(CPURISCVState *env, int csrno, target_ulong *val)
 {
-    if (env->priv_ver > PRIV_VERSION_1_09_1) {
+    if (env->priv_ver > PRIV_VERSION_1_09_1
+        && env->priv_ver < PRIV_VERSION_1_11_0) {
         return -1;
     }
     *val = env->mcounteren;
     return 0;
 }
 
+/* This regiser is replaced with CSR_MCOUNTINHIBIT in 1.11.0 */
 static int write_mscounteren(CPURISCVState *env, int csrno, target_ulong val)
 {
-    if (env->priv_ver > PRIV_VERSION_1_09_1) {
+    if (env->priv_ver > PRIV_VERSION_1_09_1
+        && env->priv_ver < PRIV_VERSION_1_11_0) {
         return -1;
     }
     env->mcounteren = val;
@@ -549,15 +569,13 @@ static int write_mbadaddr(CPURISCVState *env, int csrno, target_ulong val)
 static int rmw_mip(CPURISCVState *env, int csrno, target_ulong *ret_value,
                    target_ulong new_value, target_ulong write_mask)
 {
-    RISCVCPU *cpu = riscv_env_get_cpu(env);
+    RISCVCPU *cpu = env_archcpu(env);
     /* Allow software control of delegable interrupts not claimed by hardware */
     target_ulong mask = write_mask & delegable_ints & ~env->miclaim;
     uint32_t old_mip;
 
     if (mask) {
-        qemu_mutex_lock_iothread();
         old_mip = riscv_cpu_update_mip(cpu, mask, (new_value & mask));
-        qemu_mutex_unlock_iothread();
     } else {
         old_mip = atomic_read(&env->mip);
     }
@@ -685,8 +703,10 @@ static int write_sbadaddr(CPURISCVState *env, int csrno, target_ulong val)
 static int rmw_sip(CPURISCVState *env, int csrno, target_ulong *ret_value,
                    target_ulong new_value, target_ulong write_mask)
 {
-    return rmw_mip(env, CSR_MSTATUS, ret_value, new_value,
-                   write_mask & env->mideleg);
+    int ret = rmw_mip(env, CSR_MSTATUS, ret_value, new_value,
+                      write_mask & env->mideleg & sip_writable_mask);
+    *ret_value &= env->mideleg;
+    return ret;
 }
 
 /* Supervisor Protection and Translation */
@@ -712,7 +732,7 @@ static int write_satp(CPURISCVState *env, int csrno, target_ulong val)
         return 0;
     }
     if (env->priv_ver <= PRIV_VERSION_1_09_1 && (val ^ env->sptbr)) {
-        tlb_flush(CPU(riscv_env_get_cpu(env)));
+        tlb_flush(env_cpu(env));
         env->sptbr = val & (((target_ulong)
             1 << (TARGET_PHYS_ADDR_SPACE_BITS - PGSHIFT)) - 1);
     }
@@ -723,7 +743,9 @@ static int write_satp(CPURISCVState *env, int csrno, target_ulong val)
         if (env->priv == PRV_S && get_field(env->mstatus, MSTATUS_TVM)) {
             return -1;
         } else {
-            tlb_flush(CPU(riscv_env_get_cpu(env)));
+            if((val ^ env->satp) & SATP_ASID) {
+                tlb_flush(env_cpu(env));
+            }
             env->satp = val;
         }
     }
@@ -771,6 +793,7 @@ int riscv_csrrw(CPURISCVState *env, int csrno, target_ulong *ret_value,
 {
     int ret;
     target_ulong old_value;
+    RISCVCPU *cpu = env_archcpu(env);
 
     /* check privileges and return -1 if check fails */
 #if !defined(CONFIG_USER_ONLY)
@@ -780,6 +803,11 @@ int riscv_csrrw(CPURISCVState *env, int csrno, target_ulong *ret_value,
         return -1;
     }
 #endif
+
+    /* ensure the CSR extension is enabled. */
+    if (!cpu->cfg.ext_icsr) {
+        return -1;
+    }
 
     /* check predicate */
     if (!csr_ops[csrno].predicate || csr_ops[csrno].predicate(env, csrno) < 0) {

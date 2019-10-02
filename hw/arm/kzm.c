@@ -15,14 +15,13 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
-#include "qemu-common.h"
 #include "cpu.h"
 #include "hw/arm/fsl-imx31.h"
 #include "hw/boards.h"
 #include "qemu/error-report.h"
 #include "exec/address-spaces.h"
 #include "net/net.h"
-#include "hw/devices.h"
+#include "hw/net/lan9118.h"
 #include "hw/char/serial.h"
 #include "sysemu/qtest.h"
 
@@ -71,9 +70,8 @@ static void kzm_init(MachineState *machine)
     unsigned int alias_offset;
     unsigned int i;
 
-    object_initialize(&s->soc, sizeof(s->soc), TYPE_FSL_IMX31);
-    object_property_add_child(OBJECT(machine), "soc", OBJECT(&s->soc),
-                              &error_abort);
+    object_initialize_child(OBJECT(machine), "soc", &s->soc, sizeof(s->soc),
+                            TYPE_FSL_IMX31, &error_abort, NULL);
 
     object_property_set_bool(OBJECT(&s->soc), true, "realized", &error_fatal);
 

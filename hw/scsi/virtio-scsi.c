@@ -19,6 +19,7 @@
 #include "hw/virtio/virtio-scsi.h"
 #include "qemu/error-report.h"
 #include "qemu/iov.h"
+#include "qemu/module.h"
 #include "sysemu/block-backend.h"
 #include "hw/scsi/scsi.h"
 #include "scsi/constants.h"
@@ -696,7 +697,7 @@ static void virtio_scsi_reset(VirtIODevice *vdev)
 
     assert(!s->dataplane_started);
     s->resetting++;
-    qbus_reset_all(&s->bus.qbus);
+    qbus_reset_all(BUS(&s->bus));
     s->resetting--;
 
     vs->sense_size = VIRTIO_SCSI_SENSE_DEFAULT_SIZE;
@@ -789,28 +790,31 @@ static void virtio_scsi_change(SCSIBus *bus, SCSIDevice *dev, SCSISense sense)
     }
 }
 
+static void virtio_scsi_pre_hotplug(HotplugHandler *hotplug_dev,
+                                    DeviceState *dev, Error **errp)
+{
+    SCSIDevice *sd = SCSI_DEVICE(dev);
+    sd->hba_supports_iothread = true;
+}
+
 static void virtio_scsi_hotplug(HotplugHandler *hotplug_dev, DeviceState *dev,
                                 Error **errp)
 {
     VirtIODevice *vdev = VIRTIO_DEVICE(hotplug_dev);
     VirtIOSCSI *s = VIRTIO_SCSI(vdev);
     SCSIDevice *sd = SCSI_DEVICE(dev);
+    int ret;
 
     if (s->ctx && !s->dataplane_fenced) {
-        AioContext *ctx;
         if (blk_op_is_blocked(sd->conf.blk, BLOCK_OP_TYPE_DATAPLANE, errp)) {
             return;
         }
-        ctx = blk_get_aio_context(sd->conf.blk);
-        if (ctx != s->ctx && ctx != qemu_get_aio_context()) {
-            error_setg(errp, "Cannot attach a blockdev that is using "
-                       "a different iothread");
+        virtio_scsi_acquire(s);
+        ret = blk_set_aio_context(sd->conf.blk, s->ctx, errp);
+        virtio_scsi_release(s);
+        if (ret < 0) {
             return;
         }
-        virtio_scsi_acquire(s);
-        blk_set_aio_context(sd->conf.blk, s->ctx);
-        virtio_scsi_release(s);
-
     }
 
     if (virtio_vdev_has_feature(vdev, VIRTIO_SCSI_F_HOTPLUG)) {
@@ -828,6 +832,7 @@ static void virtio_scsi_hotunplug(HotplugHandler *hotplug_dev, DeviceState *dev,
     VirtIODevice *vdev = VIRTIO_DEVICE(hotplug_dev);
     VirtIOSCSI *s = VIRTIO_SCSI(vdev);
     SCSIDevice *sd = SCSI_DEVICE(dev);
+    AioContext *ctx = s->ctx ?: qemu_get_aio_context();
 
     if (virtio_vdev_has_feature(vdev, VIRTIO_SCSI_F_HOTPLUG)) {
         virtio_scsi_acquire(s);
@@ -837,13 +842,16 @@ static void virtio_scsi_hotunplug(HotplugHandler *hotplug_dev, DeviceState *dev,
         virtio_scsi_release(s);
     }
 
+    aio_disable_external(ctx);
+    qdev_simple_device_unplug_cb(hotplug_dev, dev, errp);
+    aio_enable_external(ctx);
+
     if (s->ctx) {
         virtio_scsi_acquire(s);
-        blk_set_aio_context(sd->conf.blk, qemu_get_aio_context());
+        /* If other users keep the BlockBackend in the iothread, that's ok */
+        blk_set_aio_context(sd->conf.blk, qemu_get_aio_context(), NULL);
         virtio_scsi_release(s);
     }
-
-    qdev_simple_device_unplug_cb(hotplug_dev, dev, errp);
 }
 
 static struct SCSIBusInfo virtio_scsi_scsi_info = {
@@ -917,7 +925,7 @@ static void virtio_scsi_device_realize(DeviceState *dev, Error **errp)
     virtio_scsi_dataplane_setup(s, errp);
 }
 
-void virtio_scsi_common_unrealize(DeviceState *dev, Error **errp)
+void virtio_scsi_common_unrealize(DeviceState *dev)
 {
     VirtIODevice *vdev = VIRTIO_DEVICE(dev);
     VirtIOSCSICommon *vs = VIRTIO_SCSI_COMMON(dev);
@@ -931,7 +939,7 @@ static void virtio_scsi_device_unrealize(DeviceState *dev, Error **errp)
     VirtIOSCSI *s = VIRTIO_SCSI(dev);
 
     qbus_set_hotplug_handler(BUS(&s->bus), NULL, &error_abort);
-    virtio_scsi_common_unrealize(dev, errp);
+    virtio_scsi_common_unrealize(dev);
 }
 
 static Property virtio_scsi_properties[] = {
@@ -986,6 +994,7 @@ static void virtio_scsi_class_init(ObjectClass *klass, void *data)
     vdc->reset = virtio_scsi_reset;
     vdc->start_ioeventfd = virtio_scsi_dataplane_start;
     vdc->stop_ioeventfd = virtio_scsi_dataplane_stop;
+    hc->pre_plug = virtio_scsi_pre_hotplug;
     hc->plug = virtio_scsi_hotplug;
     hc->unplug = virtio_scsi_hotunplug;
 }

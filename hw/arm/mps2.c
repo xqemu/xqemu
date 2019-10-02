@@ -25,7 +25,7 @@
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
-#include "hw/arm/arm.h"
+#include "hw/arm/boot.h"
 #include "hw/arm/armv7m.h"
 #include "hw/or-irq.h"
 #include "hw/boards.h"
@@ -36,7 +36,7 @@
 #include "hw/timer/cmsdk-apb-timer.h"
 #include "hw/timer/cmsdk-apb-dualtimer.h"
 #include "hw/misc/mps2-scc.h"
-#include "hw/devices.h"
+#include "hw/net/lan9118.h"
 #include "net/net.h"
 
 typedef enum MPS2FPGAType {
@@ -174,9 +174,9 @@ static void mps2_common_init(MachineState *machine)
         g_assert_not_reached();
     }
 
-    object_initialize(&mms->armv7m, sizeof(mms->armv7m), TYPE_ARMV7M);
+    sysbus_init_child_obj(OBJECT(mms), "armv7m", &mms->armv7m,
+                          sizeof(mms->armv7m), TYPE_ARMV7M);
     armv7m = DEVICE(&mms->armv7m);
-    qdev_set_parent_bus(armv7m, sysbus_get_default());
     switch (mmc->fpga_type) {
     case FPGA_AN385:
         qdev_prop_set_uint32(armv7m, "num-irq", 32);
@@ -308,9 +308,9 @@ static void mps2_common_init(MachineState *machine)
                        qdev_get_gpio_in(armv7m, 10));
     sysbus_mmio_map(SYS_BUS_DEVICE(&mms->dualtimer), 0, 0x40002000);
 
-    object_initialize(&mms->scc, sizeof(mms->scc), TYPE_MPS2_SCC);
+    sysbus_init_child_obj(OBJECT(mms), "scc", &mms->scc,
+                          sizeof(mms->scc), TYPE_MPS2_SCC);
     sccdev = DEVICE(&mms->scc);
-    qdev_set_parent_bus(sccdev, sysbus_get_default());
     qdev_prop_set_uint32(sccdev, "scc-cfg4", 0x2);
     qdev_prop_set_uint32(sccdev, "scc-aid", 0x00200008);
     qdev_prop_set_uint32(sccdev, "scc-id", mmc->scc_id);

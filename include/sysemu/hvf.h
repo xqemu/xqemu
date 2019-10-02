@@ -9,10 +9,10 @@
  */
 
 /* header to be included in non-HVF-specific code */
-#ifndef _HVF_H
-#define _HVF_H
 
-#include "qemu-common.h"
+#ifndef HVF_H
+#define HVF_H
+
 #include "qemu/bitops.h"
 #include "exec/memory.h"
 #include "sysemu/accel.h"

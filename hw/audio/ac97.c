@@ -22,6 +22,7 @@
 #include "hw/audio/soundhw.h"
 #include "audio/audio.h"
 #include "hw/pci/pci.h"
+#include "qemu/module.h"
 #include "sysemu/dma.h"
 #include "ac97_int.h"
 
@@ -1270,10 +1271,8 @@ const MemoryRegionOps ac97_io_nabm_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void ac97_on_reset (void *opaque)
+static void ac97_on_reset(AC97LinkState *s)
 {
-    AC97LinkState *s = opaque;
-
     reset_bm_regs (s, &s->bm_regs[0]);
     reset_bm_regs (s, &s->bm_regs[1]);
     reset_bm_regs (s, &s->bm_regs[2]);
@@ -1298,9 +1297,6 @@ void ac97_common_init (AC97LinkState *s,
     ac97_on_reset (s);
 }
 
-
-
-
 typedef struct AC97DeviceState {
     PCIDevice dev;
     AC97LinkState state;
@@ -1314,6 +1310,11 @@ typedef struct AC97DeviceState {
 #define AC97_DEVICE(obj) \
     OBJECT_CHECK(AC97DeviceState, (obj), "AC97")
 
+static void qdev_ac97_reset(DeviceState *dev)
+{
+    AC97DeviceState *d = AC97_DEVICE(dev);
+    ac97_on_reset(&d->state);
+}
 
 static const VMStateDescription vmstate_ac97_bm_regs = {
     .name = "ac97_bm_regs",
@@ -1405,7 +1406,6 @@ static void ac97_realize (PCIDevice *dev, Error **errp)
                            "ac97-nabm", 256);
     pci_register_bar (&s->dev, 0, PCI_BASE_ADDRESS_SPACE_IO, &s->io_nam);
     pci_register_bar (&s->dev, 1, PCI_BASE_ADDRESS_SPACE_IO, &s->io_nabm);
-
     ac97_common_init(&s->state, &s->dev, pci_get_address_space(&s->dev));
 }
 
@@ -1443,7 +1443,7 @@ static void ac97_class_init (ObjectClass *klass, void *data)
     dc->desc = "Intel 82801AA AC97 Audio";
     dc->vmsd = &vmstate_ac97;
     dc->props = ac97_properties;
-    dc->reset = (DeviceReset)ac97_on_reset;
+    dc->reset = qdev_ac97_reset;
 }
 
 static const TypeInfo ac97_info = {

@@ -27,7 +27,6 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
-#include "qemu-common.h"
 #include "cpu.h"
 #include "sysemu/sysemu.h"
 #include "hw/boards.h"
@@ -60,7 +59,7 @@ static void xtensa_sim_init(MachineState *machine)
     const char *kernel_filename = machine->kernel_filename;
     int n;
 
-    for (n = 0; n < smp_cpus; n++) {
+    for (n = 0; n < machine->smp.cpus; n++) {
         cpu = XTENSA_CPU(cpu_create(machine->cpu_type));
         env = &cpu->env;
 

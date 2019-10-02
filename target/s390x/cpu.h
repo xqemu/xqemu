@@ -21,29 +21,15 @@
 #ifndef S390X_CPU_H
 #define S390X_CPU_H
 
-#include "qemu-common.h"
 #include "cpu-qom.h"
 #include "cpu_models.h"
-
-#define TARGET_LONG_BITS 64
+#include "exec/cpu-defs.h"
 
 #define ELF_MACHINE_UNAME "S390X"
-
-#define CPUArchState struct CPUS390XState
-
-#include "exec/cpu-defs.h"
 
 /* The z/Architecture has a strong memory model with some store-after-load re-ordering */
 #define TCG_GUEST_DEFAULT_MO      (TCG_MO_ALL & ~TCG_MO_ST_LD)
 
-#define TARGET_PAGE_BITS 12
-
-#define TARGET_PHYS_ADDR_SPACE_BITS 64
-#define TARGET_VIRT_ADDR_SPACE_BITS 64
-
-#include "exec/cpu-all.h"
-
-#define NB_MMU_MODES 4
 #define TARGET_INSN_START_EXTRA_WORDS 1
 
 #define MMU_MODE0_SUFFIX _primary
@@ -66,7 +52,7 @@ struct CPUS390XState {
      * The floating point registers are part of the vector registers.
      * vregs[0][0] -> vregs[15][0] are 16 floating point registers
      */
-    CPU_DoubleU vregs[32][2];  /* vector registers */
+    uint64_t vregs[32][2] QEMU_ALIGNED(16);  /* vector registers */
     uint32_t aregs[16];    /* access registers */
     uint8_t riccb[64];     /* runtime instrumentation control */
     uint64_t gscb[4];      /* guarded storage control */
@@ -127,8 +113,6 @@ struct CPUS390XState {
     /* Fields up to this point are cleared by a CPU reset */
     struct {} end_reset_fields;
 
-    CPU_COMMON
-
 #if !defined(CONFIG_USER_ONLY)
     uint32_t core_id; /* PoP "CPU address", same as cpu_index */
     uint64_t cpuid;
@@ -153,7 +137,7 @@ struct CPUS390XState {
 
 };
 
-static inline CPU_DoubleU *get_freg(CPUS390XState *cs, int nr)
+static inline uint64_t *get_freg(CPUS390XState *cs, int nr)
 {
     return &cs->vregs[nr][0];
 }
@@ -169,6 +153,7 @@ struct S390CPU {
     CPUState parent_obj;
     /*< public >*/
 
+    CPUNegativeOffsetState neg;
     CPUS390XState env;
     S390CPUModel *model;
     /* needed for live migration */
@@ -176,14 +161,6 @@ struct S390CPU {
     uint32_t irqstate_saved_size;
 };
 
-static inline S390CPU *s390_env_get_cpu(CPUS390XState *env)
-{
-    return container_of(env, S390CPU, env);
-}
-
-#define ENV_GET_CPU(e) CPU(s390_env_get_cpu(e))
-
-#define ENV_OFFSET offsetof(S390CPU, env)
 
 #ifndef CONFIG_USER_ONLY
 extern const struct VMStateDescription vmstate_s390_cpu;
@@ -215,6 +192,7 @@ extern const struct VMStateDescription vmstate_s390_cpu;
 #define PGM_SPECIAL_OP                  0x0013
 #define PGM_OPERAND                     0x0015
 #define PGM_TRACE_TABLE                 0x0016
+#define PGM_VECTOR_PROCESSING           0x001b
 #define PGM_SPACE_SWITCH                0x001c
 #define PGM_HFP_SQRT                    0x001d
 #define PGM_PC_TRANS_SPEC               0x001f
@@ -734,6 +712,7 @@ static inline void s390_do_cpu_load_normal(CPUState *cs, run_on_cpu_data arg)
 /* cpu.c */
 void s390_crypto_reset(void);
 int s390_set_memory_limit(uint64_t new_limit, uint64_t *hw_limit);
+void s390_set_max_pagesize(uint64_t pagesize, Error **errp);
 void s390_cmma_reset(void);
 void s390_enable_css_support(S390CPU *cpu);
 int s390_assign_subch_ioeventfd(EventNotifier *notifier, uint32_t sch_id,
@@ -753,7 +732,7 @@ static inline uint8_t s390_cpu_get_state(S390CPU *cpu)
 
 
 /* cpu_models.c */
-void s390_cpu_list(FILE *f, fprintf_function cpu_fprintf);
+void s390_cpu_list(void);
 #define cpu_list s390_cpu_list
 void s390_set_qemu_cpu_model(uint16_t type, uint8_t gen, uint8_t ec_ga,
                              const S390FeatInit feat_init);
@@ -804,5 +783,10 @@ void s390_init_sigp(void);
 
 /* outside of target/s390x/ */
 S390CPU *s390_cpu_addr2state(uint16_t cpu_addr);
+
+typedef CPUS390XState CPUArchState;
+typedef S390CPU ArchCPU;
+
+#include "exec/cpu-all.h"
 
 #endif

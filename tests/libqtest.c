@@ -22,6 +22,7 @@
 
 #include "libqtest.h"
 #include "qemu-common.h"
+#include "qemu/ctype.h"
 #include "qemu/cutils.h"
 #include "qapi/error.h"
 #include "qapi/qmp/json-parser.h"
@@ -32,6 +33,7 @@
 
 #define MAX_IRQ 256
 #define SOCKET_TIMEOUT 50
+#define SOCKET_MAX_FDS 16
 
 QTestState *global_qtest;
 
@@ -391,6 +393,40 @@ static void GCC_FMT_ATTR(2, 3) qtest_sendf(QTestState *s, const char *fmt, ...)
     va_end(ap);
 }
 
+/* Sends a message and file descriptors to the socket.
+ * It's needed for qmp-commands like getfd/add-fd */
+static void socket_send_fds(int socket_fd, int *fds, size_t fds_num,
+                            const char *buf, size_t buf_size)
+{
+    ssize_t ret;
+    struct msghdr msg = { 0 };
+    char control[CMSG_SPACE(sizeof(int) * SOCKET_MAX_FDS)] = { 0 };
+    size_t fdsize = sizeof(int) * fds_num;
+    struct cmsghdr *cmsg;
+    struct iovec iov = { .iov_base = (char *)buf, .iov_len = buf_size };
+
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    if (fds && fds_num > 0) {
+        g_assert_cmpuint(fds_num, <, SOCKET_MAX_FDS);
+
+        msg.msg_control = control;
+        msg.msg_controllen = CMSG_SPACE(fdsize);
+
+        cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_len = CMSG_LEN(fdsize);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        memcpy(CMSG_DATA(cmsg), fds, fdsize);
+    }
+
+    do {
+        ret = sendmsg(socket_fd, &msg, 0);
+    } while (ret < 0 && errno == EINTR);
+    g_assert_cmpint(ret, >, 0);
+}
+
 static GString *qtest_recv_line(QTestState *s)
 {
     GString *line;
@@ -545,7 +581,8 @@ QDict *qtest_qmp_receive(QTestState *s)
  * in the case that they choose to discard all replies up until
  * a particular EVENT is received.
  */
-void qmp_fd_vsend(int fd, const char *fmt, va_list ap)
+void qmp_fd_vsend_fds(int fd, int *fds, size_t fds_num,
+                      const char *fmt, va_list ap)
 {
     QObject *qobj;
 
@@ -569,23 +606,47 @@ void qmp_fd_vsend(int fd, const char *fmt, va_list ap)
             fprintf(stderr, "%s", str);
         }
         /* Send QMP request */
-        socket_send(fd, str, qstring_get_length(qstr));
+        if (fds && fds_num > 0) {
+            socket_send_fds(fd, fds, fds_num, str, qstring_get_length(qstr));
+        } else {
+            socket_send(fd, str, qstring_get_length(qstr));
+        }
 
         qobject_unref(qstr);
         qobject_unref(qobj);
     }
 }
 
+void qmp_fd_vsend(int fd, const char *fmt, va_list ap)
+{
+    qmp_fd_vsend_fds(fd, NULL, 0, fmt, ap);
+}
+
+void qtest_qmp_vsend_fds(QTestState *s, int *fds, size_t fds_num,
+                         const char *fmt, va_list ap)
+{
+    qmp_fd_vsend_fds(s->qmp_fd, fds, fds_num, fmt, ap);
+}
+
 void qtest_qmp_vsend(QTestState *s, const char *fmt, va_list ap)
 {
-    qmp_fd_vsend(s->qmp_fd, fmt, ap);
+    qmp_fd_vsend_fds(s->qmp_fd, NULL, 0, fmt, ap);
 }
 
 QDict *qmp_fdv(int fd, const char *fmt, va_list ap)
 {
-    qmp_fd_vsend(fd, fmt, ap);
+    qmp_fd_vsend_fds(fd, NULL, 0, fmt, ap);
 
     return qmp_fd_receive(fd);
+}
+
+QDict *qtest_vqmp_fds(QTestState *s, int *fds, size_t fds_num,
+                      const char *fmt, va_list ap)
+{
+    qtest_qmp_vsend_fds(s, fds, fds_num, fmt, ap);
+
+    /* Receive reply */
+    return qtest_qmp_receive(s);
 }
 
 QDict *qtest_vqmp(QTestState *s, const char *fmt, va_list ap)
@@ -614,6 +675,18 @@ void qmp_fd_send(int fd, const char *fmt, ...)
     va_start(ap, fmt);
     qmp_fd_vsend(fd, fmt, ap);
     va_end(ap);
+}
+
+QDict *qtest_qmp_fds(QTestState *s, int *fds, size_t fds_num,
+                     const char *fmt, ...)
+{
+    va_list ap;
+    QDict *response;
+
+    va_start(ap, fmt);
+    response = qtest_vqmp_fds(s, fds, fds_num, fmt, ap);
+    va_end(ap);
+    return response;
 }
 
 QDict *qtest_qmp(QTestState *s, const char *fmt, ...)
@@ -1038,13 +1111,23 @@ QDict *qmp(const char *fmt, ...)
     return response;
 }
 
-void qmp_send(const char *fmt, ...)
+void qmp_assert_success(const char *fmt, ...)
 {
     va_list ap;
+    QDict *response;
 
     va_start(ap, fmt);
-    qtest_qmp_vsend(global_qtest, fmt, ap);
+    response = qtest_vqmp(global_qtest, fmt, ap);
     va_end(ap);
+
+    g_assert(response);
+    if (!qdict_haskey(response, "return")) {
+        QString *s = qobject_to_json_pretty(QOBJECT(response));
+        g_test_message("%s", qstring_get_str(s));
+        qobject_unref(s);
+    }
+    g_assert(qdict_haskey(response, "return"));
+    qobject_unref(response);
 }
 
 char *hmp(const char *fmt, ...)
@@ -1232,7 +1315,7 @@ void qtest_qmp_device_del(const char *id)
                                     &got_event);
     qobject_unref(rsp);
     if (!got_event) {
-        rsp = qmp_receive();
+        rsp = qtest_qmp_receive(global_qtest);
         g_assert_cmpstr(qdict_get_try_str(rsp, "event"),
                         ==, "DEVICE_DELETED");
         qobject_unref(rsp);

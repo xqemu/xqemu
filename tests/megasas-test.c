@@ -10,6 +10,7 @@
 #include "qemu/osdep.h"
 #include "libqtest.h"
 #include "qemu/bswap.h"
+#include "qemu/module.h"
 #include "libqos/qgraph.h"
 #include "libqos/pci.h"
 
@@ -66,7 +67,7 @@ static void megasas_pd_get_info_fuzz(void *obj, void *data, QGuestAllocator *all
     context[7] = cpu_to_le32(0);
 
     context_pa = guest_alloc(alloc, sizeof(context));
-    memwrite(context_pa, context, sizeof(context));
+    qtest_memwrite(dev->bus->qts, context_pa, context, sizeof(context));
     qpci_io_writel(dev, bar, 0x40, context_pa);
 }
 

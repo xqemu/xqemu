@@ -18,11 +18,13 @@
  */
 
 #include "qemu/osdep.h"
+#include "qemu-common.h"
 #include "qemu/units.h"
 #include "qapi/error.h"
 #include "sysemu/sysemu.h"
 #include "sysemu/numa.h"
 #include "sysemu/cpus.h"
+#include "sysemu/device_tree.h"
 #include "hw/hw.h"
 #include "target/ppc/cpu.h"
 #include "qemu/log.h"
@@ -450,7 +452,8 @@ static void pnv_dt_power_mgt(void *fdt)
 
 static void *pnv_dt_create(MachineState *machine)
 {
-    const char plat_compat[] = "qemu,powernv\0ibm,powernv";
+    const char plat_compat8[] = "qemu,powernv8\0qemu,powernv\0ibm,powernv";
+    const char plat_compat9[] = "qemu,powernv9\0ibm,powernv";
     PnvMachineState *pnv = PNV_MACHINE(machine);
     void *fdt;
     char *buf;
@@ -465,8 +468,14 @@ static void *pnv_dt_create(MachineState *machine)
     _FDT((fdt_setprop_cell(fdt, 0, "#size-cells", 0x2)));
     _FDT((fdt_setprop_string(fdt, 0, "model",
                              "IBM PowerNV (emulated by qemu)")));
-    _FDT((fdt_setprop(fdt, 0, "compatible", plat_compat,
-                      sizeof(plat_compat))));
+    if (pnv_is_power9(pnv)) {
+        _FDT((fdt_setprop(fdt, 0, "compatible", plat_compat9,
+                          sizeof(plat_compat9))));
+    } else {
+        _FDT((fdt_setprop(fdt, 0, "compatible", plat_compat8,
+                          sizeof(plat_compat8))));
+    }
+
 
     buf =  qemu_uuid_unparse_strdup(&qemu_uuid);
     _FDT((fdt_setprop_string(fdt, 0, "vm,uuid", buf)));
@@ -520,9 +529,8 @@ static void pnv_powerdown_notify(Notifier *n, void *opaque)
     }
 }
 
-static void pnv_reset(void)
+static void pnv_reset(MachineState *machine)
 {
-    MachineState *machine = MACHINE(qdev_get_machine());
     PnvMachineState *pnv = PNV_MACHINE(machine);
     void *fdt;
     Object *obj;
@@ -547,6 +555,7 @@ static void pnv_reset(void)
     /* Pack resulting tree */
     _FDT((fdt_pack(fdt)));
 
+    qemu_fdt_dumpdtb(fdt, fdt_totalsize(fdt));
     cpu_physical_memory_write(PNV_FDT_ADDR, fdt, fdt_totalsize(fdt));
 }
 
@@ -679,7 +688,8 @@ static void pnv_init(MachineState *machine)
         object_property_add_child(OBJECT(pnv), chip_name, chip, &error_fatal);
         object_property_set_int(chip, PNV_CHIP_HWID(i), "chip-id",
                                 &error_fatal);
-        object_property_set_int(chip, smp_cores, "nr-cores", &error_fatal);
+        object_property_set_int(chip, machine->smp.cores,
+                                "nr-cores", &error_fatal);
         object_property_set_bool(chip, true, "realized", &error_fatal);
     }
     g_free(chip_typename);
@@ -850,6 +860,14 @@ static void pnv_chip_power8_realize(DeviceState *dev, Error **errp)
     Pnv8Psi *psi8 = &chip8->psi;
     Error *local_err = NULL;
 
+    /* XSCOM bridge is first */
+    pnv_xscom_realize(chip, PNV_XSCOM_SIZE, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(chip), 0, PNV_XSCOM_BASE(chip));
+
     pcc->parent_realize(dev, &local_err);
     if (local_err) {
         error_propagate(errp, local_err);
@@ -906,7 +924,6 @@ static void pnv_chip_power8e_class_init(ObjectClass *klass, void *data)
     k->isa_create = pnv_chip_power8_isa_create;
     k->dt_populate = pnv_chip_power8_dt_populate;
     k->pic_print_info = pnv_chip_power8_pic_print_info;
-    k->xscom_base = 0x003fc0000000000ull;
     dc->desc = "PowerNV Chip POWER8E";
 
     device_class_set_parent_realize(dc, pnv_chip_power8_realize,
@@ -926,7 +943,6 @@ static void pnv_chip_power8_class_init(ObjectClass *klass, void *data)
     k->isa_create = pnv_chip_power8_isa_create;
     k->dt_populate = pnv_chip_power8_dt_populate;
     k->pic_print_info = pnv_chip_power8_pic_print_info;
-    k->xscom_base = 0x003fc0000000000ull;
     dc->desc = "PowerNV Chip POWER8";
 
     device_class_set_parent_realize(dc, pnv_chip_power8_realize,
@@ -946,7 +962,6 @@ static void pnv_chip_power8nvl_class_init(ObjectClass *klass, void *data)
     k->isa_create = pnv_chip_power8nvl_isa_create;
     k->dt_populate = pnv_chip_power8_dt_populate;
     k->pic_print_info = pnv_chip_power8_pic_print_info;
-    k->xscom_base = 0x003fc0000000000ull;
     dc->desc = "PowerNV Chip POWER8NVL";
 
     device_class_set_parent_realize(dc, pnv_chip_power8_realize,
@@ -994,14 +1009,12 @@ static void pnv_chip_quad_realize(Pnv9Chip *chip9, Error **errp)
         PnvCore *pnv_core = PNV_CORE(chip->cores + (i * 4) * typesize);
         int core_id = CPU_CORE(pnv_core)->core_id;
 
-        object_initialize(eq, sizeof(*eq), TYPE_PNV_QUAD);
         snprintf(eq_name, sizeof(eq_name), "eq[%d]", core_id);
+        object_initialize_child(OBJECT(chip), eq_name, eq, sizeof(*eq),
+                                TYPE_PNV_QUAD, &error_fatal, NULL);
 
-        object_property_add_child(OBJECT(chip), eq_name, OBJECT(eq),
-                                  &error_fatal);
         object_property_set_int(OBJECT(eq), core_id, "id", &error_fatal);
         object_property_set_bool(OBJECT(eq), true, "realized", &error_fatal);
-        object_unref(OBJECT(eq));
 
         pnv_xscom_add_subregion(chip, PNV9_XSCOM_EQ_BASE(eq->id),
                                 &eq->xscom_regs);
@@ -1015,6 +1028,14 @@ static void pnv_chip_power9_realize(DeviceState *dev, Error **errp)
     PnvChip *chip = PNV_CHIP(dev);
     Pnv9Psi *psi9 = &chip9->psi;
     Error *local_err = NULL;
+
+    /* XSCOM bridge is first */
+    pnv_xscom_realize(chip, PNV9_XSCOM_SIZE, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(chip), 0, PNV9_XSCOM_BASE(chip));
 
     pcc->parent_realize(dev, &local_err);
     if (local_err) {
@@ -1091,7 +1112,6 @@ static void pnv_chip_power9_class_init(ObjectClass *klass, void *data)
     k->isa_create = pnv_chip_power9_isa_create;
     k->dt_populate = pnv_chip_power9_dt_populate;
     k->pic_print_info = pnv_chip_power9_pic_print_info;
-    k->xscom_base = 0x00603fc00000000ull;
     dc->desc = "PowerNV Chip POWER9";
 
     device_class_set_parent_realize(dc, pnv_chip_power9_realize,
@@ -1128,13 +1148,9 @@ static void pnv_chip_core_sanitize(PnvChip *chip, Error **errp)
     }
 }
 
-static void pnv_chip_instance_init(Object *obj)
-{
-    PNV_CHIP(obj)->xscom_base = PNV_CHIP_GET_CLASS(obj)->xscom_base;
-}
-
 static void pnv_chip_core_realize(PnvChip *chip, Error **errp)
 {
+    MachineState *ms = MACHINE(qdev_get_machine());
     Error *error = NULL;
     PnvChipClass *pcc = PNV_CHIP_GET_CLASS(chip);
     const char *typename = pnv_chip_core_typename(chip);
@@ -1165,11 +1181,10 @@ static void pnv_chip_core_realize(PnvChip *chip, Error **errp)
             continue;
         }
 
-        object_initialize(pnv_core, typesize, typename);
         snprintf(core_name, sizeof(core_name), "core[%d]", core_hwid);
-        object_property_add_child(OBJECT(chip), core_name, OBJECT(pnv_core),
-                                  &error_fatal);
-        object_property_set_int(OBJECT(pnv_core), smp_threads, "nr-threads",
+        object_initialize_child(OBJECT(chip), core_name, pnv_core, typesize,
+                                typename, &error_fatal, NULL);
+        object_property_set_int(OBJECT(pnv_core), ms->smp.threads, "nr-threads",
                                 &error_fatal);
         object_property_set_int(OBJECT(pnv_core), core_hwid,
                                 CPU_CORE_PROP_CORE_ID, &error_fatal);
@@ -1180,7 +1195,6 @@ static void pnv_chip_core_realize(PnvChip *chip, Error **errp)
                                        OBJECT(chip), &error_fatal);
         object_property_set_bool(OBJECT(pnv_core), true, "realized",
                                  &error_fatal);
-        object_unref(OBJECT(pnv_core));
 
         /* Each core has an XSCOM MMIO region */
         if (!pnv_chip_is_power9(chip)) {
@@ -1199,14 +1213,6 @@ static void pnv_chip_realize(DeviceState *dev, Error **errp)
 {
     PnvChip *chip = PNV_CHIP(dev);
     Error *error = NULL;
-
-    /* XSCOM bridge */
-    pnv_xscom_realize(chip, &error);
-    if (error) {
-        error_propagate(errp, error);
-        return;
-    }
-    sysbus_mmio_map(SYS_BUS_DEVICE(chip), 0, PNV_XSCOM_BASE(chip));
 
     /* Cores */
     pnv_chip_core_realize(chip, &error);
@@ -1392,7 +1398,6 @@ static const TypeInfo types[] = {
         .name          = TYPE_PNV_CHIP,
         .parent        = TYPE_SYS_BUS_DEVICE,
         .class_init    = pnv_chip_class_init,
-        .instance_init = pnv_chip_instance_init,
         .instance_size = sizeof(PnvChip),
         .class_size    = sizeof(PnvChipClass),
         .abstract      = true,

@@ -17,6 +17,7 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
+#include "qemu/module.h"
 #include "sysemu/sysemu.h"
 
 #include "hw/s390x/sclp.h"
@@ -466,12 +467,12 @@ static void init_event_facility(Object *obj)
     new = object_new(TYPE_SCLP_QUIESCE);
     object_property_add_child(obj, TYPE_SCLP_QUIESCE, new, NULL);
     object_unref(new);
-    qdev_set_parent_bus(DEVICE(new), &event_facility->sbus.qbus);
+    qdev_set_parent_bus(DEVICE(new), BUS(&event_facility->sbus));
 
     new = object_new(TYPE_SCLP_CPU_HOTPLUG);
     object_property_add_child(obj, TYPE_SCLP_CPU_HOTPLUG, new, NULL);
     object_unref(new);
-    qdev_set_parent_bus(DEVICE(new), &event_facility->sbus.qbus);
+    qdev_set_parent_bus(DEVICE(new), BUS(&event_facility->sbus));
     /* the facility will automatically realize the devices via the bus */
 }
 

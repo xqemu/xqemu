@@ -24,6 +24,7 @@
 #include "exec/exec-all.h"
 #include "exec/translator.h"
 #include "tcg-op.h"
+#include "qemu/qemu-print.h"
 
 #include "exec/cpu_ldst.h"
 #include "hw/lm32/lm32_pic.h"
@@ -1049,15 +1050,14 @@ static inline void decode(DisasContext *dc, uint32_t ir)
 }
 
 /* generate intermediate code for basic block 'tb'.  */
-void gen_intermediate_code(CPUState *cs, struct TranslationBlock *tb)
+void gen_intermediate_code(CPUState *cs, TranslationBlock *tb, int max_insns)
 {
     CPULM32State *env = cs->env_ptr;
-    LM32CPU *cpu = lm32_env_get_cpu(env);
+    LM32CPU *cpu = env_archcpu(env);
     struct DisasContext ctx, *dc = &ctx;
     uint32_t pc_start;
     uint32_t page_start;
     int num_insns;
-    int max_insns;
 
     pc_start = tb->pc;
     dc->features = cpu->features;
@@ -1077,13 +1077,6 @@ void gen_intermediate_code(CPUState *cs, struct TranslationBlock *tb)
 
     page_start = pc_start & TARGET_PAGE_MASK;
     num_insns = 0;
-    max_insns = tb_cflags(tb) & CF_COUNT_MASK;
-    if (max_insns == 0) {
-        max_insns = CF_COUNT_MASK;
-    }
-    if (max_insns > TCG_MAX_INSNS) {
-        max_insns = TCG_MAX_INSNS;
-    }
 
     gen_tb_start(tb);
     do {
@@ -1161,38 +1154,37 @@ void gen_intermediate_code(CPUState *cs, struct TranslationBlock *tb)
 #endif
 }
 
-void lm32_cpu_dump_state(CPUState *cs, FILE *f, fprintf_function cpu_fprintf,
-                         int flags)
+void lm32_cpu_dump_state(CPUState *cs, FILE *f, int flags)
 {
     LM32CPU *cpu = LM32_CPU(cs);
     CPULM32State *env = &cpu->env;
     int i;
 
-    if (!env || !f) {
+    if (!env) {
         return;
     }
 
-    cpu_fprintf(f, "IN: PC=%x %s\n",
-                env->pc, lookup_symbol(env->pc));
+    qemu_fprintf(f, "IN: PC=%x %s\n",
+                 env->pc, lookup_symbol(env->pc));
 
-    cpu_fprintf(f, "ie=%8.8x (IE=%x EIE=%x BIE=%x) im=%8.8x ip=%8.8x\n",
-             env->ie,
-             (env->ie & IE_IE) ? 1 : 0,
-             (env->ie & IE_EIE) ? 1 : 0,
-             (env->ie & IE_BIE) ? 1 : 0,
-             lm32_pic_get_im(env->pic_state),
-             lm32_pic_get_ip(env->pic_state));
-    cpu_fprintf(f, "eba=%8.8x deba=%8.8x\n",
-             env->eba,
-             env->deba);
+    qemu_fprintf(f, "ie=%8.8x (IE=%x EIE=%x BIE=%x) im=%8.8x ip=%8.8x\n",
+                 env->ie,
+                 (env->ie & IE_IE) ? 1 : 0,
+                 (env->ie & IE_EIE) ? 1 : 0,
+                 (env->ie & IE_BIE) ? 1 : 0,
+                 lm32_pic_get_im(env->pic_state),
+                 lm32_pic_get_ip(env->pic_state));
+    qemu_fprintf(f, "eba=%8.8x deba=%8.8x\n",
+                 env->eba,
+                 env->deba);
 
     for (i = 0; i < 32; i++) {
-        cpu_fprintf(f, "r%2.2d=%8.8x ", i, env->regs[i]);
+        qemu_fprintf(f, "r%2.2d=%8.8x ", i, env->regs[i]);
         if ((i + 1) % 4 == 0) {
-            cpu_fprintf(f, "\n");
+            qemu_fprintf(f, "\n");
         }
     }
-    cpu_fprintf(f, "\n\n");
+    qemu_fprintf(f, "\n\n");
 }
 
 void restore_state_to_opc(CPULM32State *env, TranslationBlock *tb,

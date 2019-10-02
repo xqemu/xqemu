@@ -23,7 +23,6 @@
  */
 #include "qemu/osdep.h"
 #include "qapi/error.h"
-#include "qemu-common.h"
 #include "trace.h"
 #include "block/block_int.h"
 #include "block/blockjob.h"
@@ -816,10 +815,10 @@ void bdrv_merge_dirty_bitmap(BdrvDirtyBitmap *dest, const BdrvDirtyBitmap *src,
 {
     bool ret;
 
-    /* only bitmaps from one bds are supported */
-    assert(dest->mutex == src->mutex);
-
     qemu_mutex_lock(dest->mutex);
+    if (src->mutex != dest->mutex) {
+        qemu_mutex_lock(src->mutex);
+    }
 
     if (bdrv_dirty_bitmap_check(dest, BDRV_BITMAP_DEFAULT, errp)) {
         goto out;
@@ -845,4 +844,7 @@ void bdrv_merge_dirty_bitmap(BdrvDirtyBitmap *dest, const BdrvDirtyBitmap *src,
 
 out:
     qemu_mutex_unlock(dest->mutex);
+    if (src->mutex != dest->mutex) {
+        qemu_mutex_unlock(src->mutex);
+    }
 }

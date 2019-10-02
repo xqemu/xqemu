@@ -13,6 +13,7 @@
 
 #include "qemu/osdep.h"
 #include "qemu/iov.h"
+#include "qemu/module.h"
 #include "hw/virtio/virtio.h"
 #include "net/net.h"
 #include "net/checksum.h"
@@ -2359,7 +2360,7 @@ static int virtio_net_post_load_device(void *opaque, int version_id)
             timer_mod(n->announce_timer.tm,
                       qemu_clock_get_ms(n->announce_timer.type));
         } else {
-            qemu_announce_timer_del(&n->announce_timer);
+            qemu_announce_timer_del(&n->announce_timer, false);
         }
     }
 
@@ -2783,7 +2784,7 @@ static void virtio_net_device_unrealize(DeviceState *dev, Error **errp)
         virtio_net_del_queue(n, i);
     }
 
-    qemu_announce_timer_del(&n->announce_timer);
+    qemu_announce_timer_del(&n->announce_timer, false);
     g_free(n->vqs);
     qemu_del_nic(n->nic);
     virtio_net_rsc_cleanup(n);

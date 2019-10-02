@@ -105,7 +105,6 @@ set -x # Print commands from now on
     --disable-vhost-vsock \
     --disable-vhost-user \
     --disable-virtfs \
-    --disable-libssh2 \
     --disable-snappy \
     --disable-bzip2 \
     --disable-vde \

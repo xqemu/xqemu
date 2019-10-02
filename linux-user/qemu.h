@@ -116,7 +116,6 @@ typedef struct TaskState {
 #endif
     abi_ulong child_tidptr;
 #ifdef TARGET_M68K
-    int sim_syscalls;
     abi_ulong tp_value;
 #endif
 #if defined(TARGET_ARM) || defined(TARGET_M68K)
@@ -152,6 +151,8 @@ typedef struct TaskState {
      */
     int signal_pending;
 
+    /* This thread's sigaltstack, if it has one */
+    struct target_sigaltstack sigaltstack_used;
 } __attribute__((aligned(16))) TaskState;
 
 extern char *exec_path;
@@ -443,7 +444,7 @@ abi_long target_mremap(abi_ulong old_addr, abi_ulong old_size,
                        abi_ulong new_addr);
 extern unsigned long last_brk;
 extern abi_ulong mmap_next_start;
-abi_ulong mmap_find_vma(abi_ulong, abi_ulong);
+abi_ulong mmap_find_vma(abi_ulong, abi_ulong, abi_ulong);
 void mmap_fork_start(void);
 void mmap_fork_end(int child);
 
@@ -457,7 +458,9 @@ extern unsigned long guest_stack_size;
 
 static inline int access_ok(int type, abi_ulong addr, abi_ulong size)
 {
-    return page_check_range((target_ulong)addr, size,
+    return guest_addr_valid(addr) &&
+           (size == 0 || guest_addr_valid(addr + size - 1)) &&
+           page_check_range((target_ulong)addr, size,
                             (type == VERIFY_READ) ? PAGE_READ : (PAGE_READ | PAGE_WRITE)) == 0;
 }
 

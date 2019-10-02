@@ -1,10 +1,8 @@
 #include "qemu/osdep.h"
-#include "qemu-common.h"
 #include "qapi/qmp/qdict.h"
 #include "qapi/qmp/qnum.h"
 #include "qapi/qmp/qstring.h"
 #include "qapi/error.h"
-#include "qemu/module.h"
 #include "qapi/qobject-input-visitor.h"
 #include "tests/test-qapi-types.h"
 #include "tests/test-qapi-visit.h"
@@ -42,6 +40,14 @@ Empty2 *qmp_user_def_cmd0(Error **errp)
 }
 
 void qmp_user_def_cmd1(UserDefOne * ud1, Error **errp)
+{
+}
+
+void qmp_test_features(FeatureStruct0 *fs0, FeatureStruct1 *fs1,
+                       FeatureStruct2 *fs2, FeatureStruct3 *fs3,
+                       FeatureStruct4 *fs4, CondFeatureStruct1 *cfs1,
+                       CondFeatureStruct2 *cfs2, CondFeatureStruct3 *cfs3,
+                       Error **errp)
 {
 }
 

@@ -23,7 +23,9 @@
  */
 
 #include "qemu/osdep.h"
+#include "qemu-common.h"
 #include "qemu/cutils.h"
+#include "qemu/module.h"
 #include "qemu/bcd.h"
 #include "hw/hw.h"
 #include "qemu/timer.h"
@@ -31,8 +33,8 @@
 #include "sysemu/replay.h"
 #include "hw/timer/mc146818rtc.h"
 #include "qapi/error.h"
-#include "qapi/qapi-commands-target.h"
-#include "qapi/qapi-events-target.h"
+#include "qapi/qapi-commands-misc-target.h"
+#include "qapi/qapi-events-misc-target.h"
 #include "qapi/visitor.h"
 #include "exec/address-spaces.h"
 

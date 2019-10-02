@@ -28,12 +28,13 @@
  */
 
 #include "qemu/osdep.h"
+#include "qemu-common.h"
 #include "cpu.h"
 #include "hw/boards.h"
 #include "hw/sysbus.h"
 #include "strongarm.h"
 #include "qemu/error-report.h"
-#include "hw/arm/arm.h"
+#include "hw/arm/boot.h"
 #include "chardev/char-fe.h"
 #include "chardev/char-serial.h"
 #include "sysemu/sysemu.h"

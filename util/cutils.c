@@ -21,14 +21,16 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include "qemu/osdep.h"
-#include "qemu-common.h"
 #include "qemu/host-utils.h"
 #include <math.h>
 
+#include "qemu-common.h"
 #include "qemu/sockets.h"
 #include "qemu/iov.h"
 #include "net/net.h"
+#include "qemu/ctype.h"
 #include "qemu/cutils.h"
 #include "qemu/error-report.h"
 
@@ -683,7 +685,7 @@ int parse_uint(const char *s, unsigned long long *value, char **endptr,
     }
 
     /* make sure we reject negative numbers: */
-    while (isspace((unsigned char)*s)) {
+    while (qemu_isspace(*s)) {
         s++;
     }
     if (*s == '-') {
@@ -754,11 +756,11 @@ int uleb128_encode_small(uint8_t *out, uint32_t n)
 {
     g_assert(n <= 0x3fff);
     if (n < 0x80) {
-        *out++ = n;
+        *out = n;
         return 1;
     } else {
         *out++ = (n & 0x7f) | 0x80;
-        *out++ = n >> 7;
+        *out = n >> 7;
         return 2;
     }
 }
@@ -766,7 +768,7 @@ int uleb128_encode_small(uint8_t *out, uint32_t n)
 int uleb128_decode_small(const uint8_t *in, uint32_t *n)
 {
     if (!(*in & 0x80)) {
-        *n = *in++;
+        *n = *in;
         return 1;
     } else {
         *n = *in++ & 0x7f;
@@ -774,7 +776,7 @@ int uleb128_decode_small(const uint8_t *in, uint32_t *n)
         if (*in & 0x80) {
             return -1;
         }
-        *n |= *in++ << 7;
+        *n |= *in << 7;
         return 2;
     }
 }
@@ -825,7 +827,7 @@ const char *qemu_ether_ntoa(const MACAddr *mac)
 char *size_to_str(uint64_t val)
 {
     static const char *suffixes[] = { "", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei" };
-    unsigned long div;
+    uint64_t div;
     int i;
 
     /*

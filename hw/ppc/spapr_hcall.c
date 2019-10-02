@@ -3,6 +3,7 @@
 #include "sysemu/hw_accel.h"
 #include "sysemu/sysemu.h"
 #include "qemu/log.h"
+#include "qemu/module.h"
 #include "qemu/error-report.h"
 #include "cpu.h"
 #include "exec/exec-all.h"
@@ -118,7 +119,7 @@ static target_ulong h_enter(PowerPCCPU *cpu, SpaprMachineState *spapr,
         ppc_hash64_unmap_hptes(cpu, hptes, ptex, 1);
     }
 
-    ppc_hash64_store_hpte(cpu, ptex + slot, pteh | HPTE64_V_HPTE_DIRTY, ptel);
+    spapr_store_hpte(cpu, ptex + slot, pteh | HPTE64_V_HPTE_DIRTY, ptel);
 
     args[0] = ptex + slot;
     return H_SUCCESS;
@@ -131,7 +132,8 @@ typedef enum {
     REMOVE_HW = 3,
 } RemoveResult;
 
-static RemoveResult remove_hpte(PowerPCCPU *cpu, target_ulong ptex,
+static RemoveResult remove_hpte(PowerPCCPU *cpu
+                                , target_ulong ptex,
                                 target_ulong avpn,
                                 target_ulong flags,
                                 target_ulong *vp, target_ulong *rp)
@@ -155,7 +157,7 @@ static RemoveResult remove_hpte(PowerPCCPU *cpu, target_ulong ptex,
     }
     *vp = v;
     *rp = r;
-    ppc_hash64_store_hpte(cpu, ptex, HPTE64_V_HPTE_DIRTY, 0);
+    spapr_store_hpte(cpu, ptex, HPTE64_V_HPTE_DIRTY, 0);
     ppc_hash64_tlb_flush_hpte(cpu, ptex, v, r);
     return REMOVE_SUCCESS;
 }
@@ -289,13 +291,13 @@ static target_ulong h_protect(PowerPCCPU *cpu, SpaprMachineState *spapr,
     r |= (flags << 55) & HPTE64_R_PP0;
     r |= (flags << 48) & HPTE64_R_KEY_HI;
     r |= flags & (HPTE64_R_PP | HPTE64_R_N | HPTE64_R_KEY_LO);
-    ppc_hash64_store_hpte(cpu, ptex,
-                          (v & ~HPTE64_V_VALID) | HPTE64_V_HPTE_DIRTY, 0);
+    spapr_store_hpte(cpu, ptex,
+                     (v & ~HPTE64_V_VALID) | HPTE64_V_HPTE_DIRTY, 0);
     ppc_hash64_tlb_flush_hpte(cpu, ptex, v, r);
     /* Flush the tlb */
     check_tlb_flush(env, true);
     /* Don't need a memory barrier, due to qemu's global lock */
-    ppc_hash64_store_hpte(cpu, ptex, v | HPTE64_V_HPTE_DIRTY, r);
+    spapr_store_hpte(cpu, ptex, v | HPTE64_V_HPTE_DIRTY, r);
     return H_SUCCESS;
 }
 
@@ -304,8 +306,8 @@ static target_ulong h_read(PowerPCCPU *cpu, SpaprMachineState *spapr,
 {
     target_ulong flags = args[0];
     target_ulong ptex = args[1];
-    uint8_t *hpte;
     int i, ridx, n_entries = 1;
+    const ppc_hash_pte64_t *hptes;
 
     if (!valid_ptex(cpu, ptex)) {
         return H_PARAMETER;
@@ -317,13 +319,12 @@ static target_ulong h_read(PowerPCCPU *cpu, SpaprMachineState *spapr,
         n_entries = 4;
     }
 
-    hpte = spapr->htab + (ptex * HASH_PTE_SIZE_64);
-
+    hptes = ppc_hash64_map_hptes(cpu, ptex, n_entries);
     for (i = 0, ridx = 0; i < n_entries; i++) {
-        args[ridx++] = ldq_p(hpte);
-        args[ridx++] = ldq_p(hpte + (HASH_PTE_SIZE_64/2));
-        hpte += HASH_PTE_SIZE_64;
+        args[ridx++] = ppc_hash64_hpte0(cpu, hptes, i);
+        args[ridx++] = ppc_hash64_hpte1(cpu, hptes, i);
     }
+    ppc_hash64_unmap_hptes(cpu, hptes, ptex, n_entries);
 
     return H_SUCCESS;
 }
@@ -1513,6 +1514,7 @@ static target_ulong h_client_architecture_support(PowerPCCPU *cpu,
     bool guest_radix;
     Error *local_err = NULL;
     bool raw_mode_supported = false;
+    bool guest_xive;
 
     cas_pvr = cas_check_pvr(spapr, cpu, &addr, &raw_mode_supported, &local_err);
     if (local_err) {
@@ -1545,9 +1547,16 @@ static target_ulong h_client_architecture_support(PowerPCCPU *cpu,
         error_report("guest requested hash and radix MMU, which is invalid.");
         exit(EXIT_FAILURE);
     }
+    if (spapr_ovec_test(ov5_guest, OV5_XIVE_BOTH)) {
+        error_report("guest requested an invalid interrupt mode");
+        exit(EXIT_FAILURE);
+    }
+
     /* The radix/hash bit in byte 24 requires special handling: */
     guest_radix = spapr_ovec_test(ov5_guest, OV5_MMU_RADIX_300);
     spapr_ovec_clear(ov5_guest, OV5_MMU_RADIX_300);
+
+    guest_xive = spapr_ovec_test(ov5_guest, OV5_XIVE_EXPLOIT);
 
     /*
      * HPT resizing is a bit of a special case, because when enabled
@@ -1630,6 +1639,24 @@ static target_ulong h_client_architecture_support(PowerPCCPU *cpu,
         spapr->cas_reboot =
             (spapr_h_cas_compose_response(spapr, args[1], args[2],
                                           ov5_updates) != 0);
+    }
+
+    /*
+     * Ensure the guest asks for an interrupt mode we support; otherwise
+     * terminate the boot.
+     */
+    if (guest_xive) {
+        if (spapr->irq->ov5 == SPAPR_OV5_XIVE_LEGACY) {
+            error_report(
+"Guest requested unavailable interrupt mode (XIVE), try the ic-mode=xive or ic-mode=dual machine property");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        if (spapr->irq->ov5 == SPAPR_OV5_XIVE_EXPLOIT) {
+            error_report(
+"Guest requested unavailable interrupt mode (XICS), either don't set the ic-mode machine property or try ic-mode=xics or ic-mode=dual");
+            exit(EXIT_FAILURE);
+        }
     }
 
     /*

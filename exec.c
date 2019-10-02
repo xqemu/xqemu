@@ -16,7 +16,9 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "qemu/osdep.h"
+#include "qemu-common.h"
 #include "qapi/error.h"
 
 #include "qemu/cutils.h"
@@ -32,9 +34,11 @@
 #endif
 #include "sysemu/kvm.h"
 #include "sysemu/sysemu.h"
+#include "sysemu/tcg.h"
 #include "qemu/timer.h"
 #include "qemu/config-file.h"
 #include "qemu/error-report.h"
+#include "qemu/qemu-print.h"
 #if defined(CONFIG_USER_ONLY)
 #include "qemu.h"
 #else /* !CONFIG_USER_ONLY */
@@ -982,14 +986,18 @@ void cpu_exec_realizefn(CPUState *cpu, Error **errp)
 #endif
 }
 
-const char *parse_cpu_model(const char *cpu_model)
+const char *parse_cpu_option(const char *cpu_option)
 {
     ObjectClass *oc;
     CPUClass *cc;
     gchar **model_pieces;
     const char *cpu_type;
 
-    model_pieces = g_strsplit(cpu_model, ",", 2);
+    model_pieces = g_strsplit(cpu_option, ",", 2);
+    if (!model_pieces[0]) {
+        error_report("-cpu option cannot be empty");
+        exit(1);
+    }
 
     oc = cpu_class_by_name(CPU_RESOLVING_TYPE, model_pieces[0]);
     if (oc == NULL) {
@@ -1255,7 +1263,7 @@ void cpu_abort(CPUState *cpu, const char *fmt, ...)
     fprintf(stderr, "qemu: fatal: ");
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
-    cpu_dump_state(cpu, stderr, fprintf, CPU_DUMP_FPU | CPU_DUMP_CCOP);
+    cpu_dump_state(cpu, stderr, CPU_DUMP_FPU | CPU_DUMP_CCOP);
     if (qemu_log_separate()) {
         qemu_log_lock();
         qemu_log("qemu: fatal: ");
@@ -1350,6 +1358,8 @@ bool cpu_physical_memory_test_and_clear_dirty(ram_addr_t start,
     DirtyMemoryBlocks *blocks;
     unsigned long end, page;
     bool dirty = false;
+    RAMBlock *ramblock;
+    uint64_t mr_offset, mr_size;
 
     if (length == 0) {
         return false;
@@ -1361,6 +1371,10 @@ bool cpu_physical_memory_test_and_clear_dirty(ram_addr_t start,
     rcu_read_lock();
 
     blocks = atomic_rcu_read(&ram_list.dirty_memory[client]);
+    ramblock = qemu_get_ram_block(start);
+    /* Range sanity check on the ramblock */
+    assert(start >= ramblock->offset &&
+           start + length <= ramblock->offset + ramblock->used_length);
 
     while (page < end) {
         unsigned long idx = page / DIRTY_MEMORY_BLOCK_SIZE;
@@ -1372,6 +1386,10 @@ bool cpu_physical_memory_test_and_clear_dirty(ram_addr_t start,
         page += num;
     }
 
+    mr_offset = (ram_addr_t)(page << TARGET_PAGE_BITS) - ramblock->offset;
+    mr_size = (end - page) << TARGET_PAGE_BITS;
+    memory_region_clear_dirty_bitmap(ramblock->mr, mr_offset, mr_size);
+
     rcu_read_unlock();
 
     if (dirty && tcg_enabled()) {
@@ -1382,9 +1400,10 @@ bool cpu_physical_memory_test_and_clear_dirty(ram_addr_t start,
 }
 
 DirtyBitmapSnapshot *cpu_physical_memory_snapshot_and_clear_dirty
-     (ram_addr_t start, ram_addr_t length, unsigned client)
+    (MemoryRegion *mr, hwaddr offset, hwaddr length, unsigned client)
 {
     DirtyMemoryBlocks *blocks;
+    ram_addr_t start = memory_region_get_ram_addr(mr) + offset;
     unsigned long align = 1UL << (TARGET_PAGE_BITS + BITS_PER_LEVEL);
     ram_addr_t first = QEMU_ALIGN_DOWN(start, align);
     ram_addr_t last  = QEMU_ALIGN_UP(start + length, align);
@@ -1425,6 +1444,8 @@ DirtyBitmapSnapshot *cpu_physical_memory_snapshot_and_clear_dirty
     if (tcg_enabled()) {
         tlb_reset_dirty_range_all(start, length);
     }
+
+    memory_region_clear_dirty_bitmap(mr, offset, length);
 
     return snap;
 }
@@ -1687,7 +1708,7 @@ void ram_block_dump(Monitor *mon)
  * when we actually open and map them.  Iterate over the file
  * descriptors instead, and use qemu_fd_getpagesize().
  */
-static int find_max_supported_pagesize(Object *obj, void *opaque)
+static int find_min_backend_pagesize(Object *obj, void *opaque)
 {
     long *hpsize_min = opaque;
 
@@ -1703,7 +1724,27 @@ static int find_max_supported_pagesize(Object *obj, void *opaque)
     return 0;
 }
 
-long qemu_getrampagesize(void)
+static int find_max_backend_pagesize(Object *obj, void *opaque)
+{
+    long *hpsize_max = opaque;
+
+    if (object_dynamic_cast(obj, TYPE_MEMORY_BACKEND)) {
+        HostMemoryBackend *backend = MEMORY_BACKEND(obj);
+        long hpsize = host_memory_backend_pagesize(backend);
+
+        if (host_memory_backend_is_mapped(backend) && (hpsize > *hpsize_max)) {
+            *hpsize_max = hpsize;
+        }
+    }
+
+    return 0;
+}
+
+/*
+ * TODO: We assume right now that all mapped host memory backends are
+ * used as RAM, however some might be used for different purposes.
+ */
+long qemu_minrampagesize(void)
 {
     long hpsize = LONG_MAX;
     long mainrampagesize;
@@ -1723,7 +1764,7 @@ long qemu_getrampagesize(void)
      */
     memdev_root = object_resolve_path("/objects", NULL);
     if (memdev_root) {
-        object_child_foreach(memdev_root, find_max_supported_pagesize, &hpsize);
+        object_child_foreach(memdev_root, find_min_backend_pagesize, &hpsize);
     }
     if (hpsize == LONG_MAX) {
         /* No additional memory regions found ==> Report main RAM page size */
@@ -1746,8 +1787,24 @@ long qemu_getrampagesize(void)
 
     return hpsize;
 }
+
+long qemu_maxrampagesize(void)
+{
+    long pagesize = qemu_mempath_getpagesize(mem_path);
+    Object *memdev_root = object_resolve_path("/objects", NULL);
+
+    if (memdev_root) {
+        object_child_foreach(memdev_root, find_max_backend_pagesize,
+                             &pagesize);
+    }
+    return pagesize;
+}
 #else
-long qemu_getrampagesize(void)
+long qemu_minrampagesize(void)
+{
+    return getpagesize();
+}
+long qemu_maxrampagesize(void)
 {
     return getpagesize();
 }
@@ -1830,6 +1887,7 @@ static void *file_ram_alloc(RAMBlock *block,
                             bool truncate,
                             Error **errp)
 {
+    MachineState *ms = MACHINE(qdev_get_machine());
     void *area;
 
     block->page_size = qemu_fd_getpagesize(fd);
@@ -1878,7 +1936,7 @@ static void *file_ram_alloc(RAMBlock *block,
     }
 
     area = qemu_ram_mmap(fd, memory, block->mr->align,
-                         block->flags & RAM_SHARED);
+                         block->flags & RAM_SHARED, block->flags & RAM_PMEM);
     if (area == MAP_FAILED) {
         error_setg_errno(errp, errno,
                          "unable to map backing store for guest RAM");
@@ -1886,7 +1944,7 @@ static void *file_ram_alloc(RAMBlock *block,
     }
 
     if (mem_prealloc) {
-        os_mem_prealloc(fd, area, memory, smp_cpus, errp);
+        os_mem_prealloc(fd, area, memory, ms->smp.cpus, errp);
         if (errp && *errp) {
             qemu_ram_munmap(fd, area, memory);
             return NULL;
@@ -4117,42 +4175,41 @@ void page_size_init(void)
 
 #if !defined(CONFIG_USER_ONLY)
 
-static void mtree_print_phys_entries(fprintf_function mon, void *f,
-                                     int start, int end, int skip, int ptr)
+static void mtree_print_phys_entries(int start, int end, int skip, int ptr)
 {
     if (start == end - 1) {
-        mon(f, "\t%3d      ", start);
+        qemu_printf("\t%3d      ", start);
     } else {
-        mon(f, "\t%3d..%-3d ", start, end - 1);
+        qemu_printf("\t%3d..%-3d ", start, end - 1);
     }
-    mon(f, " skip=%d ", skip);
+    qemu_printf(" skip=%d ", skip);
     if (ptr == PHYS_MAP_NODE_NIL) {
-        mon(f, " ptr=NIL");
+        qemu_printf(" ptr=NIL");
     } else if (!skip) {
-        mon(f, " ptr=#%d", ptr);
+        qemu_printf(" ptr=#%d", ptr);
     } else {
-        mon(f, " ptr=[%d]", ptr);
+        qemu_printf(" ptr=[%d]", ptr);
     }
-    mon(f, "\n");
+    qemu_printf("\n");
 }
 
 #define MR_SIZE(size) (int128_nz(size) ? (hwaddr)int128_get64( \
                            int128_sub((size), int128_one())) : 0)
 
-void mtree_print_dispatch(fprintf_function mon, void *f,
-                          AddressSpaceDispatch *d, MemoryRegion *root)
+void mtree_print_dispatch(AddressSpaceDispatch *d, MemoryRegion *root)
 {
     int i;
 
-    mon(f, "  Dispatch\n");
-    mon(f, "    Physical sections\n");
+    qemu_printf("  Dispatch\n");
+    qemu_printf("    Physical sections\n");
 
     for (i = 0; i < d->map.sections_nb; ++i) {
         MemoryRegionSection *s = d->map.sections + i;
         const char *names[] = { " [unassigned]", " [not dirty]",
                                 " [ROM]", " [watch]" };
 
-        mon(f, "      #%d @" TARGET_FMT_plx ".." TARGET_FMT_plx " %s%s%s%s%s",
+        qemu_printf("      #%d @" TARGET_FMT_plx ".." TARGET_FMT_plx
+                    " %s%s%s%s%s",
             i,
             s->offset_within_address_space,
             s->offset_within_address_space + MR_SIZE(s->mr->size),
@@ -4163,20 +4220,20 @@ void mtree_print_dispatch(fprintf_function mon, void *f,
             s->mr->is_iommu ? " [iommu]" : "");
 
         if (s->mr->alias) {
-            mon(f, " alias=%s", s->mr->alias->name ?
+            qemu_printf(" alias=%s", s->mr->alias->name ?
                     s->mr->alias->name : "noname");
         }
-        mon(f, "\n");
+        qemu_printf("\n");
     }
 
-    mon(f, "    Nodes (%d bits per level, %d levels) ptr=[%d] skip=%d\n",
+    qemu_printf("    Nodes (%d bits per level, %d levels) ptr=[%d] skip=%d\n",
                P_L2_BITS, P_L2_LEVELS, d->phys_map.ptr, d->phys_map.skip);
     for (i = 0; i < d->map.nodes_nb; ++i) {
         int j, jprev;
         PhysPageEntry prev;
         Node *n = d->map.nodes + i;
 
-        mon(f, "      [%d]\n", i);
+        qemu_printf("      [%d]\n", i);
 
         for (j = 0, jprev = 0, prev = *n[0]; j < ARRAY_SIZE(*n); ++j) {
             PhysPageEntry *pe = *n + j;
@@ -4185,14 +4242,14 @@ void mtree_print_dispatch(fprintf_function mon, void *f,
                 continue;
             }
 
-            mtree_print_phys_entries(mon, f, jprev, j, prev.skip, prev.ptr);
+            mtree_print_phys_entries(jprev, j, prev.skip, prev.ptr);
 
             jprev = j;
             prev = *pe;
         }
 
         if (jprev != ARRAY_SIZE(*n)) {
-            mtree_print_phys_entries(mon, f, jprev, j, prev.skip, prev.ptr);
+            mtree_print_phys_entries(jprev, j, prev.skip, prev.ptr);
         }
     }
 }

@@ -68,7 +68,7 @@ static BlockJob *do_test_id(BlockBackend *blk, const char *id,
 static BlockBackend *create_blk(const char *name)
 {
     /* No I/O is performed on this device */
-    BlockBackend *blk = blk_new(0, BLK_PERM_ALL);
+    BlockBackend *blk = blk_new(qemu_get_aio_context(), 0, BLK_PERM_ALL);
     BlockDriverState *bs;
 
     bs = bdrv_open("null-co://", NULL, NULL, 0, &error_abort);
@@ -122,8 +122,9 @@ static void test_job_ids(void)
     /* This one is valid */
     job[0] = do_test_id(blk[0], "id0", true);
 
-    /* We cannot have two jobs in the same BDS */
-    do_test_id(blk[0], "id1", false);
+    /* We can have two jobs in the same BDS */
+    job[1] = do_test_id(blk[0], "id1", true);
+    job_early_fail(&job[1]->job);
 
     /* Duplicate job IDs are not allowed */
     job[1] = do_test_id(blk[1], "id0", false);

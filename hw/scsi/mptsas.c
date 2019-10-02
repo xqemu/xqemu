@@ -28,6 +28,7 @@
 #include "sysemu/dma.h"
 #include "hw/pci/msi.h"
 #include "qemu/iov.h"
+#include "qemu/module.h"
 #include "hw/scsi/scsi.h"
 #include "scsi/constants.h"
 #include "trace.h"
@@ -540,7 +541,7 @@ reply_maybe_async:
         break;
 
     case MPI_SCSITASKMGMT_TASKTYPE_RESET_BUS:
-        qbus_reset_all(&s->bus.qbus);
+        qbus_reset_all(BUS(&s->bus));
         break;
 
     default:
@@ -803,7 +804,7 @@ static void mptsas_soft_reset(MPTSASState *s)
     s->intr_mask = MPI_HIM_DIM | MPI_HIM_RIM;
     mptsas_update_interrupt(s);
 
-    qbus_reset_all(&s->bus.qbus);
+    qbus_reset_all(BUS(&s->bus));
     s->intr_status = 0;
     s->intr_mask = save_mask;
 

@@ -9,6 +9,7 @@
 
 #include "qemu/osdep.h"
 #include "libqtest.h"
+#include "qemu/module.h"
 #include "libqos/virtio.h"
 #include "libqos/virtio-mmio.h"
 #include "libqos/malloc.h"
@@ -148,7 +149,7 @@ static QVirtQueue *qvirtio_mmio_virtqueue_setup(QVirtioDevice *d,
     g_assert_cmpint(vq->size & (vq->size - 1), ==, 0);
 
     addr = guest_alloc(alloc, qvring_size(vq->size, dev->page_size));
-    qvring_init(alloc, vq, addr);
+    qvring_init(dev->qts, alloc, vq, addr);
     qvirtio_mmio_set_queue_address(d, vq->desc / dev->page_size);
 
     return vq;

@@ -42,6 +42,491 @@
 /* Element-by-element access macros */
 #define DF_ELEMENTS(df) (MSA_WRLEN / DF_BITS(df))
 
+
+
+/*
+ * Bit Count
+ * ---------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | NLOC.B        | Vector Leading Ones Count (byte)                         |
+ * | NLOC.H        | Vector Leading Ones Count (halfword)                     |
+ * | NLOC.W        | Vector Leading Ones Count (word)                         |
+ * | NLOC.D        | Vector Leading Ones Count (doubleword)                   |
+ * | NLZC.B        | Vector Leading Zeros Count (byte)                        |
+ * | NLZC.H        | Vector Leading Zeros Count (halfword)                    |
+ * | NLZC.W        | Vector Leading Zeros Count (word)                        |
+ * | NLZC.D        | Vector Leading Zeros Count (doubleword)                  |
+ * | PCNT.B        | Vector Population Count (byte)                           |
+ * | PCNT.H        | Vector Population Count (halfword)                       |
+ * | PCNT.W        | Vector Population Count (word)                           |
+ * | PCNT.D        | Vector Population Count (doubleword)                     |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Bit Count group helpers here */
+
+
+/*
+ * Bit Move
+ * --------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | BINSL.B       | Vector Bit Insert Left (byte)                            |
+ * | BINSL.H       | Vector Bit Insert Left (halfword)                        |
+ * | BINSL.W       | Vector Bit Insert Left (word)                            |
+ * | BINSL.D       | Vector Bit Insert Left (doubleword)                      |
+ * | BINSR.B       | Vector Bit Insert Right (byte)                           |
+ * | BINSR.H       | Vector Bit Insert Right (halfword)                       |
+ * | BINSR.W       | Vector Bit Insert Right (word)                           |
+ * | BINSR.D       | Vector Bit Insert Right (doubleword)                     |
+ * | BMNZ.V        | Vector Bit Move If Not Zero                              |
+ * | BMZ.V         | Vector Bit Move If Zero                                  |
+ * | BSEL.V        | Vector Bit Select                                        |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Bit Move group helpers here */
+
+
+/*
+ * Bit Set
+ * -------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | BCLR.B        | Vector Bit Clear (byte)                                  |
+ * | BCLR.H        | Vector Bit Clear (halfword)                              |
+ * | BCLR.W        | Vector Bit Clear (word)                                  |
+ * | BCLR.D        | Vector Bit Clear (doubleword)                            |
+ * | BNEG.B        | Vector Bit Negate (byte)                                 |
+ * | BNEG.H        | Vector Bit Negate (halfword)                             |
+ * | BNEG.W        | Vector Bit Negate (word)                                 |
+ * | BNEG.D        | Vector Bit Negate (doubleword)                           |
+ * | BSET.B        | Vector Bit Set (byte)                                    |
+ * | BSET.H        | Vector Bit Set (halfword)                                |
+ * | BSET.W        | Vector Bit Set (word)                                    |
+ * | BSET.D        | Vector Bit Set (doubleword)                              |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Bit Set group helpers here */
+
+
+/*
+ * Fixed Multiply
+ * --------------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | MADD_Q.H      | Vector Fixed-Point Multiply and Add (halfword)           |
+ * | MADD_Q.W      | Vector Fixed-Point Multiply and Add (word)               |
+ * | MADDR_Q.H     | Vector Fixed-Point Multiply and Add Rounded (halfword)   |
+ * | MADDR_Q.W     | Vector Fixed-Point Multiply and Add Rounded (word)       |
+ * | MSUB_Q.H      | Vector Fixed-Point Multiply and Subtr. (halfword)        |
+ * | MSUB_Q.W      | Vector Fixed-Point Multiply and Subtr. (word)            |
+ * | MSUBR_Q.H     | Vector Fixed-Point Multiply and Subtr. Rounded (halfword)|
+ * | MSUBR_Q.W     | Vector Fixed-Point Multiply and Subtr. Rounded (word)    |
+ * | MUL_Q.H       | Vector Fixed-Point Multiply (halfword)                   |
+ * | MUL_Q.W       | Vector Fixed-Point Multiply (word)                       |
+ * | MULR_Q.H      | Vector Fixed-Point Multiply Rounded (halfword)           |
+ * | MULR_Q.W      | Vector Fixed-Point Multiply Rounded (word)               |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Fixed Multiply group helpers here */
+
+
+/*
+ * Float Max Min
+ * -------------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | FMAX_A.W      | Vector Floating-Point Maximum (Absolute) (word)          |
+ * | FMAX_A.D      | Vector Floating-Point Maximum (Absolute) (doubleword)    |
+ * | FMAX.W        | Vector Floating-Point Maximum (word)                     |
+ * | FMAX.D        | Vector Floating-Point Maximum (doubleword)               |
+ * | FMIN_A.W      | Vector Floating-Point Minimum (Absolute) (word)          |
+ * | FMIN_A.D      | Vector Floating-Point Minimum (Absolute) (doubleword)    |
+ * | FMIN.W        | Vector Floating-Point Minimum (word)                     |
+ * | FMIN.D        | Vector Floating-Point Minimum (doubleword)               |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Float Max Min group helpers here */
+
+
+/*
+ * Int Add
+ * -------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | ADD_A.B       | Vector Add Absolute Values (byte)                        |
+ * | ADD_A.H       | Vector Add Absolute Values (halfword)                    |
+ * | ADD_A.W       | Vector Add Absolute Values (word)                        |
+ * | ADD_A.D       | Vector Add Absolute Values (doubleword)                  |
+ * | ADDS_A.B      | Vector Signed Saturated Add (of Absolute) (byte)         |
+ * | ADDS_A.H      | Vector Signed Saturated Add (of Absolute) (halfword)     |
+ * | ADDS_A.W      | Vector Signed Saturated Add (of Absolute) (word)         |
+ * | ADDS_A.D      | Vector Signed Saturated Add (of Absolute) (doubleword)   |
+ * | ADDS_S.B      | Vector Signed Saturated Add (of Signed) (byte)           |
+ * | ADDS_S.H      | Vector Signed Saturated Add (of Signed) (halfword)       |
+ * | ADDS_S.W      | Vector Signed Saturated Add (of Signed) (word)           |
+ * | ADDS_S.D      | Vector Signed Saturated Add (of Signed) (doubleword)     |
+ * | ADDS_U.B      | Vector Unsigned Saturated Add (of Unsigned) (byte)       |
+ * | ADDS_U.H      | Vector Unsigned Saturated Add (of Unsigned) (halfword)   |
+ * | ADDS_U.W      | Vector Unsigned Saturated Add (of Unsigned) (word)       |
+ * | ADDS_U.D      | Vector Unsigned Saturated Add (of Unsigned) (doubleword) |
+ * | ADDV.B        | Vector Add (byte)                                        |
+ * | ADDV.H        | Vector Add (halfword)                                    |
+ * | ADDV.W        | Vector Add (word)                                        |
+ * | ADDV.D        | Vector Add (doubleword)                                  |
+ * | HADD_S.H      | Vector Signed Horizontal Add (halfword)                  |
+ * | HADD_S.W      | Vector Signed Horizontal Add (word)                      |
+ * | HADD_S.D      | Vector Signed Horizontal Add (doubleword)                |
+ * | HADD_U.H      | Vector Unigned Horizontal Add (halfword)                 |
+ * | HADD_U.W      | Vector Unigned Horizontal Add (word)                     |
+ * | HADD_U.D      | Vector Unigned Horizontal Add (doubleword)               |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Int Add group helpers here */
+
+
+/*
+ * Int Average
+ * -----------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | AVE_S.B       | Vector Signed Average (byte)                             |
+ * | AVE_S.H       | Vector Signed Average (halfword)                         |
+ * | AVE_S.W       | Vector Signed Average (word)                             |
+ * | AVE_S.D       | Vector Signed Average (doubleword)                       |
+ * | AVE_U.B       | Vector Unsigned Average (byte)                           |
+ * | AVE_U.H       | Vector Unsigned Average (halfword)                       |
+ * | AVE_U.W       | Vector Unsigned Average (word)                           |
+ * | AVE_U.D       | Vector Unsigned Average (doubleword)                     |
+ * | AVER_S.B      | Vector Signed Average Rounded (byte)                     |
+ * | AVER_S.H      | Vector Signed Average Rounded (halfword)                 |
+ * | AVER_S.W      | Vector Signed Average Rounded (word)                     |
+ * | AVER_S.D      | Vector Signed Average Rounded (doubleword)               |
+ * | AVER_U.B      | Vector Unsigned Average Rounded (byte)                   |
+ * | AVER_U.H      | Vector Unsigned Average Rounded (halfword)               |
+ * | AVER_U.W      | Vector Unsigned Average Rounded (word)                   |
+ * | AVER_U.D      | Vector Unsigned Average Rounded (doubleword)             |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Int Average group helpers here */
+
+
+/*
+ * Int Compare
+ * -----------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | CEQ.B         | Vector Compare Equal (byte)                              |
+ * | CEQ.H         | Vector Compare Equal (halfword)                          |
+ * | CEQ.W         | Vector Compare Equal (word)                              |
+ * | CEQ.D         | Vector Compare Equal (doubleword)                        |
+ * | CLE_S.B       | Vector Compare Signed Less Than or Equal (byte)          |
+ * | CLE_S.H       | Vector Compare Signed Less Than or Equal (halfword)      |
+ * | CLE_S.W       | Vector Compare Signed Less Than or Equal (word)          |
+ * | CLE_S.D       | Vector Compare Signed Less Than or Equal (doubleword)    |
+ * | CLE_U.B       | Vector Compare Unsigned Less Than or Equal (byte)        |
+ * | CLE_U.H       | Vector Compare Unsigned Less Than or Equal (halfword)    |
+ * | CLE_U.W       | Vector Compare Unsigned Less Than or Equal (word)        |
+ * | CLE_U.D       | Vector Compare Unsigned Less Than or Equal (doubleword)  |
+ * | CLT_S.B       | Vector Compare Signed Less Than (byte)                   |
+ * | CLT_S.H       | Vector Compare Signed Less Than (halfword)               |
+ * | CLT_S.W       | Vector Compare Signed Less Than (word)                   |
+ * | CLT_S.D       | Vector Compare Signed Less Than (doubleword)             |
+ * | CLT_U.B       | Vector Compare Unsigned Less Than (byte)                 |
+ * | CLT_U.H       | Vector Compare Unsigned Less Than (halfword)             |
+ * | CLT_U.W       | Vector Compare Unsigned Less Than (word)                 |
+ * | CLT_U.D       | Vector Compare Unsigned Less Than (doubleword)           |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Int Compare group helpers here */
+
+
+/*
+ * Int Divide
+ * ----------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | DIV_S.B       | Vector Signed Divide (byte)                              |
+ * | DIV_S.H       | Vector Signed Divide (halfword)                          |
+ * | DIV_S.W       | Vector Signed Divide (word)                              |
+ * | DIV_S.D       | Vector Signed Divide (doubleword)                        |
+ * | DIV_U.B       | Vector Unsigned Divide (byte)                            |
+ * | DIV_U.H       | Vector Unsigned Divide (halfword)                        |
+ * | DIV_U.W       | Vector Unsigned Divide (word)                            |
+ * | DIV_U.D       | Vector Unsigned Divide (doubleword)                      |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Int Divide group helpers here */
+
+
+/*
+ * Int Dot Product
+ * ---------------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | DOTP_S.H      | Vector Signed Dot Product (halfword)                     |
+ * | DOTP_S.W      | Vector Signed Dot Product (word)                         |
+ * | DOTP_S.D      | Vector Signed Dot Product (doubleword)                   |
+ * | DOTP_U.H      | Vector Unsigned Dot Product (halfword)                   |
+ * | DOTP_U.W      | Vector Unsigned Dot Product (word)                       |
+ * | DOTP_U.D      | Vector Unsigned Dot Product (doubleword)                 |
+ * | DPADD_S.H     | Vector Signed Dot Product (halfword)                     |
+ * | DPADD_S.W     | Vector Signed Dot Product (word)                         |
+ * | DPADD_S.D     | Vector Signed Dot Product (doubleword)                   |
+ * | DPADD_U.H     | Vector Unsigned Dot Product (halfword)                   |
+ * | DPADD_U.W     | Vector Unsigned Dot Product (word)                       |
+ * | DPADD_U.D     | Vector Unsigned Dot Product (doubleword)                 |
+ * | DPSUB_S.H     | Vector Signed Dot Product (halfword)                     |
+ * | DPSUB_S.W     | Vector Signed Dot Product (word)                         |
+ * | DPSUB_S.D     | Vector Signed Dot Product (doubleword)                   |
+ * | DPSUB_U.H     | Vector Unsigned Dot Product (halfword)                   |
+ * | DPSUB_U.W     | Vector Unsigned Dot Product (word)                       |
+ * | DPSUB_U.D     | Vector Unsigned Dot Product (doubleword)                 |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Int Dot Product group helpers here */
+
+
+/*
+ * Int Max Min
+ * -----------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | MAX_A.B       | Vector Maximum Based on Absolute Value (byte)            |
+ * | MAX_A.H       | Vector Maximum Based on Absolute Value (halfword)        |
+ * | MAX_A.W       | Vector Maximum Based on Absolute Value (word)            |
+ * | MAX_A.D       | Vector Maximum Based on Absolute Value (doubleword)      |
+ * | MAX_S.B       | Vector Signed Maximum (byte)                             |
+ * | MAX_S.H       | Vector Signed Maximum (halfword)                         |
+ * | MAX_S.W       | Vector Signed Maximum (word)                             |
+ * | MAX_S.D       | Vector Signed Maximum (doubleword)                       |
+ * | MAX_U.B       | Vector Unsigned Maximum (byte)                           |
+ * | MAX_U.H       | Vector Unsigned Maximum (halfword)                       |
+ * | MAX_U.W       | Vector Unsigned Maximum (word)                           |
+ * | MAX_U.D       | Vector Unsigned Maximum (doubleword)                     |
+ * | MIN_A.B       | Vector Minimum Based on Absolute Value (byte)            |
+ * | MIN_A.H       | Vector Minimum Based on Absolute Value (halfword)        |
+ * | MIN_A.W       | Vector Minimum Based on Absolute Value (word)            |
+ * | MIN_A.D       | Vector Minimum Based on Absolute Value (doubleword)      |
+ * | MIN_S.B       | Vector Signed Minimum (byte)                             |
+ * | MIN_S.H       | Vector Signed Minimum (halfword)                         |
+ * | MIN_S.W       | Vector Signed Minimum (word)                             |
+ * | MIN_S.D       | Vector Signed Minimum (doubleword)                       |
+ * | MIN_U.B       | Vector Unsigned Minimum (byte)                           |
+ * | MIN_U.H       | Vector Unsigned Minimum (halfword)                       |
+ * | MIN_U.W       | Vector Unsigned Minimum (word)                           |
+ * | MIN_U.D       | Vector Unsigned Minimum (doubleword)                     |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Int Max Min group helpers here */
+
+
+/*
+ * Int Modulo
+ * ----------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | MOD_S.B       | Vector Signed Modulo (byte)                              |
+ * | MOD_S.H       | Vector Signed Modulo (halfword)                          |
+ * | MOD_S.W       | Vector Signed Modulo (word)                              |
+ * | MOD_S.D       | Vector Signed Modulo (doubleword)                        |
+ * | MOD_U.B       | Vector Unsigned Modulo (byte)                            |
+ * | MOD_U.H       | Vector Unsigned Modulo (halfword)                        |
+ * | MOD_U.W       | Vector Unsigned Modulo (word)                            |
+ * | MOD_U.D       | Vector Unsigned Modulo (doubleword)                      |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Int Modulo group helpers here */
+
+
+/*
+ * Int Multiply
+ * ------------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | MADDV.B       | Vector Multiply and Add (byte)                           |
+ * | MADDV.H       | Vector Multiply and Add (halfword)                       |
+ * | MADDV.W       | Vector Multiply and Add (word)                           |
+ * | MADDV.D       | Vector Multiply and Add (doubleword)                     |
+ * | MSUBV.B       | Vector Multiply and Subtract (byte)                      |
+ * | MSUBV.H       | Vector Multiply and Subtract (halfword)                  |
+ * | MSUBV.W       | Vector Multiply and Subtract (word)                      |
+ * | MSUBV.D       | Vector Multiply and Subtract (doubleword)                |
+ * | MULV.B        | Vector Multiply (byte)                                   |
+ * | MULV.H        | Vector Multiply (halfword)                               |
+ * | MULV.W        | Vector Multiply (word)                                   |
+ * | MULV.D        | Vector Multiply (doubleword)                             |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Int Multiply group helpers here */
+
+
+/*
+ * Int Subtract
+ * ------------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | ASUB_S.B      | Vector Absolute Values of Signed Subtract (byte)         |
+ * | ASUB_S.H      | Vector Absolute Values of Signed Subtract (halfword)     |
+ * | ASUB_S.W      | Vector Absolute Values of Signed Subtract (word)         |
+ * | ASUB_S.D      | Vector Absolute Values of Signed Subtract (doubleword)   |
+ * | ASUB_U.B      | Vector Absolute Values of Unsigned Subtract (byte)       |
+ * | ASUB_U.H      | Vector Absolute Values of Unsigned Subtract (halfword)   |
+ * | ASUB_U.W      | Vector Absolute Values of Unsigned Subtract (word)       |
+ * | ASUB_U.D      | Vector Absolute Values of Unsigned Subtract (doubleword) |
+ * | HSUB_S.H      | Vector Signed Horizontal Subtract (halfword)             |
+ * | HSUB_S.W      | Vector Signed Horizontal Subtract (word)                 |
+ * | HSUB_S.D      | Vector Signed Horizontal Subtract (doubleword)           |
+ * | HSUB_U.H      | Vector Unigned Horizontal Subtract (halfword)            |
+ * | HSUB_U.W      | Vector Unigned Horizontal Subtract (word)                |
+ * | HSUB_U.D      | Vector Unigned Horizontal Subtract (doubleword)          |
+ * | SUBS_S.B      | Vector Signed Saturated Subtract (of Signed) (byte)      |
+ * | SUBS_S.H      | Vector Signed Saturated Subtract (of Signed) (halfword)  |
+ * | SUBS_S.W      | Vector Signed Saturated Subtract (of Signed) (word)      |
+ * | SUBS_S.D      | Vector Signed Saturated Subtract (of Signed) (doubleword)|
+ * | SUBS_U.B      | Vector Unsigned Saturated Subtract (of Uns.) (byte)      |
+ * | SUBS_U.H      | Vector Unsigned Saturated Subtract (of Uns.) (halfword)  |
+ * | SUBS_U.W      | Vector Unsigned Saturated Subtract (of Uns.) (word)      |
+ * | SUBS_U.D      | Vector Unsigned Saturated Subtract (of Uns.) (doubleword)|
+ * | SUBSUS_U.B    | Vector Uns. Sat. Subtract (of S. from Uns.) (byte)       |
+ * | SUBSUS_U.H    | Vector Uns. Sat. Subtract (of S. from Uns.) (halfword)   |
+ * | SUBSUS_U.W    | Vector Uns. Sat. Subtract (of S. from Uns.) (word)       |
+ * | SUBSUS_U.D    | Vector Uns. Sat. Subtract (of S. from Uns.) (doubleword) |
+ * | SUBSUU_S.B    | Vector Signed Saturated Subtract (of Uns.) (byte)        |
+ * | SUBSUU_S.H    | Vector Signed Saturated Subtract (of Uns.) (halfword)    |
+ * | SUBSUU_S.W    | Vector Signed Saturated Subtract (of Uns.) (word)        |
+ * | SUBSUU_S.D    | Vector Signed Saturated Subtract (of Uns.) (doubleword)  |
+ * | SUBV.B        | Vector Subtract (byte)                                   |
+ * | SUBV.H        | Vector Subtract (halfword)                               |
+ * | SUBV.W        | Vector Subtract (word)                                   |
+ * | SUBV.D        | Vector Subtract (doubleword)                             |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Int Subtract group helpers here */
+
+
+/*
+ * Interleave
+ * ----------
+ *
+ * +---------------+----------------------------------------------------------+
+ * | ILVEV.B       | Vector Interleave Even (byte)                            |
+ * | ILVEV.H       | Vector Interleave Even (halfword)                        |
+ * | ILVEV.W       | Vector Interleave Even (word)                            |
+ * | ILVEV.D       | Vector Interleave Even (doubleword)                      |
+ * | ILVOD.B       | Vector Interleave Odd (byte)                             |
+ * | ILVOD.H       | Vector Interleave Odd (halfword)                         |
+ * | ILVOD.W       | Vector Interleave Odd (word)                             |
+ * | ILVOD.D       | Vector Interleave Odd (doubleword)                       |
+ * | ILVL.B        | Vector Interleave Left (byte)                            |
+ * | ILVL.H        | Vector Interleave Left (halfword)                        |
+ * | ILVL.W        | Vector Interleave Left (word)                            |
+ * | ILVL.D        | Vector Interleave Left (doubleword)                      |
+ * | ILVR.B        | Vector Interleave Right (byte)                           |
+ * | ILVR.H        | Vector Interleave Right (halfword)                       |
+ * | ILVR.W        | Vector Interleave Right (word)                           |
+ * | ILVR.D        | Vector Interleave Right (doubleword)                     |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Interleave group helpers here */
+
+
+/*
+ * Logic
+ * -----
+ *
+ * +---------------+----------------------------------------------------------+
+ * | AND.V         | Vector Logical And                                       |
+ * | NOR.V         | Vector Logical Negated Or                                |
+ * | OR.V          | Vector Logical Or                                        |
+ * | XOR.V         | Vector Logical Exclusive Or                              |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Logic group helpers here */
+
+
+/*
+ * Move
+ * ----
+ *
+ * +---------------+----------------------------------------------------------+
+ * | MOVE.V        | Vector Move                                              |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Move group helpers here */
+
+
+/*
+ * Pack
+ * ----
+ *
+ * +---------------+----------------------------------------------------------+
+ * | PCKEV.B       | Vector Pack Even (byte)                                  |
+ * | PCKEV.H       | Vector Pack Even (halfword)                              |
+ * | PCKEV.W       | Vector Pack Even (word)                                  |
+ * | PCKEV.D       | Vector Pack Even (doubleword)                            |
+ * | PCKOD.B       | Vector Pack Odd (byte)                                   |
+ * | PCKOD.H       | Vector Pack Odd (halfword)                               |
+ * | PCKOD.W       | Vector Pack Odd (word)                                   |
+ * | PCKOD.D       | Vector Pack Odd (doubleword)                             |
+ * | VSHF.B        | Vector Data Preserving Shuffle (byte)                    |
+ * | VSHF.H        | Vector Data Preserving Shuffle (halfword)                |
+ * | VSHF.W        | Vector Data Preserving Shuffle (word)                    |
+ * | VSHF.D        | Vector Data Preserving Shuffle (doubleword)              |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Pack group helpers here */
+
+
+/*
+ * Shift
+ * -----
+ *
+ * +---------------+----------------------------------------------------------+
+ * | SLL.B         | Vector Shift Left (byte)                                 |
+ * | SLL.H         | Vector Shift Left (halfword)                             |
+ * | SLL.W         | Vector Shift Left (word)                                 |
+ * | SLL.D         | Vector Shift Left (doubleword)                           |
+ * | SRA.B         | Vector Shift Right Arithmetic (byte)                     |
+ * | SRA.H         | Vector Shift Right Arithmetic (halfword)                 |
+ * | SRA.W         | Vector Shift Right Arithmetic (word)                     |
+ * | SRA.D         | Vector Shift Right Arithmetic (doubleword)               |
+ * | SRAR.B        | Vector Shift Right Arithmetic Rounded (byte)             |
+ * | SRAR.H        | Vector Shift Right Arithmetic Rounded (halfword)         |
+ * | SRAR.W        | Vector Shift Right Arithmetic Rounded (word)             |
+ * | SRAR.D        | Vector Shift Right Arithmetic Rounded (doubleword)       |
+ * | SRL.B         | Vector Shift Right Logical (byte)                        |
+ * | SRL.H         | Vector Shift Right Logical (halfword)                    |
+ * | SRL.W         | Vector Shift Right Logical (word)                        |
+ * | SRL.D         | Vector Shift Right Logical (doubleword)                  |
+ * | SRLR.B        | Vector Shift Right Logical Rounded (byte)                |
+ * | SRLR.H        | Vector Shift Right Logical Rounded (halfword)            |
+ * | SRLR.W        | Vector Shift Right Logical Rounded (word)                |
+ * | SRLR.D        | Vector Shift Right Logical Rounded (doubleword)          |
+ * +---------------+----------------------------------------------------------+
+ */
+
+/* TODO: insert Shift group helpers here */
+
+
 static inline void msa_move_v(wr_t *pwd, wr_t *pws)
 {
     uint32_t i;
@@ -130,10 +615,6 @@ void helper_msa_ ## FUNC(CPUMIPSState *env, uint32_t wd, uint32_t ws,   \
     }                                                                   \
 }
 
-MSA_FN_VECTOR(and_v, pwd->d[i], pws->d[i] & pwt->d[i])
-MSA_FN_VECTOR(or_v, pwd->d[i], pws->d[i] | pwt->d[i])
-MSA_FN_VECTOR(nor_v, pwd->d[i], ~(pws->d[i] | pwt->d[i]))
-MSA_FN_VECTOR(xor_v, pwd->d[i], pws->d[i] ^ pwt->d[i])
 MSA_FN_VECTOR(bmnz_v, pwd->d[i],
         BIT_MOVE_IF_NOT_ZERO(pwd->d[i], pws->d[i], pwt->d[i], DF_DOUBLE))
 MSA_FN_VECTOR(bmz_v, pwd->d[i],
@@ -144,6 +625,46 @@ MSA_FN_VECTOR(bsel_v, pwd->d[i],
 #undef BIT_MOVE_IF_ZERO
 #undef BIT_SELECT
 #undef MSA_FN_VECTOR
+
+void helper_msa_and_v(CPUMIPSState *env, uint32_t wd, uint32_t ws, uint32_t wt)
+{
+    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
+    wr_t *pws = &(env->active_fpu.fpr[ws].wr);
+    wr_t *pwt = &(env->active_fpu.fpr[wt].wr);
+
+    pwd->d[0] = pws->d[0] & pwt->d[0];
+    pwd->d[1] = pws->d[1] & pwt->d[1];
+}
+
+void helper_msa_or_v(CPUMIPSState *env, uint32_t wd, uint32_t ws, uint32_t wt)
+{
+    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
+    wr_t *pws = &(env->active_fpu.fpr[ws].wr);
+    wr_t *pwt = &(env->active_fpu.fpr[wt].wr);
+
+    pwd->d[0] = pws->d[0] | pwt->d[0];
+    pwd->d[1] = pws->d[1] | pwt->d[1];
+}
+
+void helper_msa_nor_v(CPUMIPSState *env, uint32_t wd, uint32_t ws, uint32_t wt)
+{
+    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
+    wr_t *pws = &(env->active_fpu.fpr[ws].wr);
+    wr_t *pwt = &(env->active_fpu.fpr[wt].wr);
+
+    pwd->d[0] = ~(pws->d[0] | pwt->d[0]);
+    pwd->d[1] = ~(pws->d[1] | pwt->d[1]);
+}
+
+void helper_msa_xor_v(CPUMIPSState *env, uint32_t wd, uint32_t ws, uint32_t wt)
+{
+    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
+    wr_t *pws = &(env->active_fpu.fpr[ws].wr);
+    wr_t *pwt = &(env->active_fpu.fpr[wt].wr);
+
+    pwd->d[0] = pws->d[0] ^ pwt->d[0];
+    pwd->d[1] = pws->d[1] ^ pwt->d[1];
+}
 
 static inline int64_t msa_addv_df(uint32_t df, int64_t arg1, int64_t arg2)
 {
@@ -360,16 +881,16 @@ static inline int64_t msa_binsr_df(uint32_t df, int64_t dest, int64_t arg1,
 
 static inline int64_t msa_sat_s_df(uint32_t df, int64_t arg, uint32_t m)
 {
-    return arg < M_MIN_INT(m+1) ? M_MIN_INT(m+1) :
-                                  arg > M_MAX_INT(m+1) ? M_MAX_INT(m+1) :
-                                                         arg;
+    return arg < M_MIN_INT(m + 1) ? M_MIN_INT(m + 1) :
+                                    arg > M_MAX_INT(m + 1) ? M_MAX_INT(m + 1) :
+                                                             arg;
 }
 
 static inline int64_t msa_sat_u_df(uint32_t df, int64_t arg, uint32_t m)
 {
     uint64_t u_arg = UNSIGNED(arg, df);
-    return  u_arg < M_MAX_UINT(m+1) ? u_arg :
-                                      M_MAX_UINT(m+1);
+    return  u_arg < M_MAX_UINT(m + 1) ? u_arg :
+                                        M_MAX_UINT(m + 1);
 }
 
 static inline int64_t msa_srar_df(uint32_t df, int64_t arg1, int64_t arg2)
@@ -641,14 +1162,15 @@ static inline int64_t msa_div_s_df(uint32_t df, int64_t arg1, int64_t arg2)
     if (arg1 == DF_MIN_INT(df) && arg2 == -1) {
         return DF_MIN_INT(df);
     }
-    return arg2 ? arg1 / arg2 : 0;
+    return arg2 ? arg1 / arg2
+                : arg1 >= 0 ? -1 : 1;
 }
 
 static inline int64_t msa_div_u_df(uint32_t df, int64_t arg1, int64_t arg2)
 {
     uint64_t u_arg1 = UNSIGNED(arg1, df);
     uint64_t u_arg2 = UNSIGNED(arg2, df);
-    return u_arg2 ? u_arg1 / u_arg2 : 0;
+    return arg2 ? u_arg1 / u_arg2 : -1;
 }
 
 static inline int64_t msa_mod_s_df(uint32_t df, int64_t arg1, int64_t arg2)
@@ -656,27 +1178,27 @@ static inline int64_t msa_mod_s_df(uint32_t df, int64_t arg1, int64_t arg2)
     if (arg1 == DF_MIN_INT(df) && arg2 == -1) {
         return 0;
     }
-    return arg2 ? arg1 % arg2 : 0;
+    return arg2 ? arg1 % arg2 : arg1;
 }
 
 static inline int64_t msa_mod_u_df(uint32_t df, int64_t arg1, int64_t arg2)
 {
     uint64_t u_arg1 = UNSIGNED(arg1, df);
     uint64_t u_arg2 = UNSIGNED(arg2, df);
-    return u_arg2 ? u_arg1 % u_arg2 : 0;
+    return u_arg2 ? u_arg1 % u_arg2 : u_arg1;
 }
 
 #define SIGNED_EVEN(a, df) \
-        ((((int64_t)(a)) << (64 - DF_BITS(df)/2)) >> (64 - DF_BITS(df)/2))
+        ((((int64_t)(a)) << (64 - DF_BITS(df) / 2)) >> (64 - DF_BITS(df) / 2))
 
 #define UNSIGNED_EVEN(a, df) \
-        ((((uint64_t)(a)) << (64 - DF_BITS(df)/2)) >> (64 - DF_BITS(df)/2))
+        ((((uint64_t)(a)) << (64 - DF_BITS(df) / 2)) >> (64 - DF_BITS(df) / 2))
 
 #define SIGNED_ODD(a, df) \
-        ((((int64_t)(a)) << (64 - DF_BITS(df))) >> (64 - DF_BITS(df)/2))
+        ((((int64_t)(a)) << (64 - DF_BITS(df))) >> (64 - DF_BITS(df) / 2))
 
 #define UNSIGNED_ODD(a, df) \
-        ((((uint64_t)(a)) << (64 - DF_BITS(df))) >> (64 - DF_BITS(df)/2))
+        ((((uint64_t)(a)) << (64 - DF_BITS(df))) >> (64 - DF_BITS(df) / 2))
 
 #define SIGNED_EXTRACT(e, o, a, df)     \
     do {                                \
@@ -804,28 +1326,45 @@ void helper_msa_ ## func ## _df(CPUMIPSState *env, uint32_t df,         \
     wr_t *pwd = &(env->active_fpu.fpr[wd].wr);                          \
     wr_t *pws = &(env->active_fpu.fpr[ws].wr);                          \
     wr_t *pwt = &(env->active_fpu.fpr[wt].wr);                          \
-    uint32_t i;                                                         \
                                                                         \
     switch (df) {                                                       \
     case DF_BYTE:                                                       \
-        for (i = 0; i < DF_ELEMENTS(DF_BYTE); i++) {                    \
-            pwd->b[i] = msa_ ## func ## _df(df, pws->b[i], pwt->b[i]);  \
-        }                                                               \
+        pwd->b[0]  = msa_ ## func ## _df(df, pws->b[0],  pwt->b[0]);    \
+        pwd->b[1]  = msa_ ## func ## _df(df, pws->b[1],  pwt->b[1]);    \
+        pwd->b[2]  = msa_ ## func ## _df(df, pws->b[2],  pwt->b[2]);    \
+        pwd->b[3]  = msa_ ## func ## _df(df, pws->b[3],  pwt->b[3]);    \
+        pwd->b[4]  = msa_ ## func ## _df(df, pws->b[4],  pwt->b[4]);    \
+        pwd->b[5]  = msa_ ## func ## _df(df, pws->b[5],  pwt->b[5]);    \
+        pwd->b[6]  = msa_ ## func ## _df(df, pws->b[6],  pwt->b[6]);    \
+        pwd->b[7]  = msa_ ## func ## _df(df, pws->b[7],  pwt->b[7]);    \
+        pwd->b[8]  = msa_ ## func ## _df(df, pws->b[8],  pwt->b[8]);    \
+        pwd->b[9]  = msa_ ## func ## _df(df, pws->b[9],  pwt->b[9]);    \
+        pwd->b[10] = msa_ ## func ## _df(df, pws->b[10], pwt->b[10]);   \
+        pwd->b[11] = msa_ ## func ## _df(df, pws->b[11], pwt->b[11]);   \
+        pwd->b[12] = msa_ ## func ## _df(df, pws->b[12], pwt->b[12]);   \
+        pwd->b[13] = msa_ ## func ## _df(df, pws->b[13], pwt->b[13]);   \
+        pwd->b[14] = msa_ ## func ## _df(df, pws->b[14], pwt->b[14]);   \
+        pwd->b[15] = msa_ ## func ## _df(df, pws->b[15], pwt->b[15]);   \
         break;                                                          \
     case DF_HALF:                                                       \
-        for (i = 0; i < DF_ELEMENTS(DF_HALF); i++) {                    \
-            pwd->h[i] = msa_ ## func ## _df(df, pws->h[i], pwt->h[i]);  \
-        }                                                               \
+        pwd->h[0] = msa_ ## func ## _df(df, pws->h[0], pwt->h[0]);      \
+        pwd->h[1] = msa_ ## func ## _df(df, pws->h[1], pwt->h[1]);      \
+        pwd->h[2] = msa_ ## func ## _df(df, pws->h[2], pwt->h[2]);      \
+        pwd->h[3] = msa_ ## func ## _df(df, pws->h[3], pwt->h[3]);      \
+        pwd->h[4] = msa_ ## func ## _df(df, pws->h[4], pwt->h[4]);      \
+        pwd->h[5] = msa_ ## func ## _df(df, pws->h[5], pwt->h[5]);      \
+        pwd->h[6] = msa_ ## func ## _df(df, pws->h[6], pwt->h[6]);      \
+        pwd->h[7] = msa_ ## func ## _df(df, pws->h[7], pwt->h[7]);      \
         break;                                                          \
     case DF_WORD:                                                       \
-        for (i = 0; i < DF_ELEMENTS(DF_WORD); i++) {                    \
-            pwd->w[i] = msa_ ## func ## _df(df, pws->w[i], pwt->w[i]);  \
-        }                                                               \
+        pwd->w[0] = msa_ ## func ## _df(df, pws->w[0], pwt->w[0]);      \
+        pwd->w[1] = msa_ ## func ## _df(df, pws->w[1], pwt->w[1]);      \
+        pwd->w[2] = msa_ ## func ## _df(df, pws->w[2], pwt->w[2]);      \
+        pwd->w[3] = msa_ ## func ## _df(df, pws->w[3], pwt->w[3]);      \
         break;                                                          \
     case DF_DOUBLE:                                                     \
-        for (i = 0; i < DF_ELEMENTS(DF_DOUBLE); i++) {                  \
-            pwd->d[i] = msa_ ## func ## _df(df, pws->d[i], pwt->d[i]);  \
-        }                                                               \
+        pwd->d[0] = msa_ ## func ## _df(df, pws->d[0], pwt->d[0]);      \
+        pwd->d[1] = msa_ ## func ## _df(df, pws->d[1], pwt->d[1]);      \
         break;                                                          \
     default:                                                            \
         assert(0);                                                      \
@@ -1011,42 +1550,71 @@ static inline int64_t msa_msubr_q_df(uint32_t df, int64_t dest, int64_t arg1,
 }
 
 #define MSA_TEROP_DF(func) \
-void helper_msa_ ## func ## _df(CPUMIPSState *env, uint32_t df, uint32_t wd,   \
-                          uint32_t ws, uint32_t wt)                     \
-{                                                                       \
-    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);                          \
-    wr_t *pws = &(env->active_fpu.fpr[ws].wr);                          \
-    wr_t *pwt = &(env->active_fpu.fpr[wt].wr);                          \
-    uint32_t i;                                                         \
-                                                                        \
-    switch (df) {                                                       \
-    case DF_BYTE:                                                       \
-        for (i = 0; i < DF_ELEMENTS(DF_BYTE); i++) {                    \
-            pwd->b[i] = msa_ ## func ## _df(df, pwd->b[i], pws->b[i],   \
-                                            pwt->b[i]);                 \
-        }                                                               \
-        break;                                                          \
-    case DF_HALF:                                                       \
-        for (i = 0; i < DF_ELEMENTS(DF_HALF); i++) {                    \
-            pwd->h[i] = msa_ ## func ## _df(df, pwd->h[i], pws->h[i],   \
-                                            pwt->h[i]);                 \
-        }                                                               \
-        break;                                                          \
-    case DF_WORD:                                                       \
-        for (i = 0; i < DF_ELEMENTS(DF_WORD); i++) {                    \
-            pwd->w[i] = msa_ ## func ## _df(df, pwd->w[i], pws->w[i],   \
-                                            pwt->w[i]);                 \
-        }                                                               \
-        break;                                                          \
-    case DF_DOUBLE:                                                     \
-        for (i = 0; i < DF_ELEMENTS(DF_DOUBLE); i++) {                  \
-            pwd->d[i] = msa_ ## func ## _df(df, pwd->d[i], pws->d[i],   \
-                                            pwt->d[i]);                 \
-        }                                                               \
-        break;                                                          \
-    default:                                                            \
-        assert(0);                                                      \
-    }                                                                   \
+void helper_msa_ ## func ## _df(CPUMIPSState *env, uint32_t df, uint32_t wd,  \
+                                uint32_t ws, uint32_t wt)                     \
+{                                                                             \
+    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);                                \
+    wr_t *pws = &(env->active_fpu.fpr[ws].wr);                                \
+    wr_t *pwt = &(env->active_fpu.fpr[wt].wr);                                \
+                                                                              \
+    switch (df) {                                                             \
+    case DF_BYTE:                                                             \
+        pwd->b[0]  = msa_ ## func ## _df(df, pwd->b[0],  pws->b[0],           \
+                                             pwt->b[0]);                      \
+        pwd->b[1]  = msa_ ## func ## _df(df, pwd->b[1],  pws->b[1],           \
+                                             pwt->b[1]);                      \
+        pwd->b[2]  = msa_ ## func ## _df(df, pwd->b[2],  pws->b[2],           \
+                                             pwt->b[2]);                      \
+        pwd->b[3]  = msa_ ## func ## _df(df, pwd->b[3],  pws->b[3],           \
+                                             pwt->b[3]);                      \
+        pwd->b[4]  = msa_ ## func ## _df(df, pwd->b[4],  pws->b[4],           \
+                                             pwt->b[4]);                      \
+        pwd->b[5]  = msa_ ## func ## _df(df, pwd->b[5],  pws->b[5],           \
+                                             pwt->b[5]);                      \
+        pwd->b[6]  = msa_ ## func ## _df(df, pwd->b[6],  pws->b[6],           \
+                                             pwt->b[6]);                      \
+        pwd->b[7]  = msa_ ## func ## _df(df, pwd->b[7],  pws->b[7],           \
+                                             pwt->b[7]);                      \
+        pwd->b[8]  = msa_ ## func ## _df(df, pwd->b[8],  pws->b[8],           \
+                                             pwt->b[8]);                      \
+        pwd->b[9]  = msa_ ## func ## _df(df, pwd->b[9],  pws->b[9],           \
+                                             pwt->b[9]);                      \
+        pwd->b[10] = msa_ ## func ## _df(df, pwd->b[10], pws->b[10],          \
+                                             pwt->b[10]);                     \
+        pwd->b[11] = msa_ ## func ## _df(df, pwd->b[11], pws->b[11],          \
+                                             pwt->b[11]);                     \
+        pwd->b[12] = msa_ ## func ## _df(df, pwd->b[12], pws->b[12],          \
+                                             pwt->b[12]);                     \
+        pwd->b[13] = msa_ ## func ## _df(df, pwd->b[13], pws->b[13],          \
+                                             pwt->b[13]);                     \
+        pwd->b[14] = msa_ ## func ## _df(df, pwd->b[14], pws->b[14],          \
+                                             pwt->b[14]);                     \
+        pwd->b[15] = msa_ ## func ## _df(df, pwd->b[15], pws->b[15],          \
+                                             pwt->b[15]);                     \
+        break;                                                                \
+    case DF_HALF:                                                             \
+        pwd->h[0] = msa_ ## func ## _df(df, pwd->h[0], pws->h[0], pwt->h[0]); \
+        pwd->h[1] = msa_ ## func ## _df(df, pwd->h[1], pws->h[1], pwt->h[1]); \
+        pwd->h[2] = msa_ ## func ## _df(df, pwd->h[2], pws->h[2], pwt->h[2]); \
+        pwd->h[3] = msa_ ## func ## _df(df, pwd->h[3], pws->h[3], pwt->h[3]); \
+        pwd->h[4] = msa_ ## func ## _df(df, pwd->h[4], pws->h[4], pwt->h[4]); \
+        pwd->h[5] = msa_ ## func ## _df(df, pwd->h[5], pws->h[5], pwt->h[5]); \
+        pwd->h[6] = msa_ ## func ## _df(df, pwd->h[6], pws->h[6], pwt->h[6]); \
+        pwd->h[7] = msa_ ## func ## _df(df, pwd->h[7], pws->h[7], pwt->h[7]); \
+        break;                                                                \
+    case DF_WORD:                                                             \
+        pwd->w[0] = msa_ ## func ## _df(df, pwd->w[0], pws->w[0], pwt->w[0]); \
+        pwd->w[1] = msa_ ## func ## _df(df, pwd->w[1], pws->w[1], pwt->w[1]); \
+        pwd->w[2] = msa_ ## func ## _df(df, pwd->w[2], pws->w[2], pwt->w[2]); \
+        pwd->w[3] = msa_ ## func ## _df(df, pwd->w[3], pws->w[3], pwt->w[3]); \
+        break;                                                                \
+    case DF_DOUBLE:                                                           \
+        pwd->d[0] = msa_ ## func ## _df(df, pwd->d[0], pws->d[0], pwt->d[0]); \
+        pwd->d[1] = msa_ ## func ## _df(df, pwd->d[1], pws->d[1], pwt->d[1]); \
+        break;                                                                \
+    default:                                                                  \
+        assert(0);                                                            \
+    }                                                                         \
 }
 
 MSA_TEROP_DF(maddv)
@@ -1158,61 +1726,14 @@ void helper_msa_##FUNC(CPUMIPSState *env, uint32_t df, uint32_t wd, \
             (DF_ELEMENTS(DF) / 2)
 
 #define Rb(pwr, i) (pwr->b[i])
-#define Lb(pwr, i) (pwr->b[i + DF_ELEMENTS(DF_BYTE)/2])
+#define Lb(pwr, i) (pwr->b[i + DF_ELEMENTS(DF_BYTE) / 2])
 #define Rh(pwr, i) (pwr->h[i])
-#define Lh(pwr, i) (pwr->h[i + DF_ELEMENTS(DF_HALF)/2])
+#define Lh(pwr, i) (pwr->h[i + DF_ELEMENTS(DF_HALF) / 2])
 #define Rw(pwr, i) (pwr->w[i])
-#define Lw(pwr, i) (pwr->w[i + DF_ELEMENTS(DF_WORD)/2])
+#define Lw(pwr, i) (pwr->w[i + DF_ELEMENTS(DF_WORD) / 2])
 #define Rd(pwr, i) (pwr->d[i])
-#define Ld(pwr, i) (pwr->d[i + DF_ELEMENTS(DF_DOUBLE)/2])
+#define Ld(pwr, i) (pwr->d[i + DF_ELEMENTS(DF_DOUBLE) / 2])
 
-#define MSA_DO(DF)                      \
-    do {                                \
-        R##DF(pwx, i) = pwt->DF[2*i];   \
-        L##DF(pwx, i) = pws->DF[2*i];   \
-    } while (0)
-MSA_FN_DF(pckev_df)
-#undef MSA_DO
-
-#define MSA_DO(DF)                      \
-    do {                                \
-        R##DF(pwx, i) = pwt->DF[2*i+1]; \
-        L##DF(pwx, i) = pws->DF[2*i+1]; \
-    } while (0)
-MSA_FN_DF(pckod_df)
-#undef MSA_DO
-
-#define MSA_DO(DF)                      \
-    do {                                \
-        pwx->DF[2*i]   = L##DF(pwt, i); \
-        pwx->DF[2*i+1] = L##DF(pws, i); \
-    } while (0)
-MSA_FN_DF(ilvl_df)
-#undef MSA_DO
-
-#define MSA_DO(DF)                      \
-    do {                                \
-        pwx->DF[2*i]   = R##DF(pwt, i); \
-        pwx->DF[2*i+1] = R##DF(pws, i); \
-    } while (0)
-MSA_FN_DF(ilvr_df)
-#undef MSA_DO
-
-#define MSA_DO(DF)                      \
-    do {                                \
-        pwx->DF[2*i]   = pwt->DF[2*i];  \
-        pwx->DF[2*i+1] = pws->DF[2*i];  \
-    } while (0)
-MSA_FN_DF(ilvev_df)
-#undef MSA_DO
-
-#define MSA_DO(DF)                          \
-    do {                                    \
-        pwx->DF[2*i]   = pwt->DF[2*i+1];    \
-        pwx->DF[2*i+1] = pws->DF[2*i+1];    \
-    } while (0)
-MSA_FN_DF(ilvod_df)
-#undef MSA_DO
 #undef MSA_LOOP_COND
 
 #define MSA_LOOP_COND(DF) \
@@ -1229,6 +1750,536 @@ MSA_FN_DF(vshf_df)
 #undef MSA_DO
 #undef MSA_LOOP_COND
 #undef MSA_FN_DF
+
+
+void helper_msa_ilvev_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+                         uint32_t ws, uint32_t wt)
+{
+    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
+    wr_t *pws = &(env->active_fpu.fpr[ws].wr);
+    wr_t *pwt = &(env->active_fpu.fpr[wt].wr);
+
+    switch (df) {
+    case DF_BYTE:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->b[8]  = pws->b[9];
+        pwd->b[9]  = pwt->b[9];
+        pwd->b[10] = pws->b[11];
+        pwd->b[11] = pwt->b[11];
+        pwd->b[12] = pws->b[13];
+        pwd->b[13] = pwt->b[13];
+        pwd->b[14] = pws->b[15];
+        pwd->b[15] = pwt->b[15];
+        pwd->b[0]  = pws->b[1];
+        pwd->b[1]  = pwt->b[1];
+        pwd->b[2]  = pws->b[3];
+        pwd->b[3]  = pwt->b[3];
+        pwd->b[4]  = pws->b[5];
+        pwd->b[5]  = pwt->b[5];
+        pwd->b[6]  = pws->b[7];
+        pwd->b[7]  = pwt->b[7];
+#else
+        pwd->b[15] = pws->b[14];
+        pwd->b[14] = pwt->b[14];
+        pwd->b[13] = pws->b[12];
+        pwd->b[12] = pwt->b[12];
+        pwd->b[11] = pws->b[10];
+        pwd->b[10] = pwt->b[10];
+        pwd->b[9]  = pws->b[8];
+        pwd->b[8]  = pwt->b[8];
+        pwd->b[7]  = pws->b[6];
+        pwd->b[6]  = pwt->b[6];
+        pwd->b[5]  = pws->b[4];
+        pwd->b[4]  = pwt->b[4];
+        pwd->b[3]  = pws->b[2];
+        pwd->b[2]  = pwt->b[2];
+        pwd->b[1]  = pws->b[0];
+        pwd->b[0]  = pwt->b[0];
+#endif
+        break;
+    case DF_HALF:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->h[4] = pws->h[5];
+        pwd->h[5] = pwt->h[5];
+        pwd->h[6] = pws->h[7];
+        pwd->h[7] = pwt->h[7];
+        pwd->h[0] = pws->h[1];
+        pwd->h[1] = pwt->h[1];
+        pwd->h[2] = pws->h[3];
+        pwd->h[3] = pwt->h[3];
+#else
+        pwd->h[7] = pws->h[6];
+        pwd->h[6] = pwt->h[6];
+        pwd->h[5] = pws->h[4];
+        pwd->h[4] = pwt->h[4];
+        pwd->h[3] = pws->h[2];
+        pwd->h[2] = pwt->h[2];
+        pwd->h[1] = pws->h[0];
+        pwd->h[0] = pwt->h[0];
+#endif
+        break;
+    case DF_WORD:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->w[2] = pws->w[3];
+        pwd->w[3] = pwt->w[3];
+        pwd->w[0] = pws->w[1];
+        pwd->w[1] = pwt->w[1];
+#else
+        pwd->w[3] = pws->w[2];
+        pwd->w[2] = pwt->w[2];
+        pwd->w[1] = pws->w[0];
+        pwd->w[0] = pwt->w[0];
+#endif
+        break;
+    case DF_DOUBLE:
+        pwd->d[1] = pws->d[0];
+        pwd->d[0] = pwt->d[0];
+        break;
+    default:
+        assert(0);
+    }
+}
+
+void helper_msa_ilvod_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+                         uint32_t ws, uint32_t wt)
+{
+    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
+    wr_t *pws = &(env->active_fpu.fpr[ws].wr);
+    wr_t *pwt = &(env->active_fpu.fpr[wt].wr);
+
+    switch (df) {
+    case DF_BYTE:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->b[7]  = pwt->b[6];
+        pwd->b[6]  = pws->b[6];
+        pwd->b[5]  = pwt->b[4];
+        pwd->b[4]  = pws->b[4];
+        pwd->b[3]  = pwt->b[2];
+        pwd->b[2]  = pws->b[2];
+        pwd->b[1]  = pwt->b[0];
+        pwd->b[0]  = pws->b[0];
+        pwd->b[15] = pwt->b[14];
+        pwd->b[14] = pws->b[14];
+        pwd->b[13] = pwt->b[12];
+        pwd->b[12] = pws->b[12];
+        pwd->b[11] = pwt->b[10];
+        pwd->b[10] = pws->b[10];
+        pwd->b[9]  = pwt->b[8];
+        pwd->b[8]  = pws->b[8];
+#else
+        pwd->b[0]  = pwt->b[1];
+        pwd->b[1]  = pws->b[1];
+        pwd->b[2]  = pwt->b[3];
+        pwd->b[3]  = pws->b[3];
+        pwd->b[4]  = pwt->b[5];
+        pwd->b[5]  = pws->b[5];
+        pwd->b[6]  = pwt->b[7];
+        pwd->b[7]  = pws->b[7];
+        pwd->b[8]  = pwt->b[9];
+        pwd->b[9]  = pws->b[9];
+        pwd->b[10] = pwt->b[11];
+        pwd->b[11] = pws->b[11];
+        pwd->b[12] = pwt->b[13];
+        pwd->b[13] = pws->b[13];
+        pwd->b[14] = pwt->b[15];
+        pwd->b[15] = pws->b[15];
+#endif
+        break;
+    case DF_HALF:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->h[3] = pwt->h[2];
+        pwd->h[2] = pws->h[2];
+        pwd->h[1] = pwt->h[0];
+        pwd->h[0] = pws->h[0];
+        pwd->h[7] = pwt->h[6];
+        pwd->h[6] = pws->h[6];
+        pwd->h[5] = pwt->h[4];
+        pwd->h[4] = pws->h[4];
+#else
+        pwd->h[0] = pwt->h[1];
+        pwd->h[1] = pws->h[1];
+        pwd->h[2] = pwt->h[3];
+        pwd->h[3] = pws->h[3];
+        pwd->h[4] = pwt->h[5];
+        pwd->h[5] = pws->h[5];
+        pwd->h[6] = pwt->h[7];
+        pwd->h[7] = pws->h[7];
+#endif
+        break;
+    case DF_WORD:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->w[1] = pwt->w[0];
+        pwd->w[0] = pws->w[0];
+        pwd->w[3] = pwt->w[2];
+        pwd->w[2] = pws->w[2];
+#else
+        pwd->w[0] = pwt->w[1];
+        pwd->w[1] = pws->w[1];
+        pwd->w[2] = pwt->w[3];
+        pwd->w[3] = pws->w[3];
+#endif
+        break;
+    case DF_DOUBLE:
+        pwd->d[0] = pwt->d[1];
+        pwd->d[1] = pws->d[1];
+        break;
+    default:
+        assert(0);
+    }
+}
+
+void helper_msa_ilvl_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+                        uint32_t ws, uint32_t wt)
+{
+    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
+    wr_t *pws = &(env->active_fpu.fpr[ws].wr);
+    wr_t *pwt = &(env->active_fpu.fpr[wt].wr);
+
+    switch (df) {
+    case DF_BYTE:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->b[7]  = pwt->b[15];
+        pwd->b[6]  = pws->b[15];
+        pwd->b[5]  = pwt->b[14];
+        pwd->b[4]  = pws->b[14];
+        pwd->b[3]  = pwt->b[13];
+        pwd->b[2]  = pws->b[13];
+        pwd->b[1]  = pwt->b[12];
+        pwd->b[0]  = pws->b[12];
+        pwd->b[15] = pwt->b[11];
+        pwd->b[14] = pws->b[11];
+        pwd->b[13] = pwt->b[10];
+        pwd->b[12] = pws->b[10];
+        pwd->b[11] = pwt->b[9];
+        pwd->b[10] = pws->b[9];
+        pwd->b[9]  = pwt->b[8];
+        pwd->b[8]  = pws->b[8];
+#else
+        pwd->b[0]  = pwt->b[8];
+        pwd->b[1]  = pws->b[8];
+        pwd->b[2]  = pwt->b[9];
+        pwd->b[3]  = pws->b[9];
+        pwd->b[4]  = pwt->b[10];
+        pwd->b[5]  = pws->b[10];
+        pwd->b[6]  = pwt->b[11];
+        pwd->b[7]  = pws->b[11];
+        pwd->b[8]  = pwt->b[12];
+        pwd->b[9]  = pws->b[12];
+        pwd->b[10] = pwt->b[13];
+        pwd->b[11] = pws->b[13];
+        pwd->b[12] = pwt->b[14];
+        pwd->b[13] = pws->b[14];
+        pwd->b[14] = pwt->b[15];
+        pwd->b[15] = pws->b[15];
+#endif
+        break;
+    case DF_HALF:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->h[3] = pwt->h[7];
+        pwd->h[2] = pws->h[7];
+        pwd->h[1] = pwt->h[6];
+        pwd->h[0] = pws->h[6];
+        pwd->h[7] = pwt->h[5];
+        pwd->h[6] = pws->h[5];
+        pwd->h[5] = pwt->h[4];
+        pwd->h[4] = pws->h[4];
+#else
+        pwd->h[0] = pwt->h[4];
+        pwd->h[1] = pws->h[4];
+        pwd->h[2] = pwt->h[5];
+        pwd->h[3] = pws->h[5];
+        pwd->h[4] = pwt->h[6];
+        pwd->h[5] = pws->h[6];
+        pwd->h[6] = pwt->h[7];
+        pwd->h[7] = pws->h[7];
+#endif
+        break;
+    case DF_WORD:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->w[1] = pwt->w[3];
+        pwd->w[0] = pws->w[3];
+        pwd->w[3] = pwt->w[2];
+        pwd->w[2] = pws->w[2];
+#else
+        pwd->w[0] = pwt->w[2];
+        pwd->w[1] = pws->w[2];
+        pwd->w[2] = pwt->w[3];
+        pwd->w[3] = pws->w[3];
+#endif
+        break;
+    case DF_DOUBLE:
+        pwd->d[0] = pwt->d[1];
+        pwd->d[1] = pws->d[1];
+        break;
+    default:
+        assert(0);
+    }
+}
+
+void helper_msa_ilvr_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+                        uint32_t ws, uint32_t wt)
+{
+    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
+    wr_t *pws = &(env->active_fpu.fpr[ws].wr);
+    wr_t *pwt = &(env->active_fpu.fpr[wt].wr);
+
+    switch (df) {
+    case DF_BYTE:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->b[8]  = pws->b[0];
+        pwd->b[9]  = pwt->b[0];
+        pwd->b[10] = pws->b[1];
+        pwd->b[11] = pwt->b[1];
+        pwd->b[12] = pws->b[2];
+        pwd->b[13] = pwt->b[2];
+        pwd->b[14] = pws->b[3];
+        pwd->b[15] = pwt->b[3];
+        pwd->b[0]  = pws->b[4];
+        pwd->b[1]  = pwt->b[4];
+        pwd->b[2]  = pws->b[5];
+        pwd->b[3]  = pwt->b[5];
+        pwd->b[4]  = pws->b[6];
+        pwd->b[5]  = pwt->b[6];
+        pwd->b[6]  = pws->b[7];
+        pwd->b[7]  = pwt->b[7];
+#else
+        pwd->b[15] = pws->b[7];
+        pwd->b[14] = pwt->b[7];
+        pwd->b[13] = pws->b[6];
+        pwd->b[12] = pwt->b[6];
+        pwd->b[11] = pws->b[5];
+        pwd->b[10] = pwt->b[5];
+        pwd->b[9]  = pws->b[4];
+        pwd->b[8]  = pwt->b[4];
+        pwd->b[7]  = pws->b[3];
+        pwd->b[6]  = pwt->b[3];
+        pwd->b[5]  = pws->b[2];
+        pwd->b[4]  = pwt->b[2];
+        pwd->b[3]  = pws->b[1];
+        pwd->b[2]  = pwt->b[1];
+        pwd->b[1]  = pws->b[0];
+        pwd->b[0]  = pwt->b[0];
+#endif
+        break;
+    case DF_HALF:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->h[4] = pws->h[0];
+        pwd->h[5] = pwt->h[0];
+        pwd->h[6] = pws->h[1];
+        pwd->h[7] = pwt->h[1];
+        pwd->h[0] = pws->h[2];
+        pwd->h[1] = pwt->h[2];
+        pwd->h[2] = pws->h[3];
+        pwd->h[3] = pwt->h[3];
+#else
+        pwd->h[7] = pws->h[3];
+        pwd->h[6] = pwt->h[3];
+        pwd->h[5] = pws->h[2];
+        pwd->h[4] = pwt->h[2];
+        pwd->h[3] = pws->h[1];
+        pwd->h[2] = pwt->h[1];
+        pwd->h[1] = pws->h[0];
+        pwd->h[0] = pwt->h[0];
+#endif
+        break;
+    case DF_WORD:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->w[2] = pws->w[0];
+        pwd->w[3] = pwt->w[0];
+        pwd->w[0] = pws->w[1];
+        pwd->w[1] = pwt->w[1];
+#else
+        pwd->w[3] = pws->w[1];
+        pwd->w[2] = pwt->w[1];
+        pwd->w[1] = pws->w[0];
+        pwd->w[0] = pwt->w[0];
+#endif
+        break;
+    case DF_DOUBLE:
+        pwd->d[1] = pws->d[0];
+        pwd->d[0] = pwt->d[0];
+        break;
+    default:
+        assert(0);
+    }
+}
+
+void helper_msa_pckev_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+                         uint32_t ws, uint32_t wt)
+{
+    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
+    wr_t *pws = &(env->active_fpu.fpr[ws].wr);
+    wr_t *pwt = &(env->active_fpu.fpr[wt].wr);
+
+    switch (df) {
+    case DF_BYTE:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->b[8]  = pws->b[9];
+        pwd->b[10] = pws->b[13];
+        pwd->b[12] = pws->b[1];
+        pwd->b[14] = pws->b[5];
+        pwd->b[0]  = pwt->b[9];
+        pwd->b[2]  = pwt->b[13];
+        pwd->b[4]  = pwt->b[1];
+        pwd->b[6]  = pwt->b[5];
+        pwd->b[9]  = pws->b[11];
+        pwd->b[13] = pws->b[3];
+        pwd->b[1]  = pwt->b[11];
+        pwd->b[5]  = pwt->b[3];
+        pwd->b[11] = pws->b[15];
+        pwd->b[3]  = pwt->b[15];
+        pwd->b[15] = pws->b[7];
+        pwd->b[7]  = pwt->b[7];
+#else
+        pwd->b[15] = pws->b[14];
+        pwd->b[13] = pws->b[10];
+        pwd->b[11] = pws->b[6];
+        pwd->b[9]  = pws->b[2];
+        pwd->b[7]  = pwt->b[14];
+        pwd->b[5]  = pwt->b[10];
+        pwd->b[3]  = pwt->b[6];
+        pwd->b[1]  = pwt->b[2];
+        pwd->b[14] = pws->b[12];
+        pwd->b[10] = pws->b[4];
+        pwd->b[6]  = pwt->b[12];
+        pwd->b[2]  = pwt->b[4];
+        pwd->b[12] = pws->b[8];
+        pwd->b[4]  = pwt->b[8];
+        pwd->b[8]  = pws->b[0];
+        pwd->b[0]  = pwt->b[0];
+#endif
+        break;
+    case DF_HALF:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->h[4] = pws->h[5];
+        pwd->h[6] = pws->h[1];
+        pwd->h[0] = pwt->h[5];
+        pwd->h[2] = pwt->h[1];
+        pwd->h[5] = pws->h[7];
+        pwd->h[1] = pwt->h[7];
+        pwd->h[7] = pws->h[3];
+        pwd->h[3] = pwt->h[3];
+#else
+        pwd->h[7] = pws->h[6];
+        pwd->h[5] = pws->h[2];
+        pwd->h[3] = pwt->h[6];
+        pwd->h[1] = pwt->h[2];
+        pwd->h[6] = pws->h[4];
+        pwd->h[2] = pwt->h[4];
+        pwd->h[4] = pws->h[0];
+        pwd->h[0] = pwt->h[0];
+#endif
+        break;
+    case DF_WORD:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->w[2] = pws->w[3];
+        pwd->w[0] = pwt->w[3];
+        pwd->w[3] = pws->w[1];
+        pwd->w[1] = pwt->w[1];
+#else
+        pwd->w[3] = pws->w[2];
+        pwd->w[1] = pwt->w[2];
+        pwd->w[2] = pws->w[0];
+        pwd->w[0] = pwt->w[0];
+#endif
+        break;
+    case DF_DOUBLE:
+        pwd->d[1] = pws->d[0];
+        pwd->d[0] = pwt->d[0];
+        break;
+    default:
+        assert(0);
+    }
+}
+
+void helper_msa_pckod_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+                         uint32_t ws, uint32_t wt)
+{
+    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
+    wr_t *pws = &(env->active_fpu.fpr[ws].wr);
+    wr_t *pwt = &(env->active_fpu.fpr[wt].wr);
+
+    switch (df) {
+    case DF_BYTE:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->b[7]  = pwt->b[6];
+        pwd->b[5]  = pwt->b[2];
+        pwd->b[3]  = pwt->b[14];
+        pwd->b[1]  = pwt->b[10];
+        pwd->b[15] = pws->b[6];
+        pwd->b[13] = pws->b[2];
+        pwd->b[11] = pws->b[14];
+        pwd->b[9]  = pws->b[10];
+        pwd->b[6]  = pwt->b[4];
+        pwd->b[2]  = pwt->b[12];
+        pwd->b[14] = pws->b[4];
+        pwd->b[10] = pws->b[12];
+        pwd->b[4]  = pwt->b[0];
+        pwd->b[12] = pws->b[0];
+        pwd->b[0]  = pwt->b[8];
+        pwd->b[8]  = pws->b[8];
+#else
+        pwd->b[0]  = pwt->b[1];
+        pwd->b[2]  = pwt->b[5];
+        pwd->b[4]  = pwt->b[9];
+        pwd->b[6]  = pwt->b[13];
+        pwd->b[8]  = pws->b[1];
+        pwd->b[10] = pws->b[5];
+        pwd->b[12] = pws->b[9];
+        pwd->b[14] = pws->b[13];
+        pwd->b[1]  = pwt->b[3];
+        pwd->b[5]  = pwt->b[11];
+        pwd->b[9]  = pws->b[3];
+        pwd->b[13] = pws->b[11];
+        pwd->b[3]  = pwt->b[7];
+        pwd->b[11] = pws->b[7];
+        pwd->b[7]  = pwt->b[15];
+        pwd->b[15] = pws->b[15];
+#endif
+        break;
+    case DF_HALF:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->h[3] = pwt->h[2];
+        pwd->h[1] = pwt->h[6];
+        pwd->h[7] = pws->h[2];
+        pwd->h[5] = pws->h[6];
+        pwd->h[2] = pwt->h[0];
+        pwd->h[6] = pws->h[0];
+        pwd->h[0] = pwt->h[4];
+        pwd->h[4] = pws->h[4];
+#else
+        pwd->h[0] = pwt->h[1];
+        pwd->h[2] = pwt->h[5];
+        pwd->h[4] = pws->h[1];
+        pwd->h[6] = pws->h[5];
+        pwd->h[1] = pwt->h[3];
+        pwd->h[5] = pws->h[3];
+        pwd->h[3] = pwt->h[7];
+        pwd->h[7] = pws->h[7];
+#endif
+        break;
+    case DF_WORD:
+#if defined(HOST_WORDS_BIGENDIAN)
+        pwd->w[1] = pwt->w[0];
+        pwd->w[3] = pws->w[0];
+        pwd->w[0] = pwt->w[2];
+        pwd->w[2] = pws->w[2];
+#else
+        pwd->w[0] = pwt->w[1];
+        pwd->w[2] = pws->w[1];
+        pwd->w[1] = pwt->w[3];
+        pwd->w[3] = pws->w[3];
+#endif
+        break;
+    case DF_DOUBLE:
+        pwd->d[0] = pwt->d[1];
+        pwd->d[1] = pws->d[1];
+        break;
+    default:
+        assert(0);
+    }
+}
+
 
 void helper_msa_sldi_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
                         uint32_t ws, uint32_t n)
@@ -1248,78 +2299,152 @@ void helper_msa_splati_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
     msa_splat_df(df, pwd, pws, n);
 }
 
-void helper_msa_copy_s_df(CPUMIPSState *env, uint32_t df, uint32_t rd,
-                          uint32_t ws, uint32_t n)
+void helper_msa_copy_s_b(CPUMIPSState *env, uint32_t rd,
+                         uint32_t ws, uint32_t n)
 {
-    n %= DF_ELEMENTS(df);
-
-    switch (df) {
-    case DF_BYTE:
-        env->active_tc.gpr[rd] = (int8_t)env->active_fpu.fpr[ws].wr.b[n];
-        break;
-    case DF_HALF:
-        env->active_tc.gpr[rd] = (int16_t)env->active_fpu.fpr[ws].wr.h[n];
-        break;
-    case DF_WORD:
-        env->active_tc.gpr[rd] = (int32_t)env->active_fpu.fpr[ws].wr.w[n];
-        break;
-#ifdef TARGET_MIPS64
-    case DF_DOUBLE:
-        env->active_tc.gpr[rd] = (int64_t)env->active_fpu.fpr[ws].wr.d[n];
-        break;
-#endif
-    default:
-        assert(0);
+    n %= 16;
+#if defined(HOST_WORDS_BIGENDIAN)
+    if (n < 8) {
+        n = 8 - n - 1;
+    } else {
+        n = 24 - n - 1;
     }
+#endif
+    env->active_tc.gpr[rd] = (int8_t)env->active_fpu.fpr[ws].wr.b[n];
 }
 
-void helper_msa_copy_u_df(CPUMIPSState *env, uint32_t df, uint32_t rd,
-                          uint32_t ws, uint32_t n)
+void helper_msa_copy_s_h(CPUMIPSState *env, uint32_t rd,
+                         uint32_t ws, uint32_t n)
 {
-    n %= DF_ELEMENTS(df);
-
-    switch (df) {
-    case DF_BYTE:
-        env->active_tc.gpr[rd] = (uint8_t)env->active_fpu.fpr[ws].wr.b[n];
-        break;
-    case DF_HALF:
-        env->active_tc.gpr[rd] = (uint16_t)env->active_fpu.fpr[ws].wr.h[n];
-        break;
-    case DF_WORD:
-        env->active_tc.gpr[rd] = (uint32_t)env->active_fpu.fpr[ws].wr.w[n];
-        break;
-#ifdef TARGET_MIPS64
-    case DF_DOUBLE:
-        env->active_tc.gpr[rd] = (uint64_t)env->active_fpu.fpr[ws].wr.d[n];
-        break;
-#endif
-    default:
-        assert(0);
+    n %= 8;
+#if defined(HOST_WORDS_BIGENDIAN)
+    if (n < 4) {
+        n = 4 - n - 1;
+    } else {
+        n = 12 - n - 1;
     }
+#endif
+    env->active_tc.gpr[rd] = (int16_t)env->active_fpu.fpr[ws].wr.h[n];
 }
 
-void helper_msa_insert_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
+void helper_msa_copy_s_w(CPUMIPSState *env, uint32_t rd,
+                         uint32_t ws, uint32_t n)
+{
+    n %= 4;
+#if defined(HOST_WORDS_BIGENDIAN)
+    if (n < 2) {
+        n = 2 - n - 1;
+    } else {
+        n = 6 - n - 1;
+    }
+#endif
+    env->active_tc.gpr[rd] = (int32_t)env->active_fpu.fpr[ws].wr.w[n];
+}
+
+void helper_msa_copy_s_d(CPUMIPSState *env, uint32_t rd,
+                         uint32_t ws, uint32_t n)
+{
+    n %= 2;
+    env->active_tc.gpr[rd] = (int64_t)env->active_fpu.fpr[ws].wr.d[n];
+}
+
+void helper_msa_copy_u_b(CPUMIPSState *env, uint32_t rd,
+                         uint32_t ws, uint32_t n)
+{
+    n %= 16;
+#if defined(HOST_WORDS_BIGENDIAN)
+    if (n < 8) {
+        n = 8 - n - 1;
+    } else {
+        n = 24 - n - 1;
+    }
+#endif
+    env->active_tc.gpr[rd] = (uint8_t)env->active_fpu.fpr[ws].wr.b[n];
+}
+
+void helper_msa_copy_u_h(CPUMIPSState *env, uint32_t rd,
+                         uint32_t ws, uint32_t n)
+{
+    n %= 8;
+#if defined(HOST_WORDS_BIGENDIAN)
+    if (n < 4) {
+        n = 4 - n - 1;
+    } else {
+        n = 12 - n - 1;
+    }
+#endif
+    env->active_tc.gpr[rd] = (uint16_t)env->active_fpu.fpr[ws].wr.h[n];
+}
+
+void helper_msa_copy_u_w(CPUMIPSState *env, uint32_t rd,
+                         uint32_t ws, uint32_t n)
+{
+    n %= 4;
+#if defined(HOST_WORDS_BIGENDIAN)
+    if (n < 2) {
+        n = 2 - n - 1;
+    } else {
+        n = 6 - n - 1;
+    }
+#endif
+    env->active_tc.gpr[rd] = (uint32_t)env->active_fpu.fpr[ws].wr.w[n];
+}
+
+void helper_msa_insert_b(CPUMIPSState *env, uint32_t wd,
                           uint32_t rs_num, uint32_t n)
 {
     wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
     target_ulong rs = env->active_tc.gpr[rs_num];
-
-    switch (df) {
-    case DF_BYTE:
-        pwd->b[n] = (int8_t)rs;
-        break;
-    case DF_HALF:
-        pwd->h[n] = (int16_t)rs;
-        break;
-    case DF_WORD:
-        pwd->w[n] = (int32_t)rs;
-        break;
-    case DF_DOUBLE:
-        pwd->d[n] = (int64_t)rs;
-        break;
-    default:
-        assert(0);
+    n %= 16;
+#if defined(HOST_WORDS_BIGENDIAN)
+    if (n < 8) {
+        n = 8 - n - 1;
+    } else {
+        n = 24 - n - 1;
     }
+#endif
+    pwd->b[n] = (int8_t)rs;
+}
+
+void helper_msa_insert_h(CPUMIPSState *env, uint32_t wd,
+                          uint32_t rs_num, uint32_t n)
+{
+    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
+    target_ulong rs = env->active_tc.gpr[rs_num];
+    n %= 8;
+#if defined(HOST_WORDS_BIGENDIAN)
+    if (n < 4) {
+        n = 4 - n - 1;
+    } else {
+        n = 12 - n - 1;
+    }
+#endif
+    pwd->h[n] = (int16_t)rs;
+}
+
+void helper_msa_insert_w(CPUMIPSState *env, uint32_t wd,
+                          uint32_t rs_num, uint32_t n)
+{
+    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
+    target_ulong rs = env->active_tc.gpr[rs_num];
+    n %= 4;
+#if defined(HOST_WORDS_BIGENDIAN)
+    if (n < 2) {
+        n = 2 - n - 1;
+    } else {
+        n = 6 - n - 1;
+    }
+#endif
+    pwd->w[n] = (int32_t)rs;
+}
+
+void helper_msa_insert_d(CPUMIPSState *env, uint32_t wd,
+                          uint32_t rs_num, uint32_t n)
+{
+    wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
+    target_ulong rs = env->active_tc.gpr[rs_num];
+    n %= 2;
+    pwd->d[n] = (int64_t)rs;
 }
 
 void helper_msa_insve_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
@@ -1462,28 +2587,45 @@ void helper_msa_ ## func ## _df(CPUMIPSState *env, uint32_t df,         \
 {                                                                       \
     wr_t *pwd = &(env->active_fpu.fpr[wd].wr);                          \
     wr_t *pws = &(env->active_fpu.fpr[ws].wr);                          \
-    uint32_t i;                                                         \
                                                                         \
     switch (df) {                                                       \
     case DF_BYTE:                                                       \
-        for (i = 0; i < DF_ELEMENTS(DF_BYTE); i++) {                    \
-            pwd->b[i] = msa_ ## func ## _df(df, pws->b[i]);             \
-        }                                                               \
+        pwd->b[0]  = msa_ ## func ## _df(df, pws->b[0]);                \
+        pwd->b[1]  = msa_ ## func ## _df(df, pws->b[1]);                \
+        pwd->b[2]  = msa_ ## func ## _df(df, pws->b[2]);                \
+        pwd->b[3]  = msa_ ## func ## _df(df, pws->b[3]);                \
+        pwd->b[4]  = msa_ ## func ## _df(df, pws->b[4]);                \
+        pwd->b[5]  = msa_ ## func ## _df(df, pws->b[5]);                \
+        pwd->b[6]  = msa_ ## func ## _df(df, pws->b[6]);                \
+        pwd->b[7]  = msa_ ## func ## _df(df, pws->b[7]);                \
+        pwd->b[8]  = msa_ ## func ## _df(df, pws->b[8]);                \
+        pwd->b[9]  = msa_ ## func ## _df(df, pws->b[9]);                \
+        pwd->b[10] = msa_ ## func ## _df(df, pws->b[10]);               \
+        pwd->b[11] = msa_ ## func ## _df(df, pws->b[11]);               \
+        pwd->b[12] = msa_ ## func ## _df(df, pws->b[12]);               \
+        pwd->b[13] = msa_ ## func ## _df(df, pws->b[13]);               \
+        pwd->b[14] = msa_ ## func ## _df(df, pws->b[14]);               \
+        pwd->b[15] = msa_ ## func ## _df(df, pws->b[15]);               \
         break;                                                          \
     case DF_HALF:                                                       \
-        for (i = 0; i < DF_ELEMENTS(DF_HALF); i++) {                    \
-            pwd->h[i] = msa_ ## func ## _df(df, pws->h[i]);             \
-        }                                                               \
+        pwd->h[0] = msa_ ## func ## _df(df, pws->h[0]);                 \
+        pwd->h[1] = msa_ ## func ## _df(df, pws->h[1]);                 \
+        pwd->h[2] = msa_ ## func ## _df(df, pws->h[2]);                 \
+        pwd->h[3] = msa_ ## func ## _df(df, pws->h[3]);                 \
+        pwd->h[4] = msa_ ## func ## _df(df, pws->h[4]);                 \
+        pwd->h[5] = msa_ ## func ## _df(df, pws->h[5]);                 \
+        pwd->h[6] = msa_ ## func ## _df(df, pws->h[6]);                 \
+        pwd->h[7] = msa_ ## func ## _df(df, pws->h[7]);                 \
         break;                                                          \
     case DF_WORD:                                                       \
-        for (i = 0; i < DF_ELEMENTS(DF_WORD); i++) {                    \
-            pwd->w[i] = msa_ ## func ## _df(df, pws->w[i]);             \
-        }                                                               \
+        pwd->w[0] = msa_ ## func ## _df(df, pws->w[0]);                 \
+        pwd->w[1] = msa_ ## func ## _df(df, pws->w[1]);                 \
+        pwd->w[2] = msa_ ## func ## _df(df, pws->w[2]);                 \
+        pwd->w[3] = msa_ ## func ## _df(df, pws->w[3]);                 \
         break;                                                          \
     case DF_DOUBLE:                                                     \
-        for (i = 0; i < DF_ELEMENTS(DF_DOUBLE); i++) {                  \
-            pwd->d[i] = msa_ ## func ## _df(df, pws->d[i]);             \
-        }                                                               \
+        pwd->d[0] = msa_ ## func ## _df(df, pws->d[0]);                 \
+        pwd->d[1] = msa_ ## func ## _df(df, pws->d[1]);                 \
         break;                                                          \
     default:                                                            \
         assert(0);                                                      \
@@ -1576,8 +2718,10 @@ static inline int update_msacsr(CPUMIPSState *env, int action, int denormal)
         c &= ~FP_UNDERFLOW;
     }
 
-    /* Reciprocal operations set only Inexact when valid and not
-       divide by zero */
+    /*
+     * Reciprocal operations set only Inexact when valid and not
+     * divide by zero
+     */
     if ((action & RECIPROCAL_INEXACT) &&
             (c & (FP_INVALID | FP_DIV0)) == 0) {
         c = FP_INEXACT;
@@ -1586,15 +2730,19 @@ static inline int update_msacsr(CPUMIPSState *env, int action, int denormal)
     cause = c & enable;    /* all current enabled exceptions */
 
     if (cause == 0) {
-        /* No enabled exception, update the MSACSR Cause
-         with all current exceptions */
+        /*
+         * No enabled exception, update the MSACSR Cause
+         * with all current exceptions
+         */
         SET_FP_CAUSE(env->active_tc.msacsr,
                 (GET_FP_CAUSE(env->active_tc.msacsr) | c));
     } else {
         /* Current exceptions are enabled */
         if ((env->active_tc.msacsr & MSACSR_NX_MASK) == 0) {
-            /* Exception(s) will trap, update MSACSR Cause
-           with all enabled exceptions */
+            /*
+             * Exception(s) will trap, update MSACSR Cause
+             * with all enabled exceptions
+             */
             SET_FP_CAUSE(env->active_tc.msacsr,
                     (GET_FP_CAUSE(env->active_tc.msacsr) | c));
         }
@@ -2660,9 +3808,11 @@ void helper_msa_fexdo_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
     switch (df) {
     case DF_WORD:
         for (i = 0; i < DF_ELEMENTS(DF_WORD); i++) {
-            /* Half precision floats come in two formats: standard
-               IEEE and "ARM" format.  The latter gains extra exponent
-               range by omitting the NaN/Inf encodings.  */
+            /*
+             * Half precision floats come in two formats: standard
+             * IEEE and "ARM" format.  The latter gains extra exponent
+             * range by omitting the NaN/Inf encodings.
+             */
             flag ieee = 1;
 
             MSA_FLOAT_BINOP(Lh(pwx, i), from_float32, pws->w[i], ieee, 16);
@@ -2774,35 +3924,65 @@ void helper_msa_fmin_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
     wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
     wr_t *pws = &(env->active_fpu.fpr[ws].wr);
     wr_t *pwt = &(env->active_fpu.fpr[wt].wr);
-    uint32_t i;
 
     clear_msacsr_cause(env);
 
-    switch (df) {
-    case DF_WORD:
-        for (i = 0; i < DF_ELEMENTS(DF_WORD); i++) {
-            if (NUMBER_QNAN_PAIR(pws->w[i], pwt->w[i], 32, status)) {
-                MSA_FLOAT_MAXOP(pwx->w[i], min, pws->w[i], pws->w[i], 32);
-            } else if (NUMBER_QNAN_PAIR(pwt->w[i], pws->w[i], 32, status)) {
-                MSA_FLOAT_MAXOP(pwx->w[i], min, pwt->w[i], pwt->w[i], 32);
-            } else {
-                MSA_FLOAT_MAXOP(pwx->w[i], min, pws->w[i], pwt->w[i], 32);
-            }
+    if (df == DF_WORD) {
+
+        if (NUMBER_QNAN_PAIR(pws->w[0], pwt->w[0], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[0], min, pws->w[0], pws->w[0], 32);
+        } else if (NUMBER_QNAN_PAIR(pwt->w[0], pws->w[0], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[0], min, pwt->w[0], pwt->w[0], 32);
+        } else {
+            MSA_FLOAT_MAXOP(pwx->w[0], min, pws->w[0], pwt->w[0], 32);
         }
-        break;
-    case DF_DOUBLE:
-        for (i = 0; i < DF_ELEMENTS(DF_DOUBLE); i++) {
-            if (NUMBER_QNAN_PAIR(pws->d[i], pwt->d[i], 64, status)) {
-                MSA_FLOAT_MAXOP(pwx->d[i], min, pws->d[i], pws->d[i], 64);
-            } else if (NUMBER_QNAN_PAIR(pwt->d[i], pws->d[i], 64, status)) {
-                MSA_FLOAT_MAXOP(pwx->d[i], min, pwt->d[i], pwt->d[i], 64);
-            } else {
-                MSA_FLOAT_MAXOP(pwx->d[i], min, pws->d[i], pwt->d[i], 64);
-            }
+
+        if (NUMBER_QNAN_PAIR(pws->w[1], pwt->w[1], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[1], min, pws->w[1], pws->w[1], 32);
+        } else if (NUMBER_QNAN_PAIR(pwt->w[1], pws->w[1], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[1], min, pwt->w[1], pwt->w[1], 32);
+        } else {
+            MSA_FLOAT_MAXOP(pwx->w[1], min, pws->w[1], pwt->w[1], 32);
         }
-        break;
-    default:
+
+        if (NUMBER_QNAN_PAIR(pws->w[2], pwt->w[2], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[2], min, pws->w[2], pws->w[2], 32);
+        } else if (NUMBER_QNAN_PAIR(pwt->w[2], pws->w[2], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[2], min, pwt->w[2], pwt->w[2], 32);
+        } else {
+            MSA_FLOAT_MAXOP(pwx->w[2], min, pws->w[2], pwt->w[2], 32);
+        }
+
+        if (NUMBER_QNAN_PAIR(pws->w[3], pwt->w[3], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[3], min, pws->w[3], pws->w[3], 32);
+        } else if (NUMBER_QNAN_PAIR(pwt->w[3], pws->w[3], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[3], min, pwt->w[3], pwt->w[3], 32);
+        } else {
+            MSA_FLOAT_MAXOP(pwx->w[3], min, pws->w[3], pwt->w[3], 32);
+        }
+
+    } else if (df == DF_DOUBLE) {
+
+        if (NUMBER_QNAN_PAIR(pws->d[0], pwt->d[0], 64, status)) {
+            MSA_FLOAT_MAXOP(pwx->d[0], min, pws->d[0], pws->d[0], 64);
+        } else if (NUMBER_QNAN_PAIR(pwt->d[0], pws->d[0], 64, status)) {
+            MSA_FLOAT_MAXOP(pwx->d[0], min, pwt->d[0], pwt->d[0], 64);
+        } else {
+            MSA_FLOAT_MAXOP(pwx->d[0], min, pws->d[0], pwt->d[0], 64);
+        }
+
+        if (NUMBER_QNAN_PAIR(pws->d[1], pwt->d[1], 64, status)) {
+            MSA_FLOAT_MAXOP(pwx->d[1], min, pws->d[1], pws->d[1], 64);
+        } else if (NUMBER_QNAN_PAIR(pwt->d[1], pws->d[1], 64, status)) {
+            MSA_FLOAT_MAXOP(pwx->d[1], min, pwt->d[1], pwt->d[1], 64);
+        } else {
+            MSA_FLOAT_MAXOP(pwx->d[1], min, pws->d[1], pwt->d[1], 64);
+        }
+
+    } else {
+
         assert(0);
+
     }
 
     check_msacsr_cause(env, GETPC());
@@ -2818,22 +3998,18 @@ void helper_msa_fmin_a_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
     wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
     wr_t *pws = &(env->active_fpu.fpr[ws].wr);
     wr_t *pwt = &(env->active_fpu.fpr[wt].wr);
-    uint32_t i;
 
     clear_msacsr_cause(env);
 
-    switch (df) {
-    case DF_WORD:
-        for (i = 0; i < DF_ELEMENTS(DF_WORD); i++) {
-            FMAXMIN_A(min, max, pwx->w[i], pws->w[i], pwt->w[i], 32, status);
-        }
-        break;
-    case DF_DOUBLE:
-        for (i = 0; i < DF_ELEMENTS(DF_DOUBLE); i++) {
-            FMAXMIN_A(min, max, pwx->d[i], pws->d[i], pwt->d[i], 64, status);
-        }
-        break;
-    default:
+    if (df == DF_WORD) {
+        FMAXMIN_A(min, max, pwx->w[0], pws->w[0], pwt->w[0], 32, status);
+        FMAXMIN_A(min, max, pwx->w[1], pws->w[1], pwt->w[1], 32, status);
+        FMAXMIN_A(min, max, pwx->w[2], pws->w[2], pwt->w[2], 32, status);
+        FMAXMIN_A(min, max, pwx->w[3], pws->w[3], pwt->w[3], 32, status);
+    } else if (df == DF_DOUBLE) {
+        FMAXMIN_A(min, max, pwx->d[0], pws->d[0], pwt->d[0], 64, status);
+        FMAXMIN_A(min, max, pwx->d[1], pws->d[1], pwt->d[1], 64, status);
+    } else {
         assert(0);
     }
 
@@ -2845,40 +4021,70 @@ void helper_msa_fmin_a_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
 void helper_msa_fmax_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
         uint32_t ws, uint32_t wt)
 {
-    float_status *status = &env->active_tc.msa_fp_status;
+     float_status *status = &env->active_tc.msa_fp_status;
     wr_t wx, *pwx = &wx;
     wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
     wr_t *pws = &(env->active_fpu.fpr[ws].wr);
     wr_t *pwt = &(env->active_fpu.fpr[wt].wr);
-    uint32_t i;
 
     clear_msacsr_cause(env);
 
-    switch (df) {
-    case DF_WORD:
-        for (i = 0; i < DF_ELEMENTS(DF_WORD); i++) {
-            if (NUMBER_QNAN_PAIR(pws->w[i], pwt->w[i], 32, status)) {
-                MSA_FLOAT_MAXOP(pwx->w[i], max, pws->w[i], pws->w[i], 32);
-            } else if (NUMBER_QNAN_PAIR(pwt->w[i], pws->w[i], 32, status)) {
-                MSA_FLOAT_MAXOP(pwx->w[i], max, pwt->w[i], pwt->w[i], 32);
-            } else {
-                MSA_FLOAT_MAXOP(pwx->w[i], max, pws->w[i], pwt->w[i], 32);
-            }
+    if (df == DF_WORD) {
+
+        if (NUMBER_QNAN_PAIR(pws->w[0], pwt->w[0], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[0], max, pws->w[0], pws->w[0], 32);
+        } else if (NUMBER_QNAN_PAIR(pwt->w[0], pws->w[0], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[0], max, pwt->w[0], pwt->w[0], 32);
+        } else {
+            MSA_FLOAT_MAXOP(pwx->w[0], max, pws->w[0], pwt->w[0], 32);
         }
-        break;
-    case DF_DOUBLE:
-        for (i = 0; i < DF_ELEMENTS(DF_DOUBLE); i++) {
-            if (NUMBER_QNAN_PAIR(pws->d[i], pwt->d[i], 64, status)) {
-                MSA_FLOAT_MAXOP(pwx->d[i], max, pws->d[i], pws->d[i], 64);
-            } else if (NUMBER_QNAN_PAIR(pwt->d[i], pws->d[i], 64, status)) {
-                MSA_FLOAT_MAXOP(pwx->d[i], max, pwt->d[i], pwt->d[i], 64);
-            } else {
-                MSA_FLOAT_MAXOP(pwx->d[i], max, pws->d[i], pwt->d[i], 64);
-            }
+
+        if (NUMBER_QNAN_PAIR(pws->w[1], pwt->w[1], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[1], max, pws->w[1], pws->w[1], 32);
+        } else if (NUMBER_QNAN_PAIR(pwt->w[1], pws->w[1], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[1], max, pwt->w[1], pwt->w[1], 32);
+        } else {
+            MSA_FLOAT_MAXOP(pwx->w[1], max, pws->w[1], pwt->w[1], 32);
         }
-        break;
-    default:
+
+        if (NUMBER_QNAN_PAIR(pws->w[2], pwt->w[2], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[2], max, pws->w[2], pws->w[2], 32);
+        } else if (NUMBER_QNAN_PAIR(pwt->w[2], pws->w[2], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[2], max, pwt->w[2], pwt->w[2], 32);
+        } else {
+            MSA_FLOAT_MAXOP(pwx->w[2], max, pws->w[2], pwt->w[2], 32);
+        }
+
+        if (NUMBER_QNAN_PAIR(pws->w[3], pwt->w[3], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[3], max, pws->w[3], pws->w[3], 32);
+        } else if (NUMBER_QNAN_PAIR(pwt->w[3], pws->w[3], 32, status)) {
+            MSA_FLOAT_MAXOP(pwx->w[3], max, pwt->w[3], pwt->w[3], 32);
+        } else {
+            MSA_FLOAT_MAXOP(pwx->w[3], max, pws->w[3], pwt->w[3], 32);
+        }
+
+    } else if (df == DF_DOUBLE) {
+
+        if (NUMBER_QNAN_PAIR(pws->d[0], pwt->d[0], 64, status)) {
+            MSA_FLOAT_MAXOP(pwx->d[0], max, pws->d[0], pws->d[0], 64);
+        } else if (NUMBER_QNAN_PAIR(pwt->d[0], pws->d[0], 64, status)) {
+            MSA_FLOAT_MAXOP(pwx->d[0], max, pwt->d[0], pwt->d[0], 64);
+        } else {
+            MSA_FLOAT_MAXOP(pwx->d[0], max, pws->d[0], pwt->d[0], 64);
+        }
+
+        if (NUMBER_QNAN_PAIR(pws->d[1], pwt->d[1], 64, status)) {
+            MSA_FLOAT_MAXOP(pwx->d[1], max, pws->d[1], pws->d[1], 64);
+        } else if (NUMBER_QNAN_PAIR(pwt->d[1], pws->d[1], 64, status)) {
+            MSA_FLOAT_MAXOP(pwx->d[1], max, pwt->d[1], pwt->d[1], 64);
+        } else {
+            MSA_FLOAT_MAXOP(pwx->d[1], max, pws->d[1], pwt->d[1], 64);
+        }
+
+    } else {
+
         assert(0);
+
     }
 
     check_msacsr_cause(env, GETPC());
@@ -2894,22 +4100,18 @@ void helper_msa_fmax_a_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
     wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
     wr_t *pws = &(env->active_fpu.fpr[ws].wr);
     wr_t *pwt = &(env->active_fpu.fpr[wt].wr);
-    uint32_t i;
 
     clear_msacsr_cause(env);
 
-    switch (df) {
-    case DF_WORD:
-        for (i = 0; i < DF_ELEMENTS(DF_WORD); i++) {
-            FMAXMIN_A(max, min, pwx->w[i], pws->w[i], pwt->w[i], 32, status);
-        }
-        break;
-    case DF_DOUBLE:
-        for (i = 0; i < DF_ELEMENTS(DF_DOUBLE); i++) {
-            FMAXMIN_A(max, min, pwx->d[i], pws->d[i], pwt->d[i], 64, status);
-        }
-        break;
-    default:
+    if (df == DF_WORD) {
+        FMAXMIN_A(max, min, pwx->w[0], pws->w[0], pwt->w[0], 32, status);
+        FMAXMIN_A(max, min, pwx->w[1], pws->w[1], pwt->w[1], 32, status);
+        FMAXMIN_A(max, min, pwx->w[2], pws->w[2], pwt->w[2], 32, status);
+        FMAXMIN_A(max, min, pwx->w[3], pws->w[3], pwt->w[3], 32, status);
+    } else if (df == DF_DOUBLE) {
+        FMAXMIN_A(max, min, pwx->d[0], pws->d[0], pwt->d[0], 64, status);
+        FMAXMIN_A(max, min, pwx->d[1], pws->d[1], pwt->d[1], 64, status);
+    } else {
         assert(0);
     }
 
@@ -2921,7 +4123,7 @@ void helper_msa_fmax_a_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
 void helper_msa_fclass_df(CPUMIPSState *env, uint32_t df,
         uint32_t wd, uint32_t ws)
 {
-    float_status* status = &env->active_tc.msa_fp_status;
+    float_status *status = &env->active_tc.msa_fp_status;
 
     wr_t *pwd = &(env->active_fpu.fpr[wd].wr);
     wr_t *pws = &(env->active_fpu.fpr[ws].wr);
@@ -2930,9 +4132,11 @@ void helper_msa_fclass_df(CPUMIPSState *env, uint32_t df,
         pwd->w[1] = float_class_s(pws->w[1], status);
         pwd->w[2] = float_class_s(pws->w[2], status);
         pwd->w[3] = float_class_s(pws->w[3], status);
-    } else {
+    } else if (df == DF_DOUBLE) {
         pwd->d[0] = float_class_d(pws->d[0], status);
         pwd->d[1] = float_class_d(pws->d[1], status);
+    } else {
+        assert(0);
     }
 }
 
@@ -3218,9 +4422,11 @@ void helper_msa_fexupl_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
     switch (df) {
     case DF_WORD:
         for (i = 0; i < DF_ELEMENTS(DF_WORD); i++) {
-            /* Half precision floats come in two formats: standard
-               IEEE and "ARM" format.  The latter gains extra exponent
-               range by omitting the NaN/Inf encodings.  */
+            /*
+             * Half precision floats come in two formats: standard
+             * IEEE and "ARM" format.  The latter gains extra exponent
+             * range by omitting the NaN/Inf encodings.
+             */
             flag ieee = 1;
 
             MSA_FLOAT_BINOP(pwx->w[i], from_float16, Lh(pws, i), ieee, 32);
@@ -3252,9 +4458,11 @@ void helper_msa_fexupr_df(CPUMIPSState *env, uint32_t df, uint32_t wd,
     switch (df) {
     case DF_WORD:
         for (i = 0; i < DF_ELEMENTS(DF_WORD); i++) {
-            /* Half precision floats come in two formats: standard
-               IEEE and "ARM" format.  The latter gains extra exponent
-               range by omitting the NaN/Inf encodings.  */
+            /*
+             * Half precision floats come in two formats: standard
+             * IEEE and "ARM" format.  The latter gains extra exponent
+             * range by omitting the NaN/Inf encodings.
+             */
             flag ieee = 1;
 
             MSA_FLOAT_BINOP(pwx->w[i], from_float16, Rh(pws, i), ieee, 32);

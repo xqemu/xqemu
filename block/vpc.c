@@ -639,8 +639,10 @@ vpc_co_preadv(BlockDriverState *bs, uint64_t offset, uint64_t bytes,
             qemu_iovec_reset(&local_qiov);
             qemu_iovec_concat(&local_qiov, qiov, bytes_done, n_bytes);
 
+            qemu_co_mutex_unlock(&s->lock);
             ret = bdrv_co_preadv(bs->file, image_offset, n_bytes,
                                  &local_qiov, 0);
+            qemu_co_mutex_lock(&s->lock);
             if (ret < 0) {
                 goto fail;
             }
@@ -697,8 +699,10 @@ vpc_co_pwritev(BlockDriverState *bs, uint64_t offset, uint64_t bytes,
         qemu_iovec_reset(&local_qiov);
         qemu_iovec_concat(&local_qiov, qiov, bytes_done, n_bytes);
 
+        qemu_co_mutex_unlock(&s->lock);
         ret = bdrv_co_pwritev(bs->file, image_offset, n_bytes,
                               &local_qiov, 0);
+        qemu_co_mutex_lock(&s->lock);
         if (ret < 0) {
             goto fail;
         }
@@ -1007,7 +1011,8 @@ static int coroutine_fn vpc_co_create(BlockdevCreateOptions *opts,
         return -EIO;
     }
 
-    blk = blk_new(BLK_PERM_WRITE | BLK_PERM_RESIZE, BLK_PERM_ALL);
+    blk = blk_new(bdrv_get_aio_context(bs),
+                  BLK_PERM_WRITE | BLK_PERM_RESIZE, BLK_PERM_ALL);
     ret = blk_insert_bs(blk, bs, errp);
     if (ret < 0) {
         goto out;

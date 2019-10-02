@@ -588,6 +588,21 @@ is mapped.
 ETEXI
 
     {
+        .name       = "gva2gpa",
+        .args_type  = "addr:l",
+        .params     = "addr",
+        .help       = "print the guest physical address corresponding to a guest virtual address",
+        .cmd        = hmp_gva2gpa,
+    },
+
+STEXI
+@item gva2gpa @var{addr}
+@findex gva2gpa
+Print the guest physical address at which the guest's virtual address @var{addr}
+is mapped based on the mapping for the current CPU.
+ETEXI
+
+    {
         .name       = "p|print",
         .args_type  = "fmt:/,val:l",
         .params     = "/fmt expr",
@@ -940,8 +955,8 @@ ETEXI
 
     {
         .name       = "announce_self",
-        .args_type  = "",
-        .params     = "",
+        .args_type  = "interfaces:s?,id:s?",
+        .params     = "[interfaces] [id]",
         .help       = "Trigger GARP/RARP announcements",
         .cmd        = hmp_announce_self,
     },
@@ -952,6 +967,9 @@ STEXI
 Trigger a round of GARP/RARP broadcasts; this is useful for explicitly updating the
 network infrastructure after a reconfiguration or some forms of migration.
 The timings of the round are set by the migration announce parameters.
+An optional comma separated @var{interfaces} list restricts the announce to the
+named set of interfaces. An optional @var{id} can be used to start a separate announce
+timer and to change the parameters of it later.
 ETEXI
 
     {
@@ -1919,7 +1937,7 @@ ETEXI
         .params     = "[subcommand]",
         .help       = "show various information about the system state",
         .cmd        = hmp_info_help,
-        .sub_table  = info_cmds,
+        .sub_table  = hmp_info_cmds,
         .flags      = "p",
     },
 

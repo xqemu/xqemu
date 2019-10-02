@@ -9,12 +9,12 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
-#include "qemu-common.h"
 #include "cpu.h"
 #include "hw/sysbus.h"
-#include "hw/arm/arm.h"
+#include "hw/arm/boot.h"
 #include "hw/arm/primecell.h"
-#include "hw/devices.h"
+#include "hw/net/lan9118.h"
+#include "hw/net/smc91c111.h"
 #include "hw/pci/pci.h"
 #include "net/net.h"
 #include "sysemu/sysemu.h"
@@ -69,6 +69,7 @@ static void realview_init(MachineState *machine,
     NICInfo *nd;
     I2CBus *i2c;
     int n;
+    unsigned int smp_cpus = machine->smp.cpus;
     int done_nic = 0;
     qemu_irq cpu_irq[4];
     int is_mpcore = 0;

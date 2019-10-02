@@ -1495,10 +1495,8 @@ static void block_cleanup_parameters(MigrationState *s)
     }
 }
 
-static void migrate_fd_cleanup(void *opaque)
+static void migrate_fd_cleanup(MigrationState *s)
 {
-    MigrationState *s = opaque;
-
     qemu_bh_delete(s->cleanup_bh);
     s->cleanup_bh = NULL;
 
@@ -1541,6 +1539,23 @@ static void migrate_fd_cleanup(void *opaque)
     }
     notifier_list_notify(&migration_state_notifiers, s);
     block_cleanup_parameters(s);
+}
+
+static void migrate_fd_cleanup_schedule(MigrationState *s)
+{
+    /*
+     * Ref the state for bh, because it may be called when
+     * there're already no other refs
+     */
+    object_ref(OBJECT(s));
+    qemu_bh_schedule(s->cleanup_bh);
+}
+
+static void migrate_fd_cleanup_bh(void *opaque)
+{
+    MigrationState *s = opaque;
+    migrate_fd_cleanup(s);
+    object_unref(OBJECT(s));
 }
 
 void migrate_set_error(MigrationState *s, const Error *error)
@@ -1681,7 +1696,6 @@ void migrate_init(MigrationState *s)
      * locks.
      */
     s->bytes_xfer = 0;
-    s->xfer_limit = 0;
     s->cleanup_bh = 0;
     s->to_dst_file = NULL;
     s->state = MIGRATION_STATUS_NONE;
@@ -1714,7 +1728,7 @@ int migrate_add_blocker(Error *reason, Error **errp)
     if (only_migratable) {
         error_propagate_prepend(errp, error_copy(reason),
                                 "disallowing migration blocker "
-                                "(--only_migratable) for: ");
+                                "(--only-migratable) for: ");
         return -EACCES;
     }
 
@@ -3144,7 +3158,7 @@ static void migration_iteration_finish(MigrationState *s)
         error_report("%s: Unknown ending state %d", __func__, s->state);
         break;
     }
-    qemu_bh_schedule(s->cleanup_bh);
+    migrate_fd_cleanup_schedule(s);
     qemu_mutex_unlock_iothread();
 }
 
@@ -3279,7 +3293,7 @@ void migrate_fd_connect(MigrationState *s, Error *error_in)
     bool resume = s->state == MIGRATION_STATUS_POSTCOPY_PAUSED;
 
     s->expected_downtime = s->parameters.downtime_limit;
-    s->cleanup_bh = qemu_bh_new(migrate_fd_cleanup, s);
+    s->cleanup_bh = qemu_bh_new(migrate_fd_cleanup_bh, s);
     if (error_in) {
         migrate_fd_error(s, error_in);
         migrate_fd_cleanup(s);
@@ -3348,6 +3362,8 @@ void migration_global_dump(Monitor *mon)
                    ms->send_section_footer ? "on" : "off");
     monitor_printf(mon, "decompress-error-check: %s\n",
                    ms->decompress_error_check ? "on" : "off");
+    monitor_printf(mon, "clear-bitmap-shift: %u\n",
+                   ms->clear_bitmap_shift);
 }
 
 #define DEFINE_PROP_MIG_CAP(name, x)             \
@@ -3362,6 +3378,8 @@ static Property migration_properties[] = {
                      send_section_footer, true),
     DEFINE_PROP_BOOL("decompress-error-check", MigrationState,
                       decompress_error_check, true),
+    DEFINE_PROP_UINT8("x-clear-bitmap-shift", MigrationState,
+                      clear_bitmap_shift, CLEAR_BITMAP_SHIFT_DEFAULT),
 
     /* Migration parameters */
     DEFINE_PROP_UINT8("x-compress-level", MigrationState,
