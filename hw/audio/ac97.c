@@ -1271,8 +1271,10 @@ const MemoryRegionOps ac97_io_nabm_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void ac97_on_reset(AC97LinkState *s)
+static void ac97_on_reset(void *opaque)
 {
+    AC97LinkState *s = opaque;
+
     reset_bm_regs (s, &s->bm_regs[0]);
     reset_bm_regs (s, &s->bm_regs[1]);
     reset_bm_regs (s, &s->bm_regs[2]);
