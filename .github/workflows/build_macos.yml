@@ -1,11 +1,50 @@
 name: Build (macOS)
 
-on: [push, pull_request]
+on:
+  push:
+    paths-ignore:
+      - 'docs/*'
+      - 'docs/*/*'
+      - '.shippable.yml'
+      - '.cirrus.yml'
+      - '.gitlab-ci.yml'
+      - '.gitpublish'
+      - '.mailmap'
+      - '.travis.yml'
+      - 'CODING_STYLE'
+      - 'COPYING*'
+      - 'HACKING'
+      - 'LICENSE'
+      - 'MAINTAINERS'
+      - 'qemu.nsi'
+      - '*.texi'
+      - 'README*'
+      - 'VERSION*'
+  pull_request:
+    paths-ignore:
+      - 'docs/*'
+      - 'docs/*/*'
+      - '.shippable.yml'
+      - '.cirrus.yml'
+      - '.gitlab-ci.yml'
+      - '.gitpublish'
+      - '.mailmap'
+      - '.travis.yml'
+      - 'CODING_STYLE'
+      - 'COPYING*'
+      - 'HACKING'
+      - 'LICENSE'
+      - 'MAINTAINERS'
+      - 'qemu.nsi'
+      - '*.texi'
+      - 'README*'
+      - 'VERSION*'
 
 jobs:
   macOS:
     runs-on: macOS-latest
     strategy:
+      fail-fast: false
       matrix:
         configuration: ["Debug", "Release"]
     steps:
@@ -21,9 +60,7 @@ jobs:
           print('::set-env name=BUILD_PARAM::--release')
           print('::set-env name=ARTIFACT_NAME::xqemu-release')
     - name: Clone Tree
-      uses: actions/checkout@v1
-      with:
-        fetch-depth: 1
+      uses: actions/checkout@v2
     - name: Install Dependencies
       run: |
         brew update
