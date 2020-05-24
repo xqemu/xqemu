@@ -534,7 +534,7 @@ GLSL_DEFINE(sceneAmbientColor, GLSL_LTCTXA(NV_IGRAPH_XF_LTCTXA_FR_AMB) ".xyz")
                     i, i);
                 qstring_append_fmt(body,
                     "  float attenuation = 1.0;\n"
-                    "  float nDotVP = max(0.0, dot(tNormal, normalize(vec3(lightInfiniteDirection%d))));\n"
+                    "  float nDotVP = max(0.0, dot(tNormal, vec3(lightInfiniteDirection%d)));\n"
                     "  float nDotHV = max(0.0, dot(tNormal, vec3(lightInfiniteHalfVector%d)));\n",
                     i, i);
 
