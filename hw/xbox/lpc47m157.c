@@ -108,10 +108,18 @@ static void lpc47m157_io_write(void *opaque, hwaddr addr, uint64_t val,
     if (addr == 0) {
         /* INDEX_PORT */
         if (val == ENTER_CONFIG_KEY) {
-            assert(!s->configuration_mode);
+            if (s->configuration_mode) {
+                printf("lpc47m157 io write: Attempted to reenter configuration mode\n");
+            }
+            DPRINTF("lpc47m157 io write: Entering configuration mode\n");
+
             s->configuration_mode = true;
         } else if (val == EXIT_CONFIG_KEY) {
-            assert(s->configuration_mode);
+            if (!s->configuration_mode) {
+                printf("lpc47m157 io write: Attempted to reexit configuration mode\n");
+            }
+            DPRINTF("lpc47m157 io write: Exiting configuration mode\n");
+
             s->configuration_mode = false;
 
             update_devices(s);
