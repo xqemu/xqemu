@@ -260,6 +260,7 @@ static void update_sr (AC97LinkState *s, AC97BusMasterRegs *r, uint32_t new_sr)
 
 static void voice_set_active (AC97LinkState *s, int bm_index, int on)
 {
+printf("setting active 0x%X: %d\n", bm_index, on);
     switch (bm_index) {
     case PI_INDEX:
         AUD_set_active_in (s->voice_pi, on);
@@ -296,6 +297,7 @@ static void reset_bm_regs (AC97LinkState *s, AC97BusMasterRegs *r)
     r->cr = r->cr & CR_DONT_CLEAR_MASK;
     r->bd_valid = 0;
 
+printf("bm_reset 0x%X\n", r - s->bm_regs);
     voice_set_active (s, r - s->bm_regs, 0);
     memset (s->silence, 0, sizeof (s->silence));
 }
@@ -338,6 +340,7 @@ static void open_voice (AC97LinkState *s, int index, int freq)
 
     if (freq > 0) {
         s->invalid_freq[index] = 0;
+printf("opening 0x%X\n", index);
         switch (index) {
         case PI_INDEX:
             s->voice_pi = AUD_open_in (
@@ -386,6 +389,7 @@ static void open_voice (AC97LinkState *s, int index, int freq)
         }
     }
     else {
+printf("closing 0x%X\n", index);
         s->invalid_freq[index] = freq;
         switch (index) {
         case PI_INDEX:
@@ -547,6 +551,7 @@ static void mixer_reset (AC97LinkState *s)
     set_volume (s, AC97_PCM_Out_Volume_Mute, 0x8808);
     set_volume (s, AC97_Record_Gain_Mute, 0x8808);
 
+printf("reset voices\n");
     reset_voices (s, active);
 }
 
@@ -877,6 +882,7 @@ static void nabm_writeb (void *opaque, uint32_t addr, uint32_t val)
         r = &s->bm_regs[GET_BM (index)];
         if (val & CR_RR) {
             reset_bm_regs (s, r);
+printf("reset 0x%X\n", GET_BM(index));
         }
         else {
             r->cr = val & CR_VALID_MASK;
