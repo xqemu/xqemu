@@ -174,7 +174,7 @@ enum {
     CAS      = 0x34
 };
 
-#define GET_BM(index) (((index) >> 4) & 3)
+#define GET_BM(index) (((index) >> 4) & 7)
 
 static void po_callback (void *opaque, int free);
 static void pi_callback (void *opaque, int avail);
