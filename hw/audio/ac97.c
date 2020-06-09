@@ -1161,9 +1161,11 @@ static void transfer_audio (AC97LinkState *s, int index, int elapsed)
             if (r->civ == r->lvi) {
                 dolog ("Underrun civ (%d) == lvi (%d)\n", r->civ, r->lvi);
 
-                new_sr |= SR_LVBCI | SR_DCH | SR_CELV;
+                //new_sr |= SR_LVBCI | SR_DCH | SR_CELV;
                 stop = 1;
                 s->bup_flag = (r->bd.ctl_len & BD_BUP) ? BUP_LAST : 0;
+
+                fetch_bd (s, r);
             }
             else {
                 r->civ = r->piv;
