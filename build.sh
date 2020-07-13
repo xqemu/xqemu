@@ -17,6 +17,7 @@ debug_opts='--enable-debug'
 user_opts=''
 build_cflags='-O0 -g'
 job_count='4'
+make_tool='make'
 
 while [ ! -z ${1} ]
 do
@@ -64,6 +65,12 @@ case "$(uname -s)" in # adjust compilation option based on platform
         sys_cflags='-Wno-error'
         sys_opts='--python=python3 --disable-cocoa --disable-opengl --disable-fortify-source'
         postbuild='package_windows' # set the above function to be called after build
+        ;;
+    Free*|Open*|Net*|DragonFly*|BSD)
+        echo 'Compiling for BSD…'
+        sys_cflags='-march=native'
+        sys_opts='--disable-kvm --disable-xen --disable-werror --enable-bsd-user'
+        make_tool='gmake'
         ;;
     *)
         echo "could not detect OS $(uname -s), aborting" >&2
@@ -136,6 +143,6 @@ set -x # Print commands from now on
     --disable-blobs \
     ${user_opts}
 
-time make -j"${job_count}" subdir-i386-softmmu 2>&1 | tee build.log
+time "${make_tool}" -j"${job_count}" subdir-i386-softmmu 2>&1 | tee build.log
 
 ${postbuild} # call post build functions
