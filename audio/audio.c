@@ -639,9 +639,7 @@ int audio_pcm_sw_read (SWVoiceIn *sw, void *buf, int size)
         total += isamp;
     }
 
-    if (!(hw->ctl_caps & VOICE_VOLUME_CAP)) {
-        mixeng_volume (sw->buf, ret, &sw->vol);
-    }
+    mixeng_volume (sw->buf, ret, &sw->vol);
 
     sw->clip (buf, sw->buf, ret);
     sw->total_hw_samples_acquired += total;
@@ -726,9 +724,7 @@ int audio_pcm_sw_write (SWVoiceOut *sw, void *buf, int size)
     if (swlim) {
         sw->conv (sw->buf, buf, swlim);
 
-        if (!(sw->hw->ctl_caps & VOICE_VOLUME_CAP)) {
-            mixeng_volume (sw->buf, swlim, &sw->vol);
-        }
+        mixeng_volume (sw->buf, swlim, &sw->vol);
     }
 
     while (swlim) {
@@ -1616,10 +1612,6 @@ void AUD_set_volume_out (SWVoiceOut *sw, int mute, uint8_t lvol, uint8_t rvol)
         sw->vol.mute = mute;
         sw->vol.l = nominal_volume.l * lvol / 255;
         sw->vol.r = nominal_volume.r * rvol / 255;
-
-        if (hw->pcm_ops->ctl_out) {
-            hw->pcm_ops->ctl_out (hw, VOICE_VOLUME, sw);
-        }
     }
 }
 
@@ -1631,10 +1623,6 @@ void AUD_set_volume_in (SWVoiceIn *sw, int mute, uint8_t lvol, uint8_t rvol)
         sw->vol.mute = mute;
         sw->vol.l = nominal_volume.l * lvol / 255;
         sw->vol.r = nominal_volume.r * rvol / 255;
-
-        if (hw->pcm_ops->ctl_in) {
-            hw->pcm_ops->ctl_in (hw, VOICE_VOLUME, sw);
-        }
     }
 }
 

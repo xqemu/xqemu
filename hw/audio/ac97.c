@@ -174,8 +174,9 @@ enum {
     CAS      = 0x34
 };
 
-#define GET_BM(index) (((index) >> 4) & 3)
+#define GET_BM(index) (((index) >> 4) & 7)
 
+static void so_callback (void *opaque, int free);
 static void po_callback (void *opaque, int free);
 static void pi_callback (void *opaque, int avail);
 static void mc_callback (void *opaque, int avail);
@@ -259,6 +260,7 @@ static void update_sr (AC97LinkState *s, AC97BusMasterRegs *r, uint32_t new_sr)
 
 static void voice_set_active (AC97LinkState *s, int bm_index, int on)
 {
+printf("setting active 0x%X: %d\n", bm_index, on);
     switch (bm_index) {
     case PI_INDEX:
         AUD_set_active_in (s->voice_pi, on);
@@ -270,6 +272,10 @@ static void voice_set_active (AC97LinkState *s, int bm_index, int on)
 
     case MC_INDEX:
         AUD_set_active_in (s->voice_mc, on);
+        break;
+
+    case SO_INDEX:
+        AUD_set_active_out (s->voice_so, on);
         break;
 
     default:
@@ -291,6 +297,7 @@ static void reset_bm_regs (AC97LinkState *s, AC97BusMasterRegs *r)
     r->cr = r->cr & CR_DONT_CLEAR_MASK;
     r->bd_valid = 0;
 
+printf("bm_reset 0x%X\n", r - s->bm_regs);
     voice_set_active (s, r - s->bm_regs, 0);
     memset (s->silence, 0, sizeof (s->silence));
 }
@@ -333,6 +340,7 @@ static void open_voice (AC97LinkState *s, int index, int freq)
 
     if (freq > 0) {
         s->invalid_freq[index] = 0;
+printf("opening 0x%X\n", index);
         switch (index) {
         case PI_INDEX:
             s->voice_pi = AUD_open_in (
@@ -366,9 +374,22 @@ static void open_voice (AC97LinkState *s, int index, int freq)
                 &as
                 );
             break;
+
+        case SO_INDEX:
+            s->voice_so = AUD_open_out (
+                &s->card,
+                s->voice_so,
+                "ac97.so",
+                s,
+                so_callback,
+                &as
+                );
+            break;
+
         }
     }
     else {
+printf("closing 0x%X\n", index);
         s->invalid_freq[index] = freq;
         switch (index) {
         case PI_INDEX:
@@ -385,6 +406,11 @@ static void open_voice (AC97LinkState *s, int index, int freq)
             AUD_close_in (&s->card, s->voice_mc);
             s->voice_mc = NULL;
             break;
+
+        case SO_INDEX:
+            AUD_close_out (&s->card, s->voice_so);
+            s->voice_so = NULL;
+            break;
         }
     }
 }
@@ -400,6 +426,8 @@ static void reset_voices (AC97LinkState *s, uint8_t active[LAST_INDEX])
     freq = mixer_load (s, AC97_PCM_Front_DAC_Rate);
     open_voice (s, PO_INDEX, freq);
     AUD_set_active_out (s->voice_po, active[PO_INDEX]);
+    open_voice (s, SO_INDEX, freq);
+    AUD_set_active_out (s->voice_so, active[SO_INDEX]);
 
     freq = mixer_load (s, AC97_MIC_ADC_Rate);
     open_voice (s, MC_INDEX, freq);
@@ -434,6 +462,12 @@ static void update_combined_volume_out (AC97LinkState *s)
     rvol = (rvol * prvol) / 255;
 
     AUD_set_volume_out (s->voice_po, mute, lvol, rvol);
+
+    mute = 1;
+    lvol = 0;
+    rvol = 0;
+
+    AUD_set_volume_out (s->voice_so, mute, lvol, rvol);
 }
 
 static void update_volume_in (AC97LinkState *s)
@@ -517,6 +551,7 @@ static void mixer_reset (AC97LinkState *s)
     set_volume (s, AC97_PCM_Out_Volume_Mute, 0x8808);
     set_volume (s, AC97_Record_Gain_Mute, 0x8808);
 
+printf("reset voices\n");
     reset_voices (s, active);
 }
 
@@ -596,6 +631,7 @@ static void nam_writew (void *opaque, uint32_t addr, uint32_t val)
             mixer_store (s, AC97_PCM_LR_ADC_Rate,    0xbb80);
             open_voice (s, PI_INDEX, 48000);
             open_voice (s, PO_INDEX, 48000);
+            open_voice (s, SO_INDEX, 48000);
         }
         if (!(val & EACS_VRM)) {
             mixer_store (s, AC97_MIC_ADC_Rate, 0xbb80);
@@ -609,6 +645,7 @@ static void nam_writew (void *opaque, uint32_t addr, uint32_t val)
             mixer_store (s, index, val);
             dolog ("Set front DAC rate to %d\n", val);
             open_voice (s, PO_INDEX, val);
+            open_voice (s, SO_INDEX, val);
         }
         else {
             dolog ("Attempt to set front DAC rate to %d, "
@@ -845,6 +882,7 @@ static void nabm_writeb (void *opaque, uint32_t addr, uint32_t val)
         r = &s->bm_regs[GET_BM (index)];
         if (val & CR_RR) {
             reset_bm_regs (s, r);
+printf("reset 0x%X\n", GET_BM(index));
         }
         else {
             r->cr = val & CR_VALID_MASK;
@@ -933,7 +971,7 @@ static void nabm_writel (void *opaque, uint32_t addr, uint32_t val)
     }
 }
 
-static int write_audio (AC97LinkState *s, AC97BusMasterRegs *r,
+static int write_audio (AC97LinkState *s, int index, AC97BusMasterRegs *r,
                         int max, int *stop)
 {
     uint8_t tmpbuf[4096];
@@ -952,7 +990,14 @@ static int write_audio (AC97LinkState *s, AC97BusMasterRegs *r,
         int copied;
         to_copy = audio_MIN (temp, sizeof (tmpbuf));
         dma_memory_read (s->as, addr, tmpbuf, to_copy);
-        copied = AUD_write (s->voice_po, tmpbuf, to_copy);
+        switch (index) {
+        case PO_INDEX:
+            copied = AUD_write (s->voice_po, tmpbuf, to_copy);
+            break;
+        case SO_INDEX:
+            copied = AUD_write (s->voice_so, tmpbuf, to_copy);
+            break;
+        }
         dolog ("write_audio max=%x to_copy=%x copied=%x\n",
                max, to_copy, copied);
         if (!copied) {
@@ -978,7 +1023,7 @@ static int write_audio (AC97LinkState *s, AC97BusMasterRegs *r,
     return written;
 }
 
-static void write_bup (AC97LinkState *s, int elapsed)
+static void write_bup (AC97LinkState *s, int index, int elapsed)
 {
     dolog ("write_bup\n");
     if (!(s->bup_flag & BUP_SET)) {
@@ -998,7 +1043,15 @@ static void write_bup (AC97LinkState *s, int elapsed)
     while (elapsed) {
         int temp = audio_MIN (elapsed, sizeof (s->silence));
         while (temp) {
-            int copied = AUD_write (s->voice_po, s->silence, temp);
+            int copied;
+            switch (index) {
+            case PO_INDEX:
+              copied = AUD_write (s->voice_po, s->silence, temp);
+              break;
+            case SO_INDEX:
+              copied = AUD_write (s->voice_so, s->silence, temp);
+              break;
+            }
             if (!copied)
                 return;
             temp -= copied;
@@ -1057,7 +1110,8 @@ static void transfer_audio (AC97LinkState *s, int index, int elapsed)
         if (r->cr & CR_RPBM) {
             switch (index) {
             case PO_INDEX:
-                write_bup (s, elapsed);
+            case SO_INDEX:
+                write_bup (s, index, elapsed);
                 break;
             }
         }
@@ -1089,7 +1143,8 @@ static void transfer_audio (AC97LinkState *s, int index, int elapsed)
 
         switch (index) {
         case PO_INDEX:
-            temp = write_audio (s, r, elapsed, &stop);
+        case SO_INDEX:
+            temp = write_audio (s, index, r, elapsed, &stop);
             elapsed -= temp;
             r->picb -= (temp >> 1);
             break;
@@ -1112,9 +1167,11 @@ static void transfer_audio (AC97LinkState *s, int index, int elapsed)
             if (r->civ == r->lvi) {
                 dolog ("Underrun civ (%d) == lvi (%d)\n", r->civ, r->lvi);
 
-                new_sr |= SR_LVBCI | SR_DCH | SR_CELV;
+                //new_sr |= SR_LVBCI | SR_DCH | SR_CELV;
                 stop = 1;
                 s->bup_flag = (r->bd.ctl_len & BD_BUP) ? BUP_LAST : 0;
+
+                fetch_bd (s, r);
             }
             else {
                 r->civ = r->piv;
@@ -1142,6 +1199,11 @@ static void po_callback (void *opaque, int free)
     transfer_audio (opaque, PO_INDEX, free);
 }
 
+static void so_callback (void *opaque, int free)
+{
+    transfer_audio (opaque, SO_INDEX, free);
+}
+
 static int ac97_post_load (void *opaque, int version_id)
 {
     uint8_t active[LAST_INDEX];
@@ -1158,6 +1220,7 @@ static int ac97_post_load (void *opaque, int version_id)
     active[PI_INDEX] = !!(s->bm_regs[PI_INDEX].cr & CR_RPBM);
     active[PO_INDEX] = !!(s->bm_regs[PO_INDEX].cr & CR_RPBM);
     active[MC_INDEX] = !!(s->bm_regs[MC_INDEX].cr & CR_RPBM);
+    active[SO_INDEX] = !!(s->bm_regs[SO_INDEX].cr & CR_RPBM);
     reset_voices (s, active);
 
     s->bup_flag = 0;
@@ -1274,9 +1337,10 @@ static void ac97_on_reset (void *opaque)
 {
     AC97LinkState *s = opaque;
 
-    reset_bm_regs (s, &s->bm_regs[0]);
-    reset_bm_regs (s, &s->bm_regs[1]);
-    reset_bm_regs (s, &s->bm_regs[2]);
+    reset_bm_regs (s, &s->bm_regs[PI_INDEX]);
+    reset_bm_regs (s, &s->bm_regs[PO_INDEX]);
+    reset_bm_regs (s, &s->bm_regs[MC_INDEX]);
+    reset_bm_regs (s, &s->bm_regs[SO_INDEX]);
 
     /*
      * Reset the mixer too. The Windows XP driver seems to rely on

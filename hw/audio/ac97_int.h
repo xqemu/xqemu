@@ -64,6 +64,7 @@ typedef struct AC97LinkState {
     SWVoiceIn *voice_pi;
     SWVoiceOut *voice_po;
     SWVoiceIn *voice_mc;
+    SWVoiceOut *voice_so;
     int invalid_freq[LAST_INDEX];
     uint8_t silence[128];
     int bup_flag;
