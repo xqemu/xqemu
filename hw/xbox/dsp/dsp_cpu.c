@@ -133,7 +133,7 @@ static const int registers_mask[64] = {
 
     0, 0, 0, 0,
     0, 0, 0, 0,
-    0, 16, 8, 6,
+    0, 24, 8, 6,
     16, 16, 16, 16
 };
 
@@ -393,6 +393,7 @@ void dsp56k_reset_cpu(dsp_core_t* dsp)
     for (i=0;i<8;i++) {
         dsp->registers[DSP_REG_M0+i]=0x00ffff;
     }
+    dsp->registers[DSP_REG_SR]=0xC00300;
 
     /* Interruptions */
     memset(dsp->interrupt_is_pending, 0, sizeof(dsp->interrupt_is_pending));
@@ -503,6 +504,7 @@ static void disasm_reg_compare(dsp_core_t* dsp)
             case DSP_REG_X1:
             case DSP_REG_Y0:
             case DSP_REG_Y1:
+            case DSP_REG_SR:
                 printf("\tReg: %s  $%06x -> $%06x\n",
                     registers_name[i], dsp->disasm_registers_save[i], dsp->registers[i]);
                 break;
@@ -530,7 +532,6 @@ static void disasm_reg_compare(dsp_core_t* dsp)
             case DSP_REG_N5:
             case DSP_REG_N6:
             case DSP_REG_N7:
-            case DSP_REG_SR:
             case DSP_REG_LA:
             case DSP_REG_LC:
                 printf("\tReg: %s  $%04x -> $%04x\n",
@@ -819,7 +820,7 @@ static void dsp_postexecute_interrupts(dsp_core_t* dsp)
                 if ( ((instr & 0xfff000) == 0x0d0000) || ((instr & 0xffc0ff) == 0x0bc080) ) {
                     dsp->interrupt_state = DSP_INTERRUPT_LONG;
                     dsp_stack_push(dsp, dsp->interrupt_save_pc, dsp->registers[DSP_REG_SR], 0); 
-                    dsp->registers[DSP_REG_SR] &= BITMASK(16)-((1<<DSP_SR_LF)|(1<<DSP_SR_T)  |
+                    emu_clear_sr_flags(dsp, (1<<DSP_SR_LF)|(1<<DSP_SR_T)  |
                                             (1<<DSP_SR_S1)|(1<<DSP_SR_S0) |
                                             (1<<DSP_SR_I0)|(1<<DSP_SR_I1));
                     dsp->registers[DSP_REG_SR] |= dsp->interrupt_ipl_to_raise<<DSP_SR_I0;
@@ -833,7 +834,7 @@ static void dsp_postexecute_interrupts(dsp_core_t* dsp)
                     if ( ((instr & 0xfff000) == 0x0d0000) || ((instr & 0xffc0ff) == 0x0bc080) ) {
                         dsp->interrupt_state = DSP_INTERRUPT_LONG;
                         dsp_stack_push(dsp, dsp->interrupt_save_pc, dsp->registers[DSP_REG_SR], 0); 
-                        dsp->registers[DSP_REG_SR] &= BITMASK(16)-((1<<DSP_SR_LF)|(1<<DSP_SR_T)  |
+                        emu_clear_sr_flags(dsp, (1<<DSP_SR_LF)|(1<<DSP_SR_T)  |
                                                 (1<<DSP_SR_S1)|(1<<DSP_SR_S0) |
                                                 (1<<DSP_SR_I0)|(1<<DSP_SR_I1));
                         dsp->registers[DSP_REG_SR] |= dsp->interrupt_ipl_to_raise<<DSP_SR_I0;
@@ -1081,7 +1082,14 @@ static void dsp_write_reg(dsp_core_t* dsp, uint32_t numreg, uint32_t value)
             dsp->registers[DSP_REG_OMR] = value & 0xc7;
             break;
         case DSP_REG_SR:
-            dsp->registers[DSP_REG_SR] = value & 0xaf7f;
+
+            /* Check for unhandled bits */
+            assert((value & (1 << 7)) == 0); /* Scaling */
+            assert((value & (1 << 12)) == 0); /* Reserved */
+            assert((value & (1 << 14)) == 0); /* Double-Precision */
+            assert((value & 0xFF0000) == 0xC00000); /* EMR */
+
+            dsp->registers[DSP_REG_SR] = value & BITMASK(registers_mask[DSP_REG_SR]);
             break;
         case DSP_REG_SP:
             stack_error = dsp->registers[DSP_REG_SP] & (3<<DSP_SP_SE);
