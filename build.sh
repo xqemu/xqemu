@@ -47,7 +47,6 @@ case "$(uname -s)" in # adjust compilation option based on platform
         ;;
     Darwin)
         echo 'Compiling for MacOS…'
-        sys_cflags='-march=native'
         sys_opts='--disable-cocoa'
         # necessary to find libffi, which is required by gobject
         export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}/usr/local/opt/libffi/lib/pkgconfig"
